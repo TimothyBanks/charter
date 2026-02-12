@@ -1,3 +1,6 @@
 [submodule "third_party/cometbft"]
 	path = third_party/cometbft
 	url = https://github.com/cometbft/cometbft.git
+[submodule "third_party/gogoproto"]
+	path = third_party/gogoproto
+	url = https://github.com/cosmos/gogoproto.git

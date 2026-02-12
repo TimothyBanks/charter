@@ -123,27 +123,45 @@ if(NOT utf8_range_FOUND)
   find_package(utf8_range REQUIRED)
 endif()
 
-function(generate_proto TARGET_NAME PROTO_FILES)
+include_directories(
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/proto
+    ${Boost_INCLUDE_DIRS}
+)
+
+function(generate_proto TARGET_NAME)
+  set(PROTO_FILES ${ARGN})
+  set(OUT_DIR "${CMAKE_CURRENT_LIST_DIR}/proto")
+  file(MAKE_DIRECTORY "${OUT_DIR}")
+
+  set(PROTO_IMPORT_DIRS
+    "${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto"
+    "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto"
+    "${Protobuf_PROTOC_INCLUDE_DIR}"
+  )
+
   add_library(${TARGET_NAME} OBJECT ${PROTO_FILES})
-  target_include_directories(${TARGET_NAME} PUBLIC ${PROTO_BINARY_DIR})
+  target_include_directories(${TARGET_NAME} PUBLIC ${OUT_DIR})
 
   protobuf_generate(
     TARGET ${TARGET_NAME}
     IMPORT_DIRS ${PROTO_IMPORT_DIRS}
-    PROTOC_OUT_DIR "${PROTO_BINARY_DIR}"
+    PROTOC_OUT_DIR "${OUT_DIR}"
   )
 
   protobuf_generate(
     TARGET ${TARGET_NAME}
     LANGUAGE grpc
-    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cpp
-    PLUGIN "protoc-gen-grpc=\$<TARGET_FILE:gRPC:grpc_cpp_plugin>"
+    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
+    PLUGIN "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
     IMPORT_DIRS ${PROTO_IMPORT_DIRS}
-    PROTOC_OUT_DIR "${PROTO_BINARY_DIR}"
+    PROTOC_OUT_DIR "${OUT_DIR}"
   )
 
   target_link_libraries(${TARGET_NAME}
-    PUBLIC_HEADER 
+    PUBLIC
       coverage_config
       protobuf::libprotobuf
       gRPC::grpc
@@ -153,14 +171,34 @@ function(generate_proto TARGET_NAME PROTO_FILES)
   )
 endfunction()
 
-# generate_proto(abci-proto "somefile.proto")
+generate_proto(gogo-proto "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto/gogoproto/gogo.proto")
 
-include_directories(
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/include
-    ${CMAKE_CURRENT_LIST_DIR}/src
-    ${Boost_INCLUDE_DIRS}
-)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/abci/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/blocksync/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/consensus/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/consensus/wal.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/keys.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/proof.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/libs/bits/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/mempool/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/p2p/conn.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/p2p/pex.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/p2p/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/privval/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/rpc/grpc/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/state/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/statesync/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/store/types.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/block.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/canonical.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/events.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/evidence.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/params.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/types.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/validator.proto)
+# list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/version/types.proto)
+message(STATUS ${ABCI_PROTO_FILES})
+generate_proto(abci-proto ${ABCI_PROTO_FILES})
 
 add_executable(charter src/main.cpp)
 target_link_libraries(charter
