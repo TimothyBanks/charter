@@ -200,7 +200,22 @@ list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/prot
 message(STATUS ${ABCI_PROTO_FILES})
 generate_proto(abci-proto ${ABCI_PROTO_FILES})
 
-add_executable(charter src/main.cpp)
+add_executable(charter src/main.cpp src/abci/server.cpp)
 target_link_libraries(charter
-    coverage_config
+    PRIVATE
+        coverage_config
+        abci-proto
+        gogo-proto
+        protobuf::libprotobuf
+        gRPC::grpc
+        gRPC::grpc++
+        gRPC::grpc++_reflection
+        utf8_range::utf8_range
+        utf8_range::utf8_validity
+        ${boost_LIBRARIES}
+        ${SPD_LIBS}
+)
+add_dependencies(charter 
+    abci-proto
+    gogo-proto
 )
