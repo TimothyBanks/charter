@@ -85,7 +85,7 @@ if(WITH_COVERAGE)
 endif()
 
 if(NOT Boost_FOUND)
-  find_package(Boost 1.90.0 REQUIRED)
+  find_package(Boost 1.90.0 REQUIRED COMPONENTS program_options)
 endif()
 
 if(WITH_TESTS AND NOT GTest_FOUND)
@@ -96,7 +96,7 @@ if(NOT TARGET spdlog)
   find_package(spdlog REQUIRED)
 endif()
 
-if(NOT Protobuf_BOUND)
+if(NOT Protobuf_FOUND)
   find_package(Protobuf REQUIRED)
 endif()
 
@@ -133,10 +133,11 @@ include_directories(
 
 function(generate_proto TARGET_NAME)
   set(PROTO_FILES ${ARGN})
-  set(OUT_DIR "${CMAKE_CURRENT_LIST_DIR}/proto")
+  set(OUT_DIR "${CMAKE_CURRENT_LIST_DIR}/proto/")
   file(MAKE_DIRECTORY "${OUT_DIR}")
 
   set(PROTO_IMPORT_DIRS
+    "${CMAKE_CURRENT_LIST_DIR}/include/charter/abci"
     "${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto"
     "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto"
     "${Protobuf_PROTOC_INCLUDE_DIR}"
@@ -171,7 +172,8 @@ function(generate_proto TARGET_NAME)
   )
 endfunction()
 
-generate_proto(gogo-proto "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto/gogoproto/gogo.proto")
+generate_proto(health_check "${CMAKE_CURRENT_LIST_DIR}/include/charter/abci/health/health.proto")
+generate_proto(gogo_proto "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto/gogoproto/gogo.proto")
 
 list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/abci/types.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/blocksync/types.proto)
@@ -198,24 +200,27 @@ list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/prot
 list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/validator.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/version/types.proto)
 message(STATUS ${ABCI_PROTO_FILES})
-generate_proto(abci-proto ${ABCI_PROTO_FILES})
+generate_proto(abci_proto ${ABCI_PROTO_FILES})
 
 add_executable(charter src/main.cpp src/abci/server.cpp)
 target_link_libraries(charter
     PRIVATE
         coverage_config
-        abci-proto
-        gogo-proto
+        abci_proto
+        gogo_proto
+        health_check
         protobuf::libprotobuf
         gRPC::grpc
         gRPC::grpc++
         gRPC::grpc++_reflection
         utf8_range::utf8_range
         utf8_range::utf8_validity
-        ${boost_LIBRARIES}
+        ${Boost_LIBRARIES}
         ${SPD_LIBS}
 )
+
 add_dependencies(charter 
-    abci-proto
-    gogo-proto
+    abci_proto
+    gogo_proto
+    health_check
 )
