@@ -219,6 +219,8 @@ target_link_libraries(charter
         ${SPD_LIBS}
 )
 
+target_compile_definitions(charter PRIVATE SPDLOG_USE_STD_FORMAT)
+
 add_dependencies(charter 
     abci_proto
     gogo_proto
