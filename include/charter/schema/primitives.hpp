@@ -3,6 +3,8 @@
 #include <boost/endian/buffers.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cstdint>
+#include <scale/decoder.hpp>
+#include <scale/encoder.hpp>
 #include <variant>
 #include <vector>
 
@@ -28,5 +30,17 @@ using signature_t = std::variant<ed25519_signature_t, secp256k1_signature_t>;
 
 using vault_t = std::pair<hash32_t, hash32_t>;  // workspace id, vault id
 using policy_scope_t = std::variant<hash32_t, vault_t>;  // workspace id, vault
+
+void encode(public_key_t&& o, scale::Encoder& encoder);
+void decode(public_key_t&& o, scale::Decoder& decoder); 
+
+void encode(signature_t&& o, scale::Encoder& encoder);
+void decode(signature_t&& o, scale::Decoder& decoder);  
+
+void encode(vault_t&& o, scale::Encoder& encoder);
+void decode(vault_t&& o, scale::Decoder& decoder);   
+
+void encode(policy_scope_t&& o, scale::Encoder& encoder);
+void decode(policy_scope_t&& o, scale::Decoder& decoder); 
 
 }  // namespace charter::schema
