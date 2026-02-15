@@ -5,7 +5,7 @@
 
 namespace charter::schema::encoding::scale {
 
-void encode(create_workspace<1>&& o, ::scale::Encoder& encoder);
-void decode(create_workspace<1>&& o, ::scale::Decoder& decoder);
+void encode(create_workspace<1> &&o, ::scale::Encoder &encoder);
+void decode(create_workspace<1> &&o, ::scale::Decoder &decoder);
 
-}  // namespace charter::schema::encoding::scale
+} // namespace charter::schema::encoding::scale

@@ -176,11 +176,13 @@ generate_proto(health_check "${CMAKE_CURRENT_LIST_DIR}/include/charter/abci/heal
 generate_proto(gogo_proto "${CMAKE_CURRENT_LIST_DIR}/third_party/gogoproto/gogoproto/gogo.proto")
 
 list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/abci/types.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/keys.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/proof.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/params.proto)
+list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/validator.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/blocksync/types.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/consensus/types.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/consensus/wal.proto)
-list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/keys.proto)
-list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/crypto/proof.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/libs/bits/types.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/mempool/types.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/p2p/conn.proto)
@@ -195,14 +197,39 @@ list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/prot
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/canonical.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/events.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/evidence.proto)
-list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/params.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/types.proto)
-list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/types/validator.proto)
 # list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/proto/tendermint/version/types.proto)
 message(STATUS ${ABCI_PROTO_FILES})
 generate_proto(abci_proto ${ABCI_PROTO_FILES})
 
-add_executable(charter src/main.cpp src/abci/server.cpp)
+add_executable(charter 
+  src/main.cpp 
+  src/abci/server.cpp
+  src/schema/encoding/scale/activate_policy_set.cpp
+  src/schema/encoding/scale/active_policy_pointer.cpp
+  src/schema/encoding/scale/approval_rule.cpp
+  src/schema/encoding/scale/approval_state.cpp
+  src/schema/encoding/scale/approval_intent.cpp
+  src/schema/encoding/scale/attestation_record.cpp
+  src/schema/encoding/scale/cancel_intent.cpp
+  src/schema/encoding/scale/claim_requirement.cpp
+  src/schema/encoding/scale/create_policy_set.cpp
+  src/schema/encoding/scale/create_vault.cpp
+  src/schema/encoding/scale/create_workspace.cpp
+  src/schema/encoding/scale/destination_rule.cpp
+  src/schema/encoding/scale/execute_intent.cpp
+  src/schema/encoding/scale/intent_state.cpp
+  src/schema/encoding/scale/limit_rule.cpp
+  src/schema/encoding/scale/policy_rule.cpp
+  src/schema/encoding/scale/policy_set.cpp
+  src/schema/encoding/scale/propose_intent.cpp
+  src/schema/encoding/scale/revoke_attestation.cpp
+  src/schema/encoding/scale/time_lock_rule.cpp
+  src/schema/encoding/scale/transaction.cpp
+  src/schema/encoding/scale/transfer_parameters.cpp
+  src/schema/encoding/scale/upsert_attestation.cpp
+  src/schema/encoding/scale/upsert_destination.cpp
+)
 target_link_libraries(charter
     PRIVATE
         coverage_config

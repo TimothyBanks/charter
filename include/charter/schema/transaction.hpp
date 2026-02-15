@@ -15,23 +15,16 @@
 
 namespace charter::schema {
 
-using transaction_payload_t = std::variant<activate_policy_set_t,
-                                           approve_intent_t,
-                                           cancel_intent_t,
-                                           create_policy_set_t,
-                                           create_workspace_t,
-                                           create_vault_t,
-                                           execute_intent_t,
-                                           propose_intent_t,
-                                           revoke_attestation_t,
-                                           upsert_attestation_t>;
+using transaction_payload_t =
+    std::variant<activate_policy_set_t, approve_intent_t, cancel_intent_t,
+                 create_policy_set_t, create_workspace_t, create_vault_t,
+                 execute_intent_t, propose_intent_t, revoke_attestation_t,
+                 upsert_attestation_t>;
 
-template <uint16_t Version>
-struct transaction;
+template <uint16_t Version> struct transaction;
 
-template <>
-struct transaction<1> final {
-  const uint16_t version{1};
+template <> struct transaction<1> final {
+  uint16_t version{1};
   hash32_t chain_id{};
   uint64_t nonce{};
   public_key_t signer{};
@@ -41,4 +34,4 @@ struct transaction<1> final {
 
 using transaction_t = transaction<1>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

@@ -1,3 +1,28 @@
-#include <charter/schema/primitives.hpp>
+#include <charter/schema/encoding/scale/approval_rule.hpp>
+#include <charter/schema/encoding/scale/destiniation_rule.hpp>
+#include <charter/schema/encoding/scale/limit_rule.hpp>
+#include <charter/schema/encoding/scale/policy_rule.hpp>
+#include <charter/schema/encoding/scale/time_lock_rule.hpp>
 
 using namespace charter::schema;
+using namespace charter::schema::encoding::scale;
+
+void encode(policy_rule<1> &&o, ::scale::Encoder &encoder) {
+  encode(o.version, encoder);
+  encode(o.operation, encoder);
+  encode(o.approvals, encoder);
+  encode(o.limits, encoder);
+  encode(o.time_locks, encoder);
+  encode(o.destination_rules, encoder);
+  encode(o.reqired_claims, encoder);
+}
+
+void decode(policy_rule<1> &&o, ::scale::Decoder &decoder) {
+  decode(o.version, decoder);
+  decode(o.operation, decoder);
+  decode(o.approvals, decoder);
+  decode(o.limits, decoder);
+  decode(o.time_locks, decoder);
+  decode(o.destination_rules, decoder);
+  decode(o.reqired_claims, decoder);
+}

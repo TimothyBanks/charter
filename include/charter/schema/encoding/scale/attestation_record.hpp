@@ -5,7 +5,7 @@
 
 namespace charter::schema::encoding::scale {
 
-void encode(attestation_record<1>&& o, ::scale::Encoder& encoder);
-void decode(attestation_record<1>&& o, ::scale::Decoder& decoder);
+void encode(attestation_record<1> &&o, ::scale::Encoder &encoder);
+void decode(attestation_record<1> &&o, ::scale::Decoder &decoder);
 
-}  // namespace charter::schema::encoding::scale
+} // namespace charter::schema::encoding::scale

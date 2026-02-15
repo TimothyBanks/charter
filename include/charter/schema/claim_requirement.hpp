@@ -6,18 +6,16 @@
 
 namespace charter::schema {
 
-template <uint16_t Version>
-struct claim_requirement;
+template <uint16_t Version> struct claim_requirement;
 
-template <>
-struct claim_requirement<1> final {
-  const uint16_t version{1};
+template <> struct claim_requirement<1> final {
+  uint16_t version{1};
   claim_type_t claim;
   std::optional<timestamp_milliseconds_t> minimum_valid_until;
   std::optional<std::vector<public_key_t>>
-      trusted_issuers;  // must be sorted if present.
+      trusted_issuers; // must be sorted if present.
 };
 
 using claim_requirement_t = claim_requirement<1>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

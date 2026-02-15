@@ -14,4 +14,4 @@ enum class chain_type : uint16_t {
 // bytes - user defined identifier
 using chain_type_t = std::variant<chain_type, bytes_t>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

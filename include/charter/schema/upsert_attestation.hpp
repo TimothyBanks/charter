@@ -5,12 +5,10 @@
 
 namespace charter::schema {
 
-template <uint16_t Version>
-struct upsert_attestation;
+template <uint16_t Version> struct upsert_attestation;
 
-template <>
-struct upsert_attestation<1> final {
-  const uint16_t version{1};
+template <> struct upsert_attestation<1> final {
+  uint16_t version{1};
   hash32_t workspace_id;
   hash32_t subject;
   claim_type_t claim;
@@ -22,4 +20,4 @@ struct upsert_attestation<1> final {
 
 using upsert_attestation_t = upsert_attestation<1>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

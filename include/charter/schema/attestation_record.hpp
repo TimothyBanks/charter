@@ -7,12 +7,10 @@
 
 namespace charter::schema {
 
-template <uint16_t Version>
-struct attestation_record;
+template <uint16_t Version> struct attestation_record;
 
-template <>
-struct attestation_record<1> final {
-  const uint16_t version{1};
+template <> struct attestation_record<1> final {
+  uint16_t version{1};
   // workspace_id or vault_id or identity_id (you choose)
   hash32_t subject;
   claim_type_t claim;
@@ -26,4 +24,4 @@ struct attestation_record<1> final {
 
 using attestation_record_t = attestation_record<1>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

@@ -5,6 +5,6 @@
 
 namespace charter::schema::key::rocksdb {
 
-bytes_t make_key(const intent_status_t& o);
+bytes_t make_key(const intent_status_t &o);
 
-}  // namespace charter::schema::key::rocksdb
+} // namespace charter::schema::key::rocksdb

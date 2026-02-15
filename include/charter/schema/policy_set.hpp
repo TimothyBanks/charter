@@ -5,12 +5,10 @@
 
 namespace charter::schema {
 
-template <uint16_t Version>
-struct policy_set;
+template <uint16_t Version> struct policy_set;
 
-template <>
-struct policy_set<1> final {
-  const uint16_t version{1};
+template <> struct policy_set<1> final {
+  uint16_t version{1};
   hash32_t policy_set_id;
   policy_scope_t scope;
   uint16_t policy_version{1};
@@ -22,4 +20,4 @@ struct policy_set<1> final {
 
 using policy_set_t = policy_set<1>;
 
-}  // namespace charter::schema
+} // namespace charter::schema

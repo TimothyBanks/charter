@@ -5,7 +5,7 @@
 
 namespace charter::schema::encoding::scale {
 
-void encode(cancel_intent<1>&& o, ::scale::Encoder& encoder);
-void decode(cancel_intent<1>&& o, ::scale::Decoder& decoder);
+void encode(cancel_intent<1> &&o, ::scale::Encoder &encoder);
+void decode(cancel_intent<1> &&o, ::scale::Decoder &decoder);
 
-}  // namespace charter::schema::encoding::scale
+} // namespace charter::schema::encoding::scale

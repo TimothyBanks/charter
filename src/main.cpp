@@ -1,3 +1,5 @@
+#include <boost/program_options.hpp>
+#include <charter/abci/server.hpp>
 #include <csignal>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
@@ -7,20 +9,16 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <boost/program_options.hpp>
-#include <charter/abci/server.hpp>
 #include <string>
 
-std::atomic<bool>& shutdown_requested() {
-    static std::atomic<bool> requested{};
-    return requested;
+std::atomic<bool> &shutdown_requested() {
+  static std::atomic<bool> requested{};
+  return requested;
 }
 
-void signal_handler(int) {
-    shutdown_requested() = true;
-}
+void signal_handler(int) { shutdown_requested() = true; }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   std::signal(SIGINT, signal_handler);
 
   spdlog::init_thread_pool(8192, 1);
@@ -34,7 +32,7 @@ int main(int argc, char* argv[]) {
   auto logger = std::make_shared<spdlog::async_logger>(
       "main", spdlog::sinks_init_list{console_sink, file_sink},
       spdlog::thread_pool(),
-      spdlog::async_overflow_policy::block  // or overrun_oldest
+      spdlog::async_overflow_policy::block // or overrun_oldest
   );
 
   spdlog::set_default_logger(logger);
@@ -75,21 +73,22 @@ int main(int argc, char* argv[]) {
   auto grpc_builder = grpc::ServerBuilder();
   grpc_builder.AddListeningPort(grpc_port, grpc::InsecureServerCredentials());
   grpc_builder.RegisterService(&grpc_listener);
-  auto grpc_server = std::unique_ptr<grpc::Server>(grpc_builder.BuildAndStart());
+  auto grpc_server =
+      std::unique_ptr<grpc::Server>(grpc_builder.BuildAndStart());
   grpc_server->GetHealthCheckService()->SetServingStatus(false);
 
   auto threads = std::vector<std::thread>{};
   threads.emplace_back([&] { grpc_server->Wait(); });
   threads.emplace_back([&] {
     while (!shutdown_requested()) {
-        grpc_server->GetHealthCheckService()->SetServingStatus(true);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+      grpc_server->GetHealthCheckService()->SetServingStatus(true);
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     grpc_server->GetHealthCheckService()->SetServingStatus(false);
     grpc_server->Shutdown();
   });
 
-  for (auto& t : threads) {
+  for (auto &t : threads) {
     t.join();
   }
 
