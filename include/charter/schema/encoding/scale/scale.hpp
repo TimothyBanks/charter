@@ -15,7 +15,6 @@
 #include <charter/schema/encoding/scale/create_vault.hpp>
 #include <charter/schema/encoding/scale/create_workspace.hpp>
 #include <charter/schema/encoding/scale/destination_rule.hpp>
-#include <charter/schema/encoding/scale/destination_state.hpp>
 #include <charter/schema/encoding/scale/destination_type.hpp>
 #include <charter/schema/encoding/scale/execute_intent.hpp>
 #include <charter/schema/encoding/scale/intent_action.hpp>
@@ -25,7 +24,6 @@
 #include <charter/schema/encoding/scale/operation_type.hpp>
 #include <charter/schema/encoding/scale/policy_rule.hpp>
 #include <charter/schema/encoding/scale/policy_set.hpp>
-#include <charter/schema/encoding/scale/policy_set_state.hpp>
 #include <charter/schema/encoding/scale/primitives.hpp>
 #include <charter/schema/encoding/scale/propose_intent.hpp>
 #include <charter/schema/encoding/scale/revoke_attestation.hpp>

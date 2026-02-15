@@ -18,5 +18,6 @@ struct create_workspace<1> final {
 };
 
 using create_workspace_t = create_workspace<1>;
+using workspace_state_t = create_workspace<1>;
 
 }  // namespace charter::schema

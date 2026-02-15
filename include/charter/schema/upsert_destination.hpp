@@ -22,5 +22,6 @@ struct upsert_destination<1> final {
 };
 
 using upsert_destination_t = upsert_destination<1>;
+using destination_state_t = upsert_destination<1>;
 
 }  // namespace charter::schema

@@ -24,7 +24,6 @@ using transaction_payload_t = std::variant<activate_policy_set_t,
                                            execute_intent_t,
                                            propose_intent_t,
                                            revoke_attestation_t,
-                                           upsert_attestation_t,
                                            upsert_attestation_t>;
 
 template <uint16_t Version>

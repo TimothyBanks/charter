@@ -15,7 +15,6 @@
 #include <charter/schema/create_vault.hpp>
 #include <charter/schema/create_workspace.hpp>
 #include <charter/schema/destination_rule.hpp>
-#include <charter/schema/destination_state.hpp>
 #include <charter/schema/destination_type.hpp>
 #include <charter/schema/execute_intent.hpp>
 #include <charter/schema/intent_action.hpp>
@@ -25,7 +24,6 @@
 #include <charter/schema/operation_type.hpp>
 #include <charter/schema/policy_rule.hpp>
 #include <charter/schema/policy_set.hpp>
-#include <charter/schema/policy_set_state.hpp>
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/propose_intent.hpp>
 #include <charter/schema/revoke_attestation.hpp>

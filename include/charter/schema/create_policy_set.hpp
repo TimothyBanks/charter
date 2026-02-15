@@ -20,5 +20,6 @@ struct create_policy_set<1> final {
 };
 
 using create_policy_set_t = create_policy_set<1>;
+using policy_set_state_t = create_policy_set<1>;
 
 }  // namespace charter::schema

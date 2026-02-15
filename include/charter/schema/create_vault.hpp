@@ -18,5 +18,6 @@ struct create_vault<1> final {
 };
 
 using create_vault_t = create_vault<1>;
+using vault_state_t = create_vault<1>;
 
 }  // namespace charter::schema
