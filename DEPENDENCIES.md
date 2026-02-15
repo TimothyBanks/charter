@@ -120,3 +120,51 @@ $ cmake \
     ..
 $ make install -j8
 ```
+## SCALE codec
+```
+$ git clone --depth 1 --branch v2.0.2 https://github.com/qdrvm/scale-codec-cpp.git
+$ cd scale-codec-cpp
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```
+## gflags
+```
+$ git clone --depth 1 --branch v2.3.0 https://github.com/gflags/gflags.git
+$ cd gflags
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```
+## Rocksdb
+```
+$ git clone --depth 1 --branch v10.10.1 https://github.com/facebook/rocksdb.git
+$ cd rocksdb
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DWITH_TESTS=OFF \
+    -DWITH_BENCHMARK_TOOLS=OFF \
+    -DWITH_ALL_TESTS=OFF  \
+    ..
+$ make install -j8
+```

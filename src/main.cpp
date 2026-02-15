@@ -86,6 +86,7 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     grpc_server->GetHealthCheckService()->SetServingStatus(false);
+    grpc_server->Shutdown();
   });
 
   for (auto& t : threads) {
