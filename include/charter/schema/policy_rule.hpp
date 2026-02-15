@@ -7,10 +7,6 @@
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/time_lock_rule.hpp>
 #include <optional>
-#include "approval_rule.hpp"
-#include "claim_type.hpp"
-#include "destination_rule.hpp"
-#include "time_lock_rule.hpp"
 
 namespace charter::schema {
 

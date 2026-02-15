@@ -12,7 +12,6 @@
 #include <charter/schema/upsert_attestation.hpp>
 #include <charter/schema/upsert_destination.hpp>
 #include <variant>
-#include "primitives.hpp"
 
 namespace charter::schema {
 

@@ -3,7 +3,6 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 #include <vector>
-#include "primitives.hpp"
 
 namespace charter::schema {
 

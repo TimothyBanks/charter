@@ -2,7 +2,6 @@
 #include <charter/schema/policy_rule.hpp>
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/role_id.hpp>
-#include "policy_rule.hpp"
 
 namespace charter::schema {
 

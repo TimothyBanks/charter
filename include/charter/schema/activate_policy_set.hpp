@@ -1,8 +1,6 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
-#include "primitives.hpp"
-#include "transaction.hpp"
 namespace charter::schema {
 
 template <uint16_t Version>

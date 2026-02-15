@@ -2,7 +2,6 @@
 #include <charter/schema/intent_action.hpp>
 #include <charter/schema/primitives.hpp>
 #include <optional>
-#include "primitives.hpp"
 
 namespace charter::schema {
 

@@ -3,8 +3,6 @@
 #include <boost/endian/buffers.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cstdint>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
 #include <variant>
 #include <vector>
 

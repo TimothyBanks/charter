@@ -1,7 +1,6 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 #include <optional>
-#include "primitives.hpp"
 
 namespace charter::schema {
 

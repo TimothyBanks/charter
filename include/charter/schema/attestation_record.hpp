@@ -4,7 +4,6 @@
 #include <charter/schema/claim_type.hpp>
 #include <charter/schema/primitives.hpp>
 #include <optional>
-#include "primitives.hpp"
 
 namespace charter::schema {
 
