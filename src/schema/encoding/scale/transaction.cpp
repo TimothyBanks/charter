@@ -34,4 +34,4 @@ void decode(transaction<1> &&o, ::scale::Decoder &decoder) {
   decode(o.signature, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

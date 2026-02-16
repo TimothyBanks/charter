@@ -14,4 +14,4 @@ void decode(transfer_parameters<1> &&o, ::scale::Decoder &decoder) {
   decode(o.asset_id, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

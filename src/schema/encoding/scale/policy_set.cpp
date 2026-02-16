@@ -24,4 +24,4 @@ void decode(policy_set<1> &&o, ::scale::Decoder &decoder) {
   decode(o.rules, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

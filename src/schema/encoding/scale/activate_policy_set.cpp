@@ -18,4 +18,4 @@ void decode(activate_policy_set<1> &&o, ::scale::Decoder &decoder) {
   decode(o.policy_set_version, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

@@ -19,4 +19,4 @@ void decode(claim_requirement<1> &&o, ::scale::Decoder &decoder) {
   decode(o.trusted_issuers, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

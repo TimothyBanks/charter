@@ -16,4 +16,4 @@ void decode(limit_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.per_transaction_amount, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

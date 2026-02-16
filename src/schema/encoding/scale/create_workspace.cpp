@@ -20,4 +20,4 @@ void decode(create_workspace<1> &&o, ::scale::Decoder &decoder) {
   decode(o.metadata_ref, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

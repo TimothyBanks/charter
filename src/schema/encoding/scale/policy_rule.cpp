@@ -29,4 +29,4 @@ void decode(policy_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.reqired_claims, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

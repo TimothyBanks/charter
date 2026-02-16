@@ -16,4 +16,4 @@ void decode(active_policy_pointer<1> &&o, ::scale::Decoder &decoder) {
   decode(o.policy_set_version, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

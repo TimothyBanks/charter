@@ -27,4 +27,4 @@ void decode(upsert_destination<1> &&o, ::scale::Decoder &decoder) {
   decode(o.label, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

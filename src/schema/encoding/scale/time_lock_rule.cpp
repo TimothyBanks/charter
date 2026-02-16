@@ -16,4 +16,4 @@ void decode(time_lock_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.delay, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

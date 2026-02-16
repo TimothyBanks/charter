@@ -18,4 +18,4 @@ void decode(execute_intent<1> &&o, ::scale::Decoder &decoder) {
   decode(o.intent_id, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

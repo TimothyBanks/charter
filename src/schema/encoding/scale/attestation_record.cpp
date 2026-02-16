@@ -27,4 +27,4 @@ void decode(attestation_record<1> &&o, ::scale::Decoder &decoder) {
   decode(o.reference_hash, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

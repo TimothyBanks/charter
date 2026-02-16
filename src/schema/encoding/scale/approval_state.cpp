@@ -18,4 +18,4 @@ void decode(approval_state<1> &&o, ::scale::Decoder &decoder) {
   decode(o.signed_at, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

@@ -21,4 +21,4 @@ void decode(revoke_attestation<1> &&o, ::scale::Decoder &decoder) {
   decode(o.issuer, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

@@ -3,6 +3,7 @@
 
 namespace charter::schema::key::rocksdb {
 
-charter::schema::bytes_t make_key(const charter::schema::active_policy_pointer<1>& value);
+charter::schema::bytes_t
+make_key(const charter::schema::active_policy_pointer<1> &value);
 
 }

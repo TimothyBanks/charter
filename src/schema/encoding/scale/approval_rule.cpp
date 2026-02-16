@@ -20,4 +20,4 @@ void decode(approval_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.require_distinct_from_executor, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

@@ -14,4 +14,4 @@ void decode(destination_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.require_whitelisted, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

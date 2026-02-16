@@ -22,4 +22,4 @@ void decode(propose_intent<1> &&o, ::scale::Decoder &decoder) {
   decode(o.expires_at, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

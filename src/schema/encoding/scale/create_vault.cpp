@@ -20,4 +20,4 @@ void decode(create_vault<1> &&o, ::scale::Decoder &decoder) {
   decode(o.label, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale

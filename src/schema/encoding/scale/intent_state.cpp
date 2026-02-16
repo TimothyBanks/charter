@@ -42,4 +42,4 @@ void decode(intent_state<1> &&o, ::scale::Decoder &decoder) {
   decode(o.claim_requirements, decoder);
 }
 
-}
+} // namespace charter::schema::encoding::scale
