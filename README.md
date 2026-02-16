@@ -38,7 +38,7 @@ $ git submodule update --init --recursive
 $ cd charter
 $ mkdir build.debug
 $ cd build.debug
-$ cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local ..
+$ cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/your/prefix/path/ ..
 $ make
 ```
 ## clang-format
