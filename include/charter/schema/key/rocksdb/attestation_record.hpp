@@ -1,10 +1,8 @@
 #pragma once
-#include <charter/schema/approval_rule.hpp>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
+#include <charter/schema/attestation_record.hpp>
 
 namespace charter::schema::key::rocksdb {
+    
+charter::schema::bytes_t make_key(const charter::schema::attestation_record<1>& value);
 
-bytes_t make_key(const attestation_record<1> &o);
-
-} // namespace charter::schema::key::rocksdb
+}

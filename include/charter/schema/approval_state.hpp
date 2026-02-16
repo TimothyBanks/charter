@@ -9,7 +9,7 @@ template <uint16_t Version> struct approval_state;
 template <> struct approval_state<1> final {
   uint16_t version{1};
   hash32_t intent_id;
-  signer_id_t signer;
+  public_key_t signer;
   timestamp_milliseconds_t signed_at;
 };
 

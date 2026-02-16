@@ -1,7 +1,8 @@
 #include <charter/schema/encoding/scale/propose_intent.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(propose_intent<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -19,5 +20,6 @@ void decode(propose_intent<1> &&o, ::scale::Decoder &decoder) {
   decode(o.intent_id, decoder);
   decode(o.action, decoder);
   decode(o.expires_at, decoder);
-  decode(o.per_transaction_amount, decoder);
+}
+
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
+#include <cstdint>
 #include <variant>
 
 namespace charter::schema {

@@ -1,8 +1,10 @@
+#include <charter/schema/encoding/scale/claim_type.hpp>
 #include <charter/schema/encoding/scale/policy_rule.hpp>
 #include <charter/schema/encoding/scale/policy_set.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(policy_set<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -20,4 +22,6 @@ void decode(policy_set<1> &&o, ::scale::Decoder &decoder) {
   decode(o.policy_version, decoder);
   decode(o.roles, decoder);
   decode(o.rules, decoder);
+}
+
 }

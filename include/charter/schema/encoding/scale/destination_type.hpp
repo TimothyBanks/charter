@@ -1,11 +1,9 @@
-#pragma once
+#pragma once 
+
 #include <charter/schema/destination_type.hpp>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
+#include <scale/scale.hpp>
 
-namespace charter::schema::encoding::scale {
-
-void encode(destination_type_t &&o, ::scale::Encoder &encoder);
-void decode(destination_type_t &&o, ::scale::Decoder &decoder);
-
-} // namespace charter::schema::encoding::scale
+SCALE_DEFINE_ENUM_VALUE_LIST(charter::schema, destination_type_t,
+  charter::schema::destination_type_t::address,
+  charter::schema::destination_type_t::contract
+)

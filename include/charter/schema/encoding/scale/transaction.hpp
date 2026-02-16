@@ -1,11 +1,10 @@
 #pragma once
 #include <charter/schema/transaction.hpp>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
+#include <scale/scale.hpp>
 
 namespace charter::schema::encoding::scale {
 
-void encode(transaction<1> &&o, ::scale::Encoder &encoder);
-void decode(transaction<1> &&o, ::scale::Decoder &decoder);
+void encode(charter::schema::transaction<1> &&o, ::scale::Encoder &encoder);
+void decode(charter::schema::transaction<1> &&o, ::scale::Decoder &decoder);
 
 } // namespace charter::schema::encoding::scale

@@ -1,8 +1,10 @@
 #include <charter/schema/encoding/scale/claim_requirement.hpp>
+#include <charter/schema/encoding/scale/claim_type.hpp>
 #include <charter/schema/encoding/scale/intent_state.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(intent_state<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -38,4 +40,6 @@ void decode(intent_state<1> &&o, ::scale::Decoder &decoder) {
   decode(o.required_threshold, decoder);
   decode(o.approvals_count, decoder);
   decode(o.claim_requirements, decoder);
+}
+
 }

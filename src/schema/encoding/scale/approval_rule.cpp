@@ -1,7 +1,8 @@
 #include <charter/schema/encoding/scale/approval_rule.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(approval_rule<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -17,4 +18,6 @@ void decode(approval_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.threshold, decoder);
   decode(o.require_distinct_from_initiator, decoder);
   decode(o.require_distinct_from_executor, decoder);
+}
+
 }

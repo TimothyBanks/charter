@@ -1,7 +1,7 @@
 #pragma once
 #include <charter/schema/approval_rule.hpp>
 #include <charter/schema/claim_type.hpp>
-#include <charter/schema/destiniation_rule.hpp>
+#include <charter/schema/destination_rule.hpp>
 #include <charter/schema/limit_rule.hpp>
 #include <charter/schema/operation_type.hpp>
 #include <charter/schema/primitives.hpp>

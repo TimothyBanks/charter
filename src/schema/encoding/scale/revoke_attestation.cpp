@@ -1,7 +1,9 @@
+#include <charter/schema/encoding/scale/claim_type.hpp>
 #include <charter/schema/encoding/scale/revoke_attestation.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(revoke_attestation<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -17,4 +19,6 @@ void decode(revoke_attestation<1> &&o, ::scale::Decoder &decoder) {
   decode(o.subject, decoder);
   decode(o.claim, decoder);
   decode(o.issuer, decoder);
+}
+
 }

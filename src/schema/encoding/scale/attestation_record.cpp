@@ -2,7 +2,8 @@
 #include <charter/schema/encoding/scale/claim_type.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(attestation_record<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -24,4 +25,6 @@ void decode(attestation_record<1> &&o, ::scale::Decoder &decoder) {
   decode(o.expires_at, decoder);
   decode(o.status, decoder);
   decode(o.reference_hash, decoder);
+}
+
 }

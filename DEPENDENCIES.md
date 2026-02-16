@@ -135,6 +135,37 @@ $ cmake \
     ..
 $ make install -j8
 ```
+## qtils (dependency of SCALE)
+```
+$ git clone --depth 1 --branch v0.1.6 https://github.com/qdrvm/qtils.git
+$ cd qtils
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```
+## fmt
+```
+$ git clone --depth 1 --branch 12.1.0 https://github.com/fmtlib/fmt.git
+$ cd fmt
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DFMT_TEST=OFF \
+    ..
+$ make install -j8
+```
 ## gflags
 ```
 $ git clone --depth 1 --branch v2.3.0 https://github.com/gflags/gflags.git

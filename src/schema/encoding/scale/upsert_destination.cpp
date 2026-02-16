@@ -1,7 +1,9 @@
+#include <charter/schema/encoding/scale/chain.hpp>
 #include <charter/schema/encoding/scale/upsert_destination.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(upsert_destination<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -23,4 +25,6 @@ void decode(upsert_destination<1> &&o, ::scale::Decoder &decoder) {
   decode(o.address_or_contract, decoder);
   decode(o.enabled, decoder);
   decode(o.label, decoder);
+}
+
 }

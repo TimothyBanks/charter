@@ -205,11 +205,12 @@ generate_proto(abci_proto ${ABCI_PROTO_FILES})
 add_executable(charter 
   src/main.cpp 
   src/abci/server.cpp
+
   src/schema/encoding/scale/activate_policy_set.cpp
   src/schema/encoding/scale/active_policy_pointer.cpp
   src/schema/encoding/scale/approval_rule.cpp
   src/schema/encoding/scale/approval_state.cpp
-  src/schema/encoding/scale/approval_intent.cpp
+  src/schema/encoding/scale/approve_intent.cpp
   src/schema/encoding/scale/attestation_record.cpp
   src/schema/encoding/scale/cancel_intent.cpp
   src/schema/encoding/scale/claim_requirement.cpp
@@ -229,6 +230,16 @@ add_executable(charter
   src/schema/encoding/scale/transfer_parameters.cpp
   src/schema/encoding/scale/upsert_attestation.cpp
   src/schema/encoding/scale/upsert_destination.cpp
+
+  src/schema/key/rocksdb/active_policy_pointer.cpp
+  src/schema/key/rocksdb/approval_state.cpp
+  src/schema/key/rocksdb/attestation_record.cpp
+  src/schema/key/rocksdb/destination_state.cpp
+  src/schema/key/rocksdb/intent_state.cpp
+  src/schema/key/rocksdb/nonce_record.cpp
+  src/schema/key/rocksdb/policy_set_state.cpp
+  src/schema/key/rocksdb/vault_state.cpp
+  src/schema/key/rocksdb/workspace_state.cpp
 )
 target_link_libraries(charter
     PRIVATE

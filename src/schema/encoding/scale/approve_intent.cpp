@@ -1,7 +1,8 @@
 #include <charter/schema/encoding/scale/approve_intent.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(approve_intent<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -15,4 +16,6 @@ void decode(approve_intent<1> &&o, ::scale::Decoder &decoder) {
   decode(o.workspace_id, decoder);
   decode(o.vault_id, decoder);
   decode(o.intent_id, decoder);
+}
+
 }

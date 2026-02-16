@@ -1,7 +1,8 @@
 #include <charter/schema/encoding/scale/create_workspace.hpp>
 
 using namespace charter::schema;
-using namespace charter::schema::encoding::scale;
+
+namespace charter::schema::encoding::scale {
 
 void encode(create_workspace<1> &&o, ::scale::Encoder &encoder) {
   encode(o.version, encoder);
@@ -17,4 +18,6 @@ void decode(create_workspace<1> &&o, ::scale::Decoder &decoder) {
   decode(o.admin_set, decoder);
   decode(o.quorum_size, decoder);
   decode(o.metadata_ref, decoder);
+}
+
 }

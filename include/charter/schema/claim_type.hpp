@@ -1,5 +1,6 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
+#include <cstdint>
 
 namespace charter::schema {
 
@@ -11,6 +12,6 @@ enum class claim_type : uint16_t {
 };
 
 // hash32 - user defined claim type.
-using claim_type_t = std::variant<claim_type, hash32_t>
+using claim_type_t = std::variant<claim_type, hash32_t>;
 
 } // namespace charter::schema

@@ -1,10 +1,7 @@
 #pragma once
-#include <charter/schema/workspace_state.hpp>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
+#include <charter/schema/create_workspace.hpp>
 
 namespace charter::schema::key::rocksdb {
-
-bytes_t make_key(const workspace_state<1> &o);
-
-} // namespace charter::schema::key::rocksdb
+    
+charter::schema::bytes_t make_key(const charter::schema::create_workspace<1>& value);
+}

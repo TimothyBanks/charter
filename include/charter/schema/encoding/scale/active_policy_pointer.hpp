@@ -1,11 +1,10 @@
 #pragma once
-#include <charter/schema/activate_policy_pointer.hpp>
-#include <scale/decoder.hpp>
-#include <scale/encoder.hpp>
+#include <charter/schema/active_policy_pointer.hpp>
+#include <scale/scale.hpp>
 
 namespace charter::schema::encoding::scale {
 
-void encode(activate_policy_pointer<1> &&o, ::scale::Encoder &encoder);
-void decode(activate_policy_pointer<1> &&o, ::scale::Decoder &decoder);
+void encode(charter::schema::active_policy_pointer<1> &&o, ::scale::Encoder &encoder);
+void decode(charter::schema::active_policy_pointer<1> &&o, ::scale::Decoder &decoder);
 
 } // namespace charter::schema::encoding::scale
