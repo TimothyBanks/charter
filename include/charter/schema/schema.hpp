@@ -5,6 +5,9 @@
 #include <charter/schema/approval_rule.hpp>
 #include <charter/schema/approval_state.hpp>
 #include <charter/schema/approve_intent.hpp>
+#include <charter/schema/asset_kind.hpp>
+#include <charter/schema/asset_ref.hpp>
+#include <charter/schema/asset_state.hpp>
 #include <charter/schema/attestation_record.hpp>
 #include <charter/schema/attestation_status.hpp>
 #include <charter/schema/cancel_intent.hpp>
@@ -16,6 +19,7 @@
 #include <charter/schema/create_workspace.hpp>
 #include <charter/schema/destination_rule.hpp>
 #include <charter/schema/destination_type.hpp>
+#include <charter/schema/disable_asset.hpp>
 #include <charter/schema/execute_intent.hpp>
 #include <charter/schema/intent_action.hpp>
 #include <charter/schema/intent_state.hpp>

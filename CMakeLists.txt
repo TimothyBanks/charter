@@ -215,6 +215,8 @@ add_executable(charter
   src/schema/encoding/scale/approval_rule.cpp
   src/schema/encoding/scale/approval_state.cpp
   src/schema/encoding/scale/approve_intent.cpp
+  src/schema/encoding/scale/asset_ref.cpp
+  src/schema/encoding/scale/asset_state.cpp
   src/schema/encoding/scale/attestation_record.cpp
   src/schema/encoding/scale/cancel_intent.cpp
   src/schema/encoding/scale/claim_requirement.cpp
@@ -222,6 +224,7 @@ add_executable(charter
   src/schema/encoding/scale/create_vault.cpp
   src/schema/encoding/scale/create_workspace.cpp
   src/schema/encoding/scale/destination_rule.cpp
+  src/schema/encoding/scale/disable_asset.cpp
   src/schema/encoding/scale/execute_intent.cpp
   src/schema/encoding/scale/intent_state.cpp
   src/schema/encoding/scale/limit_rule.cpp
@@ -235,16 +238,10 @@ add_executable(charter
   src/schema/encoding/scale/upsert_attestation.cpp
   src/schema/encoding/scale/upsert_destination.cpp
 
-  src/schema/key/active_policy_pointer.cpp
-  src/schema/key/approval_state.cpp
-  src/schema/key/attestation_record.cpp
-  src/schema/key/builder.cpp
-  src/schema/key/destination_state.cpp
-  src/schema/key/intent_state.cpp
-  src/schema/key/nonce_record.cpp
-  src/schema/key/policy_set_state.cpp
-  src/schema/key/vault_state.cpp
-  src/schema/key/workspace_state.cpp
+  src/blake3/hash.cpp
+
+  src/data/rocksdb/store.cpp
+  src/execution/engine.cpp
 )
 target_link_libraries(charter
     PRIVATE

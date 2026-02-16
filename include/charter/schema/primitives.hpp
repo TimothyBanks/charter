@@ -16,17 +16,17 @@ using amount_t = boost::multiprecision::uint256_t;
 using timestamp_milliseconds_t = uint64_t;
 using duration_milliseconds_t = uint64_t;
 
-struct ed25519_signer_id_t final {
+struct ed25519_signer_id final {
   std::array<uint8_t, 32> public_key;
 };
 
-struct secp256k1_signer_id_t final {
+struct secp256k1_signer_id final {
   std::array<uint8_t, 33> public_key;
 };
 
 using named_signer_t = hash32_t;  // On chain identity reference
 using signer_id_t =
-    std::variant<ed25519_signer_id_t, secp256k1_signer_id_t, named_signer_t>;
+    std::variant<ed25519_signer_id, secp256k1_signer_id, named_signer_t>;
 
 using ed25519_signature_t = std::array<uint8_t, 64>;
 using secp256k1_signature_t = std::array<uint8_t, 65>;

@@ -10,6 +10,9 @@ struct encoder {
   charter::schema::bytes_t encode(const T& obj);
 
   template <typename T>
+  void encode(const T& obj, charter::schema::bytes_t& out);
+
+  template <typename T>
   T decode(const std::span<uint8_t>& bytes);
 };
 
