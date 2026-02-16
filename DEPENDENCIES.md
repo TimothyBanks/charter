@@ -1,3 +1,15 @@
+## CometBFT
+Installed as a submodule
+https://github.com/cometbft/cometbft.git
+## gogoproto
+Installed as a submodule
+https://github.com/cosmos/gogoproto.git
+## ConcordBFT
+Coming soon
+https://github.com/vmware/concord-bft.git
+## Hyperledger Iroha
+Coming soon
+https://github.com/hyperledger-iroha/iroha.git
 ## Boost Build
 ```
 $ git clone --branch boost-1.90.0 --depth 1 https://github.com/boostorg/boost.git
