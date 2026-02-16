@@ -7,7 +7,7 @@ template <typename Encoder>
 charter::schema::bytes_t make_key(
     Encoder& encoder,
     const charter::schema::create_workspace<1>& value) {
-  auto output = charter::schema::bytes_t{};
+  thread_local auto output = charter::schema::bytes_t{};
   encoder.encode("WORKSPACESTATE|", output);
   encoder.encode(value.workspace_id, output);
   return output;

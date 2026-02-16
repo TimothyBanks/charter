@@ -8,7 +8,7 @@ template <typename Encoder>
 charter::schema::bytes_t make_key(
     Encoder& encoder,
     const charter::schema::activate_policy_set<1>& value) {
-  auto output = charter::schema::bytes_t{};
+  thread_local auto output = charter::schema::bytes_t{};
   encoder.encode("ACTIVEPOLICYPTR|", output);
   encoder.encode(value.scope, output);
   encoder.encode("|", output);
