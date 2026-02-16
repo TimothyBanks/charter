@@ -214,3 +214,71 @@ $ cmake \
     ..
 $ make install -j8
 ```
+## libsodium
+```
+$ git clone --depth 1 --branch 1.0.21-RELEASE https://github.com/jedisct1/libsodium.git
+$ cd libsodium
+$ ./configure --prefix=/home/timothybanks/sandbox/usr/local
+$ make install -j8
+```
+## libsecp256k1
+```
+$ git clone --depth 1 --branch v0.7.1 https://github.com/bitcoin-core/secp256k1.git
+$ cd secp256k1
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DSECP256K1_BUILD_BENCHMARK=OFF \
+    -DSECP256K1_BUILD_TESTS=OFF \
+    -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF \
+    -DSECP256K1_BUILD_CTIME_TESTS=OFF \
+    ..
+$ make install -j8
+```
+## blst
+```
+$ git clone --depth 1 --branch v0.3.16 https://github.com/supranational/blst.git
+$ cd blst
+$ cd build
+$ ../build.sh 
+$ install -d "/home/timothybanks/sandbox/usr/local/lib" "/home/timothybanks/sandbox/usr/local/include" ; \
+  install -m 644 libblst.a "/home/timothybanks/sandbox/usr/local/lib/" ; \
+  install -m 644 ../bindings/blst.h "/home/timothybanks/sandbox/usr/local/include/" ; \
+  install -m 644 ../bindings/blst_aux.h "/home/timothybanks/sandbox/usr/local/include/" ; \
+  install -m 644 ../bindings/blst.hpp "/home/timothybanks/sandbox/usr/local/include/"
+```
+## zstd
+```
+$ git clone --depth 1 https://github.com/facebook/zstd.git
+$ cd zstd
+$ mkdir build.release
+$ cd build.release
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```
+## simdjson
+```
+$ git clone --depth 1 --branch v4.2.4 https://github.com/simdjson/simdjson.git
+$ cd simdjson
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```
