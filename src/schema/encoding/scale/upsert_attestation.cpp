@@ -5,7 +5,7 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(upsert_attestation<1> &&o, ::scale::Encoder &encoder) {
+void encode(upsert_attestation<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.workspace_id, encoder);
   encode(o.subject, encoder);
@@ -15,7 +15,7 @@ void encode(upsert_attestation<1> &&o, ::scale::Encoder &encoder) {
   encode(o.reference_hash, encoder);
 }
 
-void decode(upsert_attestation<1> &&o, ::scale::Decoder &decoder) {
+void decode(upsert_attestation<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.workspace_id, decoder);
   decode(o.subject, decoder);
@@ -25,4 +25,4 @@ void decode(upsert_attestation<1> &&o, ::scale::Decoder &decoder) {
   decode(o.reference_hash, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

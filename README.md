@@ -41,3 +41,7 @@ $ cd build.debug
 $ cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local ..
 $ make
 ```
+## clang-format
+```
+$ ./run-clang-format.sh include/ src/
+```

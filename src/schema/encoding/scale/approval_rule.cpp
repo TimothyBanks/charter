@@ -4,7 +4,7 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(approval_rule<1> &&o, ::scale::Encoder &encoder) {
+void encode(approval_rule<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.approver_role, encoder);
   encode(o.threshold, encoder);
@@ -12,7 +12,7 @@ void encode(approval_rule<1> &&o, ::scale::Encoder &encoder) {
   encode(o.require_distinct_from_executor, encoder);
 }
 
-void decode(approval_rule<1> &&o, ::scale::Decoder &decoder) {
+void decode(approval_rule<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.approver_role, decoder);
   decode(o.threshold, decoder);
@@ -20,4 +20,4 @@ void decode(approval_rule<1> &&o, ::scale::Decoder &decoder) {
   decode(o.require_distinct_from_executor, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

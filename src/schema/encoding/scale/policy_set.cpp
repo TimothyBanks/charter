@@ -6,7 +6,7 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(policy_set<1> &&o, ::scale::Encoder &encoder) {
+void encode(policy_set<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.policy_set_id, encoder);
   encode(o.scope, encoder);
@@ -15,7 +15,7 @@ void encode(policy_set<1> &&o, ::scale::Encoder &encoder) {
   encode(o.rules, encoder);
 }
 
-void decode(policy_set<1> &&o, ::scale::Decoder &decoder) {
+void decode(policy_set<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.policy_set_id, decoder);
   decode(o.scope, decoder);
@@ -24,4 +24,4 @@ void decode(policy_set<1> &&o, ::scale::Decoder &decoder) {
   decode(o.rules, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

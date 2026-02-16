@@ -3,9 +3,11 @@
 
 namespace charter::schema {
 
-template <uint16_t Version> struct active_policy_pointer;
+template <uint16_t Version>
+struct active_policy_pointer;
 
-template <> struct active_policy_pointer<1> final {
+template <>
+struct active_policy_pointer<1> final {
   uint16_t version{1};
   hash32_t policy_set_id;
   uint32_t policy_set_version;
@@ -13,4 +15,4 @@ template <> struct active_policy_pointer<1> final {
 
 using active_policy_pointer_t = active_policy_pointer<1>;
 
-} // namespace charter::schema
+}  // namespace charter::schema

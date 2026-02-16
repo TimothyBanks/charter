@@ -5,9 +5,11 @@
 
 namespace charter::schema {
 
-template <uint16_t Version> struct create_vault;
+template <uint16_t Version>
+struct create_vault;
 
-template <> struct create_vault<1> final {
+template <>
+struct create_vault<1> final {
   uint16_t version{1};
   hash32_t workspace_id;
   hash32_t vault_id;
@@ -18,4 +20,4 @@ template <> struct create_vault<1> final {
 using create_vault_t = create_vault<1>;
 using vault_state_t = create_vault<1>;
 
-} // namespace charter::schema
+}  // namespace charter::schema

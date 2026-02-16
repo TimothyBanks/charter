@@ -4,17 +4,21 @@
 #include <charter/schema/claim_type.hpp>
 #include <charter/schema/primitives.hpp>
 #include <optional>
+#include "primitives.hpp"
 
 namespace charter::schema {
 
-template <uint16_t Version> struct attestation_record;
+template <uint16_t Version>
+struct attestation_record;
 
-template <> struct attestation_record<1> final {
+template <>
+struct attestation_record<1> final {
   uint16_t version{1};
   // workspace_id or vault_id or identity_id (you choose)
+  hash32_t workspace_id;
   hash32_t subject;
   claim_type_t claim;
-  public_key_t issuer;
+  signer_id_t issuer;
   timestamp_milliseconds_t issued_at;
   timestamp_milliseconds_t expires_at;
   attestation_status_t status;
@@ -24,4 +28,4 @@ template <> struct attestation_record<1> final {
 
 using attestation_record_t = attestation_record<1>;
 
-} // namespace charter::schema
+}  // namespace charter::schema

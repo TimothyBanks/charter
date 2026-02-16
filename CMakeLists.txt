@@ -88,6 +88,10 @@ if(NOT Boost_FOUND)
   find_package(Boost 1.90.0 REQUIRED COMPONENTS program_options)
 endif()
 
+if(NOT blake3_FOUND)
+  find_package(blake3 REQUIRED)
+endif()
+
 if(WITH_TESTS AND NOT GTest_FOUND)
   find_package(GTest REQUIRED)
 endif()
@@ -231,15 +235,16 @@ add_executable(charter
   src/schema/encoding/scale/upsert_attestation.cpp
   src/schema/encoding/scale/upsert_destination.cpp
 
-  src/schema/key/rocksdb/active_policy_pointer.cpp
-  src/schema/key/rocksdb/approval_state.cpp
-  src/schema/key/rocksdb/attestation_record.cpp
-  src/schema/key/rocksdb/destination_state.cpp
-  src/schema/key/rocksdb/intent_state.cpp
-  src/schema/key/rocksdb/nonce_record.cpp
-  src/schema/key/rocksdb/policy_set_state.cpp
-  src/schema/key/rocksdb/vault_state.cpp
-  src/schema/key/rocksdb/workspace_state.cpp
+  src/schema/key/active_policy_pointer.cpp
+  src/schema/key/approval_state.cpp
+  src/schema/key/attestation_record.cpp
+  src/schema/key/builder.cpp
+  src/schema/key/destination_state.cpp
+  src/schema/key/intent_state.cpp
+  src/schema/key/nonce_record.cpp
+  src/schema/key/policy_set_state.cpp
+  src/schema/key/vault_state.cpp
+  src/schema/key/workspace_state.cpp
 )
 target_link_libraries(charter
     PRIVATE
@@ -248,6 +253,7 @@ target_link_libraries(charter
         gogo_proto
         health_check
         protobuf::libprotobuf
+        BLAKE3::blake3
         gRPC::grpc
         gRPC::grpc++
         gRPC::grpc++_reflection

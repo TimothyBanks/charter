@@ -4,7 +4,7 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(create_workspace<1> &&o, ::scale::Encoder &encoder) {
+void encode(create_workspace<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.workspace_id, encoder);
   encode(o.admin_set, encoder);
@@ -12,7 +12,7 @@ void encode(create_workspace<1> &&o, ::scale::Encoder &encoder) {
   encode(o.metadata_ref, encoder);
 }
 
-void decode(create_workspace<1> &&o, ::scale::Decoder &decoder) {
+void decode(create_workspace<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.workspace_id, decoder);
   decode(o.admin_set, decoder);
@@ -20,4 +20,4 @@ void decode(create_workspace<1> &&o, ::scale::Decoder &decoder) {
   decode(o.metadata_ref, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

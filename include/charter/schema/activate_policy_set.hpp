@@ -3,9 +3,11 @@
 
 namespace charter::schema {
 
-template <uint16_t Version> struct activate_policy_set;
+template <uint16_t Version>
+struct activate_policy_set;
 
-template <> struct activate_policy_set<1> final {
+template <>
+struct activate_policy_set<1> final {
   uint16_t version{1};
   policy_scope_t scope;
   hash32_t policy_set_id;
@@ -14,4 +16,4 @@ template <> struct activate_policy_set<1> final {
 
 using activate_policy_set_t = activate_policy_set<1>;
 
-} // namespace charter::schema
+}  // namespace charter::schema

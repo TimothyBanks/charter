@@ -5,9 +5,11 @@
 
 namespace charter::schema {
 
-template <uint16_t Version> struct propose_intent;
+template <uint16_t Version>
+struct propose_intent;
 
-template <> struct propose_intent<1> final {
+template <>
+struct propose_intent<1> final {
   uint16_t version{1};
   hash32_t workspace_id;
   hash32_t vault_id;
@@ -18,4 +20,4 @@ template <> struct propose_intent<1> final {
 
 using propose_intent_t = propose_intent<1>;
 
-} // namespace charter::schema
+}  // namespace charter::schema

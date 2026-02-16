@@ -199,3 +199,18 @@ $ cmake \
     ..
 $ make install -j8
 ```
+## blake3
+```
+$ git clone --depth 1 --branch 1.8.3 https://github.com/BLAKE3-team/BLAKE3.git
+$ cd BLAKE3/c
+$ mkdir build
+$ cd build
+$ cmake \
+    -DCMAKE_INSTALL_PREFIX=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_PREFIX_PATH=/home/timothybanks/sandbox/usr/local \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_STANDARD=23 \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    ..
+$ make install -j8
+```

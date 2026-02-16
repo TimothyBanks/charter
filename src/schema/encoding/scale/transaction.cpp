@@ -16,16 +16,17 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(transaction<1> &&o, ::scale::Encoder &encoder) {
+void encode(transaction<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.chain_id, encoder);
   encode(o.nonce, encoder);
   encode(o.signer, encoder);
   encode(o.payload, encoder);
+  //  TODO(tim): This should not be encoded for signing.
   encode(o.signature, encoder);
 }
 
-void decode(transaction<1> &&o, ::scale::Decoder &decoder) {
+void decode(transaction<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.chain_id, decoder);
   decode(o.nonce, decoder);
@@ -34,4 +35,4 @@ void decode(transaction<1> &&o, ::scale::Decoder &decoder) {
   decode(o.signature, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

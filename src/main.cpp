@@ -1,6 +1,3 @@
-#include <boost/program_options.hpp>
-#include <charter/abci/server.hpp>
-#include <csignal>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
@@ -9,16 +6,21 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <boost/program_options.hpp>
+#include <charter/abci/server.hpp>
+#include <csignal>
 #include <string>
 
-std::atomic<bool> &shutdown_requested() {
+std::atomic<bool>& shutdown_requested() {
   static std::atomic<bool> requested{};
   return requested;
 }
 
-void signal_handler(int) { shutdown_requested() = true; }
+void signal_handler(int) {
+  shutdown_requested() = true;
+}
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   std::signal(SIGINT, signal_handler);
 
   spdlog::init_thread_pool(8192, 1);
@@ -32,7 +34,7 @@ int main(int argc, char *argv[]) {
   auto logger = std::make_shared<spdlog::async_logger>(
       "main", spdlog::sinks_init_list{console_sink, file_sink},
       spdlog::thread_pool(),
-      spdlog::async_overflow_policy::block // or overrun_oldest
+      spdlog::async_overflow_policy::block  // or overrun_oldest
   );
 
   spdlog::set_default_logger(logger);
@@ -88,7 +90,7 @@ int main(int argc, char *argv[]) {
     grpc_server->Shutdown();
   });
 
-  for (auto &t : threads) {
+  for (auto& t : threads) {
     t.join();
   }
 

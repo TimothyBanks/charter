@@ -4,7 +4,7 @@ using namespace charter::schema;
 
 namespace charter::schema::encoding::scale {
 
-void encode(propose_intent<1> &&o, ::scale::Encoder &encoder) {
+void encode(propose_intent<1>&& o, ::scale::Encoder& encoder) {
   encode(o.version, encoder);
   encode(o.workspace_id, encoder);
   encode(o.vault_id, encoder);
@@ -13,7 +13,7 @@ void encode(propose_intent<1> &&o, ::scale::Encoder &encoder) {
   encode(o.expires_at, encoder);
 }
 
-void decode(propose_intent<1> &&o, ::scale::Decoder &decoder) {
+void decode(propose_intent<1>&& o, ::scale::Decoder& decoder) {
   decode(o.version, decoder);
   decode(o.workspace_id, decoder);
   decode(o.vault_id, decoder);
@@ -22,4 +22,4 @@ void decode(propose_intent<1> &&o, ::scale::Decoder &decoder) {
   decode(o.expires_at, decoder);
 }
 
-} // namespace charter::schema::encoding::scale
+}  // namespace charter::schema::encoding::scale

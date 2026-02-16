@@ -24,5 +24,5 @@ for dir in "$@"; do
   find "$dir" \
     -type d \( "${prune_args[@]}" \) -prune -o \
     -type f \( "${name_args[@]}" \) -print0 \
-  | xargs -0 clang-format -i
+  | xargs -0 clang-format --style=Chromium -i
 done
