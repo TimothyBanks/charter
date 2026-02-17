@@ -10,7 +10,7 @@ struct storage {
   std::optional<T> get(Encoder& encoder, const charter::schema::bytes_t& key);
 
   template <typename Encoder, typename T>
-  void put(Encoder& encoder, T value);
+  void put(Encoder& encoder, const T& value);
 };
 
 template <typename Library>

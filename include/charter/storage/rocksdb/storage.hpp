@@ -18,7 +18,7 @@ struct storage<rocksdb_storage_tag> final {
   std::optional<T> get(Encoder& encoder, const charter::schema::bytes_t& key);
 
   template <typename Encoder, typename T>
-  void put(Encoder& encoder, T value);
+  void put(Encoder& encoder, const T& value);
 };
 
 template <>
@@ -49,7 +49,7 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
 }
 
 template <typename Encoder, typename T>
-void storage<rocksdb_storage_tag>::put(Encoder& encoder, T value) {
+void storage<rocksdb_storage_tag>::put(Encoder& encoder, const T& value) {
   assert(database);
   auto encoded_value = encoder.encode(value);
   auto key_slice = ROCKSDB_NAMESPACE::Slice{
