@@ -88,6 +88,10 @@ if(NOT Boost_FOUND)
   find_package(Boost 1.90.0 REQUIRED COMPONENTS program_options)
 endif()
 
+if(NOT RocksDB_FOUND)
+  find_package(RocksDB CONFIG REQUIRED)
+endif() 
+
 if(NOT blake3_FOUND)
   find_package(blake3 REQUIRED)
 endif()
@@ -133,6 +137,7 @@ include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/src
     ${CMAKE_CURRENT_LIST_DIR}/proto
     ${Boost_INCLUDE_DIRS}
+    ${RocksDB_INCLUDE_DIRS}
 )
 
 function(generate_proto TARGET_NAME)
@@ -240,7 +245,7 @@ add_executable(charter
 
   src/blake3/hash.cpp
 
-  src/data/rocksdb/store.cpp
+  src/storage/rocksdb/storage.cpp
   src/execution/engine.cpp
 )
 target_link_libraries(charter
@@ -256,6 +261,7 @@ target_link_libraries(charter
         gRPC::grpc++_reflection
         utf8_range::utf8_range
         utf8_range::utf8_validity
+        RocksDB::rocksdb
         ${Boost_LIBRARIES}
         ${SPD_LIBS}
 )

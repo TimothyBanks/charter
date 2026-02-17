@@ -35,10 +35,12 @@
 #include <charter/schema/encoding/scale/vault_model.hpp>
 #include <scale/scale.hpp>
 
-namespace charter::charter::schema::encoding::scale {
+namespace charter::charter::schema::encoding {
+
+struct scale_encoder_tag {};
 
 template <>
-struct encoder<::scale::encoder> final {
+struct encoder<scale_encoder_tag> final {
   template <typename T>
   charter::schema::bytes_t encode(const T& obj);
 
@@ -49,29 +51,27 @@ struct encoder<::scale::encoder> final {
   T decode(const std::span<uint8_t>& bytes);
 };
 
-template <>
 template <typename T>
-charter::schema::bytes_t encoder<::scale::encoder>::encode(const T& obj) {
+charter::schema::bytes_t encoder<scale_encoder_tag>::encode(const T& obj) {
   auto encoder = ::scale::encoder{};
   encoder << obj;
   return encoder.data();
 }
 
-template <>
 template <typename T>
-void encoder<::scale::encoder>::encode(const T& obj,
-                                       charter::schema::bytes_t& out) {
+void encoder<scale_encoder_tag>::encode(const T& obj,
+                                        charter::schema::bytes_t& out) {
   auto encoder = ::scale::encoder{out};
   encoder << obj;
 }
 
 template <>
 template <typename T>
-T encoder<::scale::encoder>::decode(const std::span<uint8_t>& bytes) {
+T encoder<scale_encoder_tag>::decode(const std::span<uint8_t>& bytes) {
   auto decoder = ::scale::decoder{bytes};
   T obj;
   decoder >> obj;
   return obj;
 }
 
-}  // namespace charter::charter::schema::encoding::scale
+}  // namespace charter::charter::schema::encoding
