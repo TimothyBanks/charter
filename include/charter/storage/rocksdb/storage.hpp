@@ -30,11 +30,11 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
     Encoder& encoder,
     const charter::schema::bytes_t& key) {
   assert(database);
-  ROCKSDB_NAMESPACE::Slice key_slice(reinterpret_cast<const char*>(key.data()),
-                                     key.size());
-  std::string value;
-  ROCKSDB_NAMESPACE::Status status =
-      database->Get(ROCKSDB_NAMESPACE::ReadOptions(), key_slice, &value);
+  auto key_slice = ROCKSDB_NAMESPACE::Slice{reinterpret_cast<const char*>(key.data()),
+                                     key.size()};
+  auto value = std::string{};
+  auto status =
+      database->Get(ROCKSDB_NAMESPACE::ReadOptions{}, key_slice, &value);
   if (!status.ok()) {
     if (status.IsNotFound()) {
       spdlog::info("Key not found in RocksDB");
@@ -44,19 +44,19 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
       throw std::runtime_error("Failed to get value from RocksDB");
     }
   }
-  return {encoder.template decode<T>(std::span<const uint8_t>(
-      reinterpret_cast<const uint8_t*>(value.data()), value.size()))};
+  return {encoder.template decode<T>(std::span<const uint8_t>{
+      reinterpret_cast<const uint8_t*>(value.data()), value.size()})};
 }
 
 template <typename Encoder, typename T>
 void storage<rocksdb_storage_tag>::put(Encoder& encoder, T value) {
   assert(database);
   auto encoded_value = encoder.encode(value);
-  ROCKSDB_NAMESPACE::Slice key_slice(
+  auto key_slice = ROCKSDB_NAMESPACE::Slice{
       reinterpret_cast<const char*>(encoded_value.data()),
-      encoded_value.size());
-  ROCKSDB_NAMESPACE::Status status = database->Put(
-      ROCKSDB_NAMESPACE::WriteOptions(), key_slice, ROCKSDB_NAMESPACE::Slice());
+      encoded_value.size()};
+  auto status = database->Put(
+      ROCKSDB_NAMESPACE::WriteOptions{}, key_slice, ROCKSDB_NAMESPACE::Slice{});
   if (!status.ok()) {
     spdlog::error("Failed to put value into RocksDB: {}", status.ToString());
     throw std::runtime_error("Failed to put value into RocksDB");
