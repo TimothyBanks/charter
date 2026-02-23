@@ -235,6 +235,7 @@ add_executable(charter
   src/schema/encoding/scale/limit_rule.cpp
   src/schema/encoding/scale/policy_rule.cpp
   src/schema/encoding/scale/policy_set.cpp
+  src/schema/encoding/scale/primitives.cpp
   src/schema/encoding/scale/propose_intent.cpp
   src/schema/encoding/scale/revoke_attestation.cpp
   src/schema/encoding/scale/time_lock_rule.cpp

@@ -1,5 +1,3 @@
 #pragma once
 
-namespace charter::execution {
-
-}
+namespace charter::execution {}

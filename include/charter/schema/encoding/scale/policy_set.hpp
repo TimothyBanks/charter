@@ -1,4 +1,5 @@
 #pragma once
+#include <charter/schema/encoding/scale/primitives.hpp>
 #include <charter/schema/policy_set.hpp>
 #include <scale/scale.hpp>
 

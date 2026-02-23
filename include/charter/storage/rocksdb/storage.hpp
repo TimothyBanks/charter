@@ -30,8 +30,8 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
     Encoder& encoder,
     const charter::schema::bytes_t& key) {
   assert(database);
-  auto key_slice = ROCKSDB_NAMESPACE::Slice{reinterpret_cast<const char*>(key.data()),
-                                     key.size()};
+  auto key_slice = ROCKSDB_NAMESPACE::Slice{
+      reinterpret_cast<const char*>(key.data()), key.size()};
   auto value = std::string{};
   auto status =
       database->Get(ROCKSDB_NAMESPACE::ReadOptions{}, key_slice, &value);
@@ -55,8 +55,8 @@ void storage<rocksdb_storage_tag>::put(Encoder& encoder, const T& value) {
   auto key_slice = ROCKSDB_NAMESPACE::Slice{
       reinterpret_cast<const char*>(encoded_value.data()),
       encoded_value.size()};
-  auto status = database->Put(
-      ROCKSDB_NAMESPACE::WriteOptions{}, key_slice, ROCKSDB_NAMESPACE::Slice{});
+  auto status = database->Put(ROCKSDB_NAMESPACE::WriteOptions{}, key_slice,
+                              ROCKSDB_NAMESPACE::Slice{});
   if (!status.ok()) {
     spdlog::error("Failed to put value into RocksDB: {}", status.ToString());
     throw std::runtime_error("Failed to put value into RocksDB");

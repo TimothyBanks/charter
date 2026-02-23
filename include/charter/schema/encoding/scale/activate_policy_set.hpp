@@ -1,5 +1,6 @@
 #pragma once
 #include <charter/schema/activate_policy_set.hpp>
+#include <charter/schema/encoding/scale/primitives.hpp>
 #include <scale/scale.hpp>
 
 namespace charter::schema::encoding::scale {

@@ -32,8 +32,14 @@ using ed25519_signature_t = std::array<uint8_t, 64>;
 using secp256k1_signature_t = std::array<uint8_t, 65>;
 using signature_t = std::variant<ed25519_signature_t, secp256k1_signature_t>;
 
-using vault_t = std::pair<hash32_t, hash32_t>;  // workspace id, vault id
-using policy_scope_t = std::variant<hash32_t, vault_t>;  // workspace id, vault
+struct vault_t final {
+  hash32_t workspace_id{};
+  hash32_t vault_id{};
+};
+struct workspace_scope_t final {
+  hash32_t workspace_id{};
+};
+using policy_scope_t = std::variant<workspace_scope_t, vault_t>;
 
 }  // namespace charter::schema
 

@@ -24,6 +24,7 @@
 #include <charter/schema/encoding/scale/operation_type.hpp>
 #include <charter/schema/encoding/scale/policy_rule.hpp>
 #include <charter/schema/encoding/scale/policy_set.hpp>
+#include <charter/schema/encoding/scale/primitives.hpp>
 #include <charter/schema/encoding/scale/propose_intent.hpp>
 #include <charter/schema/encoding/scale/revoke_attestation.hpp>
 #include <charter/schema/encoding/scale/role_id.hpp>

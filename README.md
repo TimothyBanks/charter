@@ -41,7 +41,31 @@ $ cd build.debug
 $ cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/your/prefix/path/ ..
 $ make
 ```
+
+## Running
+
+This project uses CometBFT. You will first want to update the CometBFT config file to use gRPC.
+```
+$ vim ~/.cometbft/config/config.toml
+```
+Set `abci = "grpc"`
+
+Set `proxy_app = "127.0.0.1:26658"`
+
+Save these changes.
+
+Start the charter process. Assuming you are in the build folder.
+```
+$ ./charter
+```
+
+Then start CometBFT
+```
+$ cometbft node
+```
+
 ## clang-format
+
 ```
 $ ./run-clang-format.sh include/ src/
 ```
