@@ -138,52 +138,37 @@ tx_result engine::execute_operation(
     const charter::schema::transaction_t& tx) const {
   auto result = tx_result{};
   std::visit(
-      [&](const auto& operation) {
-        using operation_t = std::decay_t<decltype(operation)>;
-        if constexpr (std::is_same_v<operation_t,
-                                     charter::schema::create_workspace_t>) {
-          result.info = "create_workspace accepted";
-        } else if constexpr (std::is_same_v<operation_t,
-                                            charter::schema::create_vault_t>) {
-          result.info = "create_vault accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::create_policy_set_t>) {
-          result.info = "create_policy_set accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::activate_policy_set_t>) {
-          result.info = "activate_policy_set accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::propose_intent_t>) {
-          result.info = "propose_intent accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::approve_intent_t>) {
-          result.info = "approve_intent accepted";
-        } else if constexpr (std::is_same_v<operation_t,
-                                            charter::schema::cancel_intent_t>) {
-          result.info = "cancel_intent accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::execute_intent_t>) {
-          result.info = "execute_intent accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::upsert_attestation_t>) {
-          result.info = "upsert_attestation accepted";
-        } else if constexpr (std::is_same_v<
-                                 operation_t,
-                                 charter::schema::revoke_attestation_t>) {
-          result.info = "revoke_attestation accepted";
-        } else {
-          result.code = 3;
-          result.log = "unknown operation";
-          result.info = "payload type is not supported";
-          result.codespace = "charter.execute";
-        }
-      },
+      overloaded{
+          [&](const charter::schema::create_workspace_t&) {
+            result.info = "create_workspace accepted";
+          },
+          [&](const charter::schema::create_vault_t&) {
+            result.info = "create_vault accepted";
+          },
+          [&](const charter::schema::create_policy_set_t&) {
+            result.info = "create_policy_set accepted";
+          },
+          [&](const charter::schema::activate_policy_set_t&) {
+            result.info = "activate_policy_set accepted";
+          },
+          [&](const charter::schema::propose_intent_t&) {
+            result.info = "propose_intent accepted";
+          },
+          [&](const charter::schema::approve_intent_t&) {
+            result.info = "approve_intent accepted";
+          },
+          [&](const charter::schema::cancel_intent_t&) {
+            result.info = "cancel_intent accepted";
+          },
+          [&](const charter::schema::execute_intent_t&) {
+            result.info = "execute_intent accepted";
+          },
+          [&](const charter::schema::upsert_attestation_t&) {
+            result.info = "upsert_attestation accepted";
+          },
+          [&](const charter::schema::revoke_attestation_t&) {
+            result.info = "revoke_attestation accepted";
+          }},
       tx.payload);
 
   if (result.code == 0) {

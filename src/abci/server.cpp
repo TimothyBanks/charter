@@ -17,18 +17,19 @@ grpc::ServerUnaryReactor* finish_ok(grpc::CallbackServerContext* context) {
 
 tendermint::abci::ResponseOfferSnapshot_Result map_offer_result(
     charter::execution::offer_snapshot_result result) {
+  using enum charter::execution::offer_snapshot_result;
   switch (result) {
-    case charter::execution::offer_snapshot_result::accept:
+    case accept:
       return tendermint::abci::ResponseOfferSnapshot_Result_ACCEPT;
-    case charter::execution::offer_snapshot_result::abort:
+    case abort:
       return tendermint::abci::ResponseOfferSnapshot_Result_ABORT;
-    case charter::execution::offer_snapshot_result::reject:
+    case reject:
       return tendermint::abci::ResponseOfferSnapshot_Result_REJECT;
-    case charter::execution::offer_snapshot_result::reject_format:
+    case reject_format:
       return tendermint::abci::ResponseOfferSnapshot_Result_REJECT_FORMAT;
-    case charter::execution::offer_snapshot_result::reject_sender:
+    case reject_sender:
       return tendermint::abci::ResponseOfferSnapshot_Result_REJECT_SENDER;
-    case charter::execution::offer_snapshot_result::unknown:
+    case unknown:
     default:
       return tendermint::abci::ResponseOfferSnapshot_Result_UNKNOWN;
   }
@@ -36,19 +37,20 @@ tendermint::abci::ResponseOfferSnapshot_Result map_offer_result(
 
 tendermint::abci::ResponseApplySnapshotChunk_Result map_apply_result(
     charter::execution::apply_snapshot_chunk_result result) {
+  using enum charter::execution::apply_snapshot_chunk_result;
   switch (result) {
-    case charter::execution::apply_snapshot_chunk_result::accept:
+    case accept:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_ACCEPT;
-    case charter::execution::apply_snapshot_chunk_result::abort:
+    case abort:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_ABORT;
-    case charter::execution::apply_snapshot_chunk_result::retry:
+    case retry:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_RETRY;
-    case charter::execution::apply_snapshot_chunk_result::retry_snapshot:
+    case retry_snapshot:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_RETRY_SNAPSHOT;
-    case charter::execution::apply_snapshot_chunk_result::reject_snapshot:
+    case reject_snapshot:
       return tendermint::abci::
           ResponseApplySnapshotChunk_Result_REJECT_SNAPSHOT;
-    case charter::execution::apply_snapshot_chunk_result::unknown:
+    case unknown:
     default:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_UNKNOWN;
   }
