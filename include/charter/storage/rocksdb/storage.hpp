@@ -100,7 +100,9 @@ template <typename Encoder, typename T>
 std::optional<T> storage<rocksdb_storage_tag>::get(
     Encoder& encoder,
     const charter::schema::bytes_view_t& key) {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto key_slice = ROCKSDB_NAMESPACE::Slice{
       reinterpret_cast<const char*>(key.data()), key.size()};
   auto value = std::string{};
@@ -123,7 +125,9 @@ template <typename Encoder, typename T>
 void storage<rocksdb_storage_tag>::put(Encoder& encoder,
                                        const charter::schema::bytes_view_t& key,
                                        const T& value) {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto encoded_value = encoder.encode(value);
   auto key_slice = ROCKSDB_NAMESPACE::Slice{
       reinterpret_cast<const char*>(key.data()), key.size()};
@@ -140,7 +144,9 @@ void storage<rocksdb_storage_tag>::put(Encoder& encoder,
 
 inline std::optional<committed_state>
 storage<rocksdb_storage_tag>::load_committed_state() const {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto state = committed_state{};
 
   auto committed_raw = std::string{};
@@ -171,7 +177,9 @@ storage<rocksdb_storage_tag>::load_committed_state() const {
 
 inline void storage<rocksdb_storage_tag>::save_committed_state(
     const committed_state& state) const {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto encoder = detail::encoder_t{};
   auto encoded = encoder.encode(std::tuple{state.height, state.app_hash});
   auto write_options = ROCKSDB_NAMESPACE::WriteOptions{};
@@ -186,7 +194,9 @@ inline void storage<rocksdb_storage_tag>::save_committed_state(
 
 inline std::vector<snapshot_descriptor>
 storage<rocksdb_storage_tag>::list_snapshots() const {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto snapshots = std::vector<snapshot_descriptor>{};
 
   auto read_options = ROCKSDB_NAMESPACE::ReadOptions{};
@@ -236,7 +246,9 @@ storage<rocksdb_storage_tag>::list_snapshots() const {
 inline void storage<rocksdb_storage_tag>::save_snapshot(
     const snapshot_descriptor& snapshot,
     const charter::schema::hash32_t& chunk) const {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto meta_key =
       detail::make_snapshot_meta_key(snapshot.height, snapshot.format);
   auto chunk_key =
@@ -267,7 +279,9 @@ inline std::optional<charter::schema::bytes_t>
 storage<rocksdb_storage_tag>::load_snapshot_chunk(uint64_t height,
                                                   uint32_t format,
                                                   uint32_t chunk) const {
-  assert(database);
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
   auto raw_value = std::string{};
   auto chunk_key = detail::make_snapshot_chunk_key(height, format, chunk);
   auto status =
