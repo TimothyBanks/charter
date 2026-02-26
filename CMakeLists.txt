@@ -215,6 +215,7 @@ add_executable(charter
   src/main.cpp 
   src/abci/server.cpp
 
+  src/schema/primitives.cpp
   src/schema/encoding/scale/activate_policy_set.cpp
   src/schema/encoding/scale/active_policy_pointer.cpp
   src/schema/encoding/scale/approval_rule.cpp

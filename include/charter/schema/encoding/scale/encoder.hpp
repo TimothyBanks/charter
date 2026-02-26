@@ -1,4 +1,5 @@
 #pragma once
+#include <charter/common/critical.hpp>
 #include <charter/schema/encoding/encoder.hpp>
 #include <charter/schema/encoding/scale/activate_policy_set.hpp>
 #include <charter/schema/encoding/scale/active_policy_pointer.hpp>
@@ -17,7 +18,6 @@
 #include <charter/schema/encoding/scale/destination_rule.hpp>
 #include <charter/schema/encoding/scale/destination_type.hpp>
 #include <charter/schema/encoding/scale/execute_intent.hpp>
-#include <charter/schema/encoding/scale/intent_action.hpp>
 #include <charter/schema/encoding/scale/intent_state.hpp>
 #include <charter/schema/encoding/scale/intent_status.hpp>
 #include <charter/schema/encoding/scale/limit_rule.hpp>
@@ -34,9 +34,10 @@
 #include <charter/schema/encoding/scale/upsert_attestation.hpp>
 #include <charter/schema/encoding/scale/upsert_destination.hpp>
 #include <charter/schema/encoding/scale/vault_model.hpp>
+#include <iterator>
 #include <scale/scale.hpp>
 
-namespace charter::charter::schema::encoding {
+namespace charter::schema::encoding {
 
 struct scale_encoder_tag {};
 
@@ -49,30 +50,46 @@ struct encoder<scale_encoder_tag> final {
   void encode(const T& obj, charter::schema::bytes_t& out);
 
   template <typename T>
-  T decode(const std::span<uint8_t>& bytes);
+  T decode(const charter::schema::bytes_view_t& bytes);
+
+  template <typename T>
+  std::optional<T> try_decode(const charter::schema::bytes_view_t& bytes);
 };
 
 template <typename T>
 charter::schema::bytes_t encoder<scale_encoder_tag>::encode(const T& obj) {
-  auto encoder = ::scale::encoder{};
-  encoder << obj;
-  return encoder.data();
+  auto encoded = ::scale::impl::memory::encode(obj);
+  if (!encoded) {
+    charter::common::critical("failed to encode SCALE object");
+  }
+  return encoded.value();
 }
 
 template <typename T>
 void encoder<scale_encoder_tag>::encode(const T& obj,
                                         charter::schema::bytes_t& out) {
-  auto encoder = ::scale::encoder{out};
-  encoder << obj;
+  auto encoded = encode(obj);
+  out.insert(std::end(out), std::begin(encoded), std::end(encoded));
 }
 
-template <>
 template <typename T>
-T encoder<scale_encoder_tag>::decode(const std::span<uint8_t>& bytes) {
-  auto decoder = ::scale::decoder{bytes};
-  T obj;
-  decoder >> obj;
-  return obj;
+T encoder<scale_encoder_tag>::decode(
+    const charter::schema::bytes_view_t& bytes) {
+  auto decoded = ::scale::impl::memory::decode<T>(bytes);
+  if (!decoded) {
+    charter::common::critical("failed to decode SCALE bytes");
+  }
+  return decoded.value();
 }
 
-}  // namespace charter::charter::schema::encoding
+template <typename T>
+std::optional<T> encoder<scale_encoder_tag>::try_decode(
+    const charter::schema::bytes_view_t& bytes) {
+  auto decoded = ::scale::impl::memory::decode<T>(bytes);
+  if (!decoded) {
+    return std::nullopt;
+  }
+  return decoded.value();
+}
+
+}  // namespace charter::schema::encoding

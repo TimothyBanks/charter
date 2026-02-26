@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tendermint/abci/types.grpc.pb.h>
+#include <charter/execution/engine.hpp>
 #include <variant>
 
 namespace charter::abci {
@@ -47,6 +48,8 @@ struct reactor final : public grpc::ServerUnaryReactor {
 };
 
 struct listener final : public tendermint::abci::ABCI::CallbackService {
+  listener() = default;
+
   virtual grpc::ServerUnaryReactor* Echo(
       grpc::CallbackServerContext* /*context*/,
       const tendermint::abci::RequestEcho* /*request*/,
@@ -128,6 +131,9 @@ struct listener final : public tendermint::abci::ABCI::CallbackService {
       grpc::CallbackServerContext* /*context*/,
       const tendermint::abci::RequestFinalizeBlock* /*request*/,
       tendermint::abci::ResponseFinalizeBlock* /*response*/) override final;
+
+ private:
+  charter::execution::engine execution_engine_{};
 };
 
 }  // namespace charter::abci

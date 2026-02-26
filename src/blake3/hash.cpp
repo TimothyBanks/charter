@@ -5,21 +5,23 @@
 
 namespace charter::blake3 {
 
-charter::schema::bytes_t hash(const std::string_view& str) {
+charter::schema::hash32_t hash(const std::string_view& str) {
   // TODO(tim): Break blake3 out into some sort of RAII type
   auto hasher = blake3_hasher{};
   blake3_hasher_init(&hasher);
   blake3_hasher_update(&hasher, str.data(), str.size());
-  thread_local auto output = charter::schema::bytes_t(BLAKE3_OUT_LEN);
+  // BLAKE3_OUT_LEN
+  thread_local auto output = charter::schema::hash32_t{};
   blake3_hasher_finalize(&hasher, output.data(), output.size());
   return output;
 }
 
-charter::schema::bytes_t hash(const std::span<const uint8_t>& bytes) {
+charter::schema::hash32_t hash(const charter::schema::bytes_view_t& bytes) {
   auto hasher = blake3_hasher{};
   blake3_hasher_init(&hasher);
   blake3_hasher_update(&hasher, bytes.data(), bytes.size());
-  thread_local auto output = charter::schema::bytes_t(BLAKE3_OUT_LEN);
+  // BLAKE3_OUT_LEN
+  thread_local auto output = charter::schema::hash32_t{};
   blake3_hasher_finalize(&hasher, output.data(), output.size());
   return output;
 }

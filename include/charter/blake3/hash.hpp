@@ -6,7 +6,7 @@
 
 namespace charter::blake3 {
 
-charter::schema::bytes_t hash(const std::string_view& str);
-charter::schema::bytes_t hash(const std::span<const uint8_t>& bytes);
+charter::schema::hash32_t hash(const std::string_view& str);
+charter::schema::hash32_t hash(const charter::schema::bytes_view_t& bytes);
 
 }  // namespace charter::blake3

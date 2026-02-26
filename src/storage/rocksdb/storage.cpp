@@ -1,3 +1,4 @@
+#include <charter/common/critical.hpp>
 #include <charter/storage/rocksdb/storage.hpp>
 
 namespace charter::storage {
@@ -16,7 +17,7 @@ storage<rocksdb_storage_tag> make_storage<rocksdb_storage_tag>(
       ROCKSDB_NAMESPACE::DB::Open(options, std::string{path}, &database);
   if (!status.ok()) {
     spdlog::error("Failed to open RocksDB at {}: {}", path, status.ToString());
-    throw std::runtime_error("Failed to open RocksDB");
+    charter::common::critical("Failed to open RocksDB");
   }
   spdlog::info("Successfully opened RocksDB at {}", path);
   store.database.reset(database);

@@ -1,8 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
+#include <optional>
 #include <span>
 
-namespace charter::charter::schema::encoding {
+namespace charter::schema::encoding {
 
 // TODO(tim): I do not like this encoder design.
 // I should make it a erased type and provide
@@ -42,7 +43,10 @@ struct encoder {
   void encode(const T& obj, charter::schema::bytes_t& out);
 
   template <typename T>
-  T decode(const std::span<uint8_t>& bytes);
+  T decode(const charter::schema::bytes_view_t& bytes);
+
+  template <typename T>
+  std::optional<T> try_decode(const charter::schema::bytes_view_t& bytes);
 };
 
-}  // namespace charter::charter::schema::encoding
+}  // namespace charter::schema::encoding

@@ -5,5 +5,5 @@
 
 SCALE_DEFINE_ENUM_VALUE_LIST(charter::schema,
                              attestation_status_t,
-                             attestation_status_t::active,
-                             attestation_status_t::revoked)
+                             charter::schema::attestation_status_t::active,
+                             charter::schema::attestation_status_t::revoked)

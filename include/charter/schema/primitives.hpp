@@ -3,18 +3,41 @@
 #include <boost/endian/buffers.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cstdint>
+#include <span>
+#include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
 namespace charter::schema {
 
 using bytes_t = std::vector<uint8_t>;
+using bytes_view_t = std::span<const uint8_t>;
 using hash32_t = std::array<uint8_t, 32>;
+using has32_view_t = std::span<const uint8_t>;
 using account_id_t = hash32_t;
 using asset_id_t = hash32_t;
 using amount_t = boost::multiprecision::uint256_t;
 using timestamp_milliseconds_t = uint64_t;
 using duration_milliseconds_t = uint64_t;
+
+bytes_t make_bytes(const bytes_view_t& bytes);
+bytes_t make_bytes(const std::string& bytes);
+bytes_t make_bytes(const std::string_view& bytes);
+
+bytes_view_t make_bytes_view(const bytes_t& bytes);
+bytes_view_t make_bytes_view(const std::string& bytes);
+bytes_view_t make_bytes_view(const std::string_view& bytes);
+
+std::string_view make_string_view(const bytes_t& bytes);
+std::string_view make_string_view(const bytes_view_t& bytes);
+std::string make_string(const bytes_t& bytes);
+std::string make_string(const bytes_view_t& bytes);
+
+hash32_t make_hash32(const bytes_t& bytes);
+hash32_t make_hash32(const std::string& bytes);
+hash32_t make_hash32(const std::string_view& bytes);
+hash32_t make_zero_hash();
 
 struct ed25519_signer_id final {
   std::array<uint8_t, 32> public_key;
