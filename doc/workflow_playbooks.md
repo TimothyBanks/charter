@@ -4,6 +4,7 @@ This is an operator/developer playbook view of custody workflows implemented in 
 
 Reference matrix:
 - For per-transaction failure and state-write details, see `doc/transaction_workflow_matrix.md`.
+- For the frozen demo contract (expected tx codes + report format), see `doc/golden_workflow_contract.md`.
 
 ## 1) Bootstrap A New Tenant
 
@@ -43,6 +44,9 @@ Policy gates checked:
 - SoD role restrictions
 - signer quarantine / degraded mode
 
+Freeze note:
+- Use `doc/golden_workflow_contract.md` as the canonical acceptance contract for demo/proof runs.
+
 ## 3) Emergency Controls
 
 Transactions:
@@ -76,6 +80,9 @@ Validation checks:
 - replay reports `ok=true`
 - `/history/export` parity with source node
 - app hash parity at final height
+
+Evidence note:
+- Include these checks in the canonical report format defined in `doc/golden_workflow_contract.md`.
 
 ## 6) Snapshot Sync (ABCI)
 

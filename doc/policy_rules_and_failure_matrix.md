@@ -1450,5 +1450,5 @@ Newly wired in codebase:
   - role/quarantine/degraded updates
 
 Notes:
-- Authorization is enforced when role requirements are configured by active policy role maps and/or role-assignment overrides.
-- Legacy flows without role configuration continue to execute (backward-compatible behavior).
+- Authorization is strict-by-default for operations with required roles.
+- Scope admins are accepted as a superuser fallback, and global-role operations (`set_degraded_mode`, `upsert_signer_quarantine`) require matching role assignments (or admin) from role-assignment state.

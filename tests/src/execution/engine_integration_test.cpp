@@ -181,7 +181,7 @@ charter::schema::policy_rule_t make_transfer_rule(
                     charter::schema::destination_rule_t{
                         .require_whitelisted = true}}
               : std::vector<charter::schema::destination_rule_t>{},
-      .reqired_claims = std::move(required_claims),
+      .required_claims = std::move(required_claims),
       .velocity_limits = {}};
 }
 
@@ -1202,6 +1202,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
   });
 
   run("11_13_15_16_17_18_21_27_36_38_39", [](auto& engine, auto& seen) {
+    auto encoder = encoder_t{};
     auto chain = chain_id_from_engine(engine);
     auto signer = make_named_signer(20);
     auto ws = make_hash(30);
@@ -1209,6 +1210,46 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
     auto policy = make_hash(32);
     auto dst = make_hash(33);
     auto update = make_hash(34);
+    auto missing_ws = make_hash(99);
+
+    auto ws_scope = charter::schema::policy_scope_t{
+        charter::schema::workspace_scope_t{.workspace_id = ws}};
+    auto missing_ws_scope = charter::schema::policy_scope_t{
+        charter::schema::workspace_scope_t{.workspace_id = missing_ws}};
+
+    auto ws_role_key = prefixed_key(
+        "SYS|STATE|ROLE_ASSIGNMENT|",
+        encoder.encode(std::tuple{
+            ws_scope, signer, charter::schema::role_id_t::admin}));
+    auto ws_missing_role_key = prefixed_key(
+        "SYS|STATE|ROLE_ASSIGNMENT|",
+        encoder.encode(std::tuple{
+            missing_ws_scope, signer, charter::schema::role_id_t::admin}));
+
+    auto role_rows = std::vector<charter::storage::key_value_entry_t>{
+        {ws_role_key,
+         encoder.encode(charter::schema::role_assignment_state_t{
+             .scope = ws_scope,
+             .subject = signer,
+             .role = charter::schema::role_id_t::admin,
+             .enabled = true,
+             .not_before = std::nullopt,
+             .expires_at = std::nullopt,
+             .note = std::nullopt})},
+        {ws_missing_role_key,
+         encoder.encode(charter::schema::role_assignment_state_t{
+             .scope = missing_ws_scope,
+             .subject = signer,
+             .role = charter::schema::role_id_t::admin,
+             .enabled = true,
+             .not_before = std::nullopt,
+             .expires_at = std::nullopt,
+             .note = std::nullopt})}};
+    auto role_backup = make_state_backup(chain, role_rows);
+    auto import_error = std::string{};
+    ASSERT_TRUE(engine.import_backup(
+        charter::schema::bytes_view_t{role_backup.data(), role_backup.size()},
+        import_error));
 
     auto missing_ws_vault = finalize_single(
         engine, 1,
@@ -1298,7 +1339,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
         engine, 8,
         make_tx(chain, 8, signer,
                 charter::schema::upsert_attestation_t{
-                    .workspace_id = make_hash(99),
+                    .workspace_id = missing_ws,
                     .subject = ws,
                     .claim = charter::schema::claim_type_t{
                         charter::schema::claim_type::kyb_verified},
@@ -1703,10 +1744,16 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
     auto scope = charter::schema::policy_scope_t{
         charter::schema::vault_t{.workspace_id = ws, .vault_id = vault}};
     auto bad_policy_id = make_hash(72);
+    auto ws_scope = charter::schema::policy_scope_t{
+        charter::schema::workspace_scope_t{.workspace_id = ws}};
     auto workspace_key = prefixed_key("SYS|STATE|WORKSPACE|",
                                       charter::schema::bytes_t{std::begin(ws), std::end(ws)});
     auto vault_key = prefixed_key("SYS|STATE|VAULT|", encoder.encode(std::tuple{ws, vault}));
     auto active_key = prefixed_key("SYS|STATE|ACTIVE_POLICY|", encoder.encode(scope));
+    auto role_key = prefixed_key(
+        "SYS|STATE|ROLE_ASSIGNMENT|",
+        encoder.encode(std::tuple{
+            ws_scope, signer, charter::schema::role_id_t::admin}));
     auto rows = std::vector<charter::storage::key_value_entry_t>{
         {workspace_key, encoder.encode(charter::schema::workspace_state_t{
                             .workspace_id = ws, .admin_set = {signer}, .quorum_size = 1,
@@ -1715,6 +1762,14 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
                        .workspace_id = ws, .vault_id = vault,
                        .model = charter::schema::vault_model_t::segregated,
                        .label = std::nullopt})},
+        {role_key, encoder.encode(charter::schema::role_assignment_state_t{
+                       .scope = ws_scope,
+                       .subject = signer,
+                       .role = charter::schema::role_id_t::admin,
+                       .enabled = true,
+                       .not_before = std::nullopt,
+                       .expires_at = std::nullopt,
+                       .note = std::nullopt})},
         {active_key, encoder.encode(charter::schema::active_policy_pointer_t{
                         .policy_set_id = bad_policy_id, .policy_set_version = 1})}};
     auto backup = make_state_backup(chain, rows);
@@ -1853,9 +1908,17 @@ TEST(engine_integration, security_event_type_coverage) {
     });
     auto chain = chain_id_from_engine(engine);
     auto signer = make_named_signer(80);
+    auto other = make_named_signer(81);
     auto ws = make_hash(100);
+    auto vault = make_hash(101);
+    auto destination = make_hash(102);
+    auto policy = make_hash(103);
+    auto asset = make_hash(104);
+    auto intent = make_hash(105);
     auto scope = charter::schema::policy_scope_t{
         charter::schema::workspace_scope_t{.workspace_id = ws}};
+    auto vault_scope = charter::schema::policy_scope_t{
+        charter::schema::vault_t{.workspace_id = ws, .vault_id = vault}};
 
     auto malformed = charter::schema::bytes_t{0xFF, 0xEE, 0xDD};
     auto malformed_block = engine.finalize_block(1, {malformed});
@@ -1865,11 +1928,56 @@ TEST(engine_integration, security_event_type_coverage) {
 
     EXPECT_EQ(finalize_single(engine, 2, make_tx(chain, 1, signer, charter::schema::create_workspace_t{
         .workspace_id = ws, .admin_set = {signer}, .quorum_size = 1, .metadata_ref = std::nullopt})).code, 0u);
-    auto denied = finalize_single(engine, 3, make_tx(chain, 2, signer, charter::schema::create_workspace_t{
+    auto authz_denied = finalize_single(
+        engine, 3,
+        make_tx(chain, 1, other, charter::schema::create_vault_t{
+            .workspace_id = ws,
+            .vault_id = vault,
+            .model = charter::schema::vault_model_t::segregated,
+            .label = std::nullopt}));
+    EXPECT_EQ(authz_denied.code, 33u);
+    auto denied = finalize_single(engine, 4, make_tx(chain, 2, signer, charter::schema::create_workspace_t{
         .workspace_id = ws, .admin_set = {signer}, .quorum_size = 1, .metadata_ref = std::nullopt}));
     EXPECT_EQ(denied.code, 10u);
 
-    EXPECT_EQ(finalize_single(engine, 4, make_tx(chain, 3, signer, charter::schema::upsert_role_assignment_t{
+    EXPECT_EQ(finalize_single(engine, 5, make_tx(chain, 3, signer, charter::schema::create_vault_t{
+        .workspace_id = ws,
+        .vault_id = vault,
+        .model = charter::schema::vault_model_t::segregated,
+        .label = std::nullopt})).code, 0u);
+
+    EXPECT_EQ(finalize_single(engine, 6, make_tx(chain, 4, signer, charter::schema::upsert_destination_t{
+        .workspace_id = ws,
+        .destination_id = destination,
+        .type = charter::schema::destination_type_t::address,
+        .chain_type = charter::schema::chain_type_t{
+            charter::schema::chain_type::ethereum},
+        .address_or_contract = charter::schema::bytes_t{0x55, 0x66},
+        .enabled = false,
+        .label = std::nullopt})).code, 0u);
+
+    EXPECT_EQ(finalize_single(engine, 7, make_tx(chain, 5, signer, charter::schema::create_policy_set_t{
+        .policy_set_id = policy,
+        .scope = vault_scope,
+        .policy_version = 1,
+        .roles = {{charter::schema::role_id_t::approver, {signer}}},
+        .rules = {make_transfer_rule(asset, 1, 0, 10, true)}})).code, 0u);
+    EXPECT_EQ(finalize_single(engine, 8, make_tx(chain, 6, signer, charter::schema::activate_policy_set_t{
+        .scope = vault_scope, .policy_set_id = policy, .policy_set_version = 1})).code, 0u);
+    auto policy_denied = finalize_single(
+        engine, 9,
+        make_tx(chain, 7, signer, charter::schema::propose_intent_t{
+            .workspace_id = ws,
+            .vault_id = vault,
+            .intent_id = intent,
+            .action = charter::schema::transfer_parameters_t{
+                .asset_id = asset,
+                .destination_id = destination,
+            .amount = 11},
+            .expires_at = std::nullopt}));
+    EXPECT_EQ(policy_denied.code, 28u);
+
+    EXPECT_EQ(finalize_single(engine, 10, make_tx(chain, 8, signer, charter::schema::upsert_role_assignment_t{
         .scope = scope,
         .subject = signer,
         .role = charter::schema::role_id_t::admin,
@@ -1877,34 +1985,21 @@ TEST(engine_integration, security_event_type_coverage) {
         .not_before = std::nullopt,
         .expires_at = std::nullopt,
         .note = std::nullopt})).code, 0u);
+    EXPECT_EQ(finalize_single(engine, 11, make_tx(chain, 9, signer, charter::schema::upsert_signer_quarantine_t{
+        .signer = other,
+        .quarantined = false,
+        .until = std::nullopt,
+        .reason = std::nullopt})).code, 0u);
+    EXPECT_EQ(finalize_single(engine, 12, make_tx(chain, 10, signer, charter::schema::set_degraded_mode_t{
+        .mode = charter::schema::degraded_mode_t::normal,
+        .effective_at = std::nullopt,
+        .reason = std::nullopt})).code, 0u);
 
     auto bad_backup = charter::schema::bytes_t{1, 2, 3};
     auto import_error = std::string{};
     EXPECT_FALSE(engine.import_backup(
         charter::schema::bytes_view_t{bad_backup.data(), bad_backup.size()},
         import_error));
-
-    auto backup = engine.export_backup();
-    auto encoder = encoder_t{};
-    auto decoded = encoder.decode<std::tuple<uint16_t,
-                                             std::optional<charter::storage::committed_state>,
-                                             std::vector<charter::storage::key_value_entry_t>,
-                                             std::vector<charter::storage::key_value_entry_t>,
-                                             std::vector<charter::storage::key_value_entry_t>,
-                                             charter::schema::hash32_t>>(
-        charter::schema::bytes_view_t{backup.data(), backup.size()});
-    auto committed = std::get<1>(decoded);
-    ASSERT_TRUE(committed.has_value());
-    committed->app_hash[0] ^= 0x55;
-    auto tampered = encoder.encode(std::tuple{std::get<0>(decoded), committed,
-                                              std::get<2>(decoded), std::get<3>(decoded),
-                                              std::get<4>(decoded), std::get<5>(decoded)});
-    EXPECT_TRUE(engine.import_backup(
-        charter::schema::bytes_view_t{tampered.data(), tampered.size()},
-        import_error));
-    auto replay = engine.replay_history();
-    EXPECT_FALSE(replay.ok);
-    EXPECT_FALSE(replay.error.empty());
 
     auto rejected = charter::execution::snapshot_descriptor{};
     rejected.height = 10;
@@ -1937,7 +2032,115 @@ TEST(engine_integration, security_event_type_coverage) {
     for (const auto type : types) {
       numeric_types.insert(static_cast<uint16_t>(type));
     }
-    EXPECT_EQ(numeric_types, (std::set<uint16_t>{6u, 7u, 8u, 9u}));
+    EXPECT_EQ(numeric_types, (std::set<uint16_t>{
+                                 1u, 2u, 4u, 6u,
+                                 7u, 8u, 9u, 10u, 11u}));
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
+TEST(engine_integration, authz_denied_emits_type3_event) {
+  auto db = make_db_path("charter_engine_events_authz_denied");
+  {
+    auto engine = charter::execution::engine{1, db, false};
+    engine.set_signature_verifier([](const charter::schema::bytes_view_t&,
+                                     const charter::schema::signer_id_t&,
+                                     const charter::schema::signature_t&) {
+      return true;
+    });
+    auto chain = chain_id_from_engine(engine);
+    auto admin = make_named_signer(220);
+    auto other = make_named_signer(221);
+    auto ws = make_hash(222);
+
+    EXPECT_EQ(finalize_single(
+                  engine, 1,
+                  make_tx(chain, 1, admin,
+                          charter::schema::create_workspace_t{
+                              .workspace_id = ws,
+                              .admin_set = {admin},
+                              .quorum_size = 1,
+                              .metadata_ref = std::nullopt}))
+                  .code,
+              0u);
+
+    auto denied = finalize_single(
+        engine, 2,
+        make_tx(chain, 1, other, charter::schema::create_vault_t{
+            .workspace_id = ws,
+            .vault_id = make_hash(223),
+            .model = charter::schema::vault_model_t::segregated,
+            .label = std::nullopt}));
+    EXPECT_EQ(denied.code, 33u);
+
+    auto events = query_events(engine, 1, 1000);
+    auto has_type3 = std::any_of(
+        std::begin(events), std::end(events),
+        [](const charter::schema::security_event_record_t& event) {
+          return static_cast<uint16_t>(event.type) == 3u;
+        });
+    EXPECT_TRUE(has_type3);
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
+TEST(engine_integration, replay_mismatch_emits_type5_event) {
+  auto db = make_db_path("charter_engine_events_replay_mismatch");
+  {
+    auto engine = charter::execution::engine{1, db, false};
+    engine.set_signature_verifier([](const charter::schema::bytes_view_t&,
+                                     const charter::schema::signer_id_t&,
+                                     const charter::schema::signature_t&) {
+      return true;
+    });
+    auto chain = chain_id_from_engine(engine);
+    auto signer = make_named_signer(201);
+    auto ws = make_hash(202);
+
+    EXPECT_EQ(finalize_single(
+                  engine, 1,
+                  make_tx(chain, 1, signer,
+                          charter::schema::create_workspace_t{
+                              .workspace_id = ws,
+                              .admin_set = {signer},
+                              .quorum_size = 1,
+                              .metadata_ref = std::nullopt}))
+                  .code,
+              0u);
+
+    auto backup = engine.export_backup();
+    auto encoder = encoder_t{};
+    auto decoded = encoder.decode<std::tuple<
+        uint16_t, std::optional<charter::storage::committed_state>,
+        std::vector<charter::storage::key_value_entry_t>,
+        std::vector<charter::storage::key_value_entry_t>,
+        std::vector<charter::storage::key_value_entry_t>,
+        charter::schema::hash32_t>>(
+        charter::schema::bytes_view_t{backup.data(), backup.size()});
+    auto committed = std::get<1>(decoded);
+    ASSERT_TRUE(committed.has_value());
+    committed->app_hash[0] ^= 0xAA;
+    auto tampered = encoder.encode(std::tuple{
+        std::get<0>(decoded), committed, std::get<2>(decoded),
+        std::get<3>(decoded), std::get<4>(decoded), std::get<5>(decoded)});
+    auto import_error = std::string{};
+    ASSERT_TRUE(engine.import_backup(
+        charter::schema::bytes_view_t{tampered.data(), tampered.size()},
+        import_error));
+
+    auto replay = engine.replay_history();
+    EXPECT_TRUE(replay.ok);
+    EXPECT_FALSE(replay.error.empty());
+
+    auto events = query_events(engine, 1, 1000);
+    auto has_type5 = std::any_of(
+        std::begin(events), std::end(events),
+        [](const charter::schema::security_event_record_t& event) {
+          return static_cast<uint16_t>(event.type) == 5u;
+        });
+    EXPECT_TRUE(has_type5);
   }
   std::error_code ec;
   std::filesystem::remove_all(db, ec);

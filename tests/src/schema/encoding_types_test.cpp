@@ -10,6 +10,7 @@
 #include <charter/schema/velocity_counter_state.hpp>
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -68,7 +69,7 @@ build_payload_vector_transactions() {
       .limits = {},
       .time_locks = {},
       .destination_rules = {},
-      .reqired_claims = {},
+      .required_claims = {},
       .velocity_limits = {}};
 
   auto build_tx = [&](const uint64_t nonce,
@@ -584,7 +585,13 @@ TEST(schema_encoding_types, transaction_payload_vectors_match_fixture_v1) {
   using charter::schema::encoding::encoder;
   using charter::schema::encoding::scale_encoder_tag;
 
-  auto fixture = std::ifstream{"tests/fixtures/schema_payload_tx_vectors_v1.txt"};
+  auto fixture_path = std::filesystem::path{
+      "tests/fixtures/schema_payload_tx_vectors_v1.txt"};
+  if (!std::filesystem::exists(fixture_path)) {
+    fixture_path = std::filesystem::path{
+        "../tests/fixtures/schema_payload_tx_vectors_v1.txt"};
+  }
+  auto fixture = std::ifstream{fixture_path};
   ASSERT_TRUE(fixture.is_open());
 
   auto expected = std::map<std::string, std::string>{};

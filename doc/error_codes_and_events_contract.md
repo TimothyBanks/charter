@@ -146,7 +146,8 @@ Events are emitted for:
 - degraded mode updates
 
 Notes:
-- Not every failure is currently split into specialized event type; some map to `tx_validation_failed` / `tx_execution_denied`.
+- Authorization denials map to `authz_denied`.
+- Policy-rule denials map to `policy_denied`.
 - Integrators should key off both `type` and `code`.
 
 ## 6) Compatibility Rules

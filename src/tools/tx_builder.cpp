@@ -301,7 +301,7 @@ charter::schema::transaction_payload_t build_payload(
                     .operation = charter::schema::operation_type_t::transfer,
                     .delay = vm["timelock-ms"].as<uint64_t>()}},
         .destination_rules = destination_rules,
-        .reqired_claims = required_claims,
+        .required_claims = required_claims,
         .velocity_limits = {}};
     return charter::schema::create_policy_set_t{
         .policy_set_id = get_hash32(vm, "policy-set-id"),

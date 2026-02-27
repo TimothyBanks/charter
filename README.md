@@ -64,6 +64,26 @@ Then start CometBFT
 $ cometbft node
 ```
 
+## Chat Recovery Log
+
+Use the in-repo history log to recover context after a lost chat session.
+
+Log file:
+`doc/chat_history.md`
+
+Append an entry:
+```
+$ scripts/chatlog.sh \
+    --title "Short session title" \
+    --summary "What was done and what state we are in." \
+    --decisions "Key decisions made in this session." \
+    --next "Next concrete step."
+```
+
+Required args:
+- `--title`
+- `--summary`
+
 ## clang-format
 
 ```

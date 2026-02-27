@@ -2,6 +2,7 @@
 
 Date: 2026-02-27  
 Scope: Current behavior in `src/execution/engine.cpp` and query/event contracts.
+Canonical demo freeze contract: `doc/golden_workflow_contract.md`.
 
 ## Usage
 

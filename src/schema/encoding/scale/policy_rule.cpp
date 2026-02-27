@@ -17,7 +17,7 @@ void encode(policy_rule<1>&& o, ::scale::Encoder& encoder) {
   encode(o.limits, encoder);
   encode(o.time_locks, encoder);
   encode(o.destination_rules, encoder);
-  encode(o.reqired_claims, encoder);
+  encode(o.required_claims, encoder);
   encode(o.velocity_limits, encoder);
 }
 
@@ -28,7 +28,7 @@ void decode(policy_rule<1>&& o, ::scale::Decoder& decoder) {
   decode(o.limits, decoder);
   decode(o.time_locks, decoder);
   decode(o.destination_rules, decoder);
-  decode(o.reqired_claims, decoder);
+  decode(o.required_claims, decoder);
   decode(o.velocity_limits, decoder);
 }
 

@@ -23,12 +23,17 @@ Additional focused integration tests (behavior-specific):
 Covered by `tests/src/execution/engine_integration_test.cpp`:
 
 - `engine_integration.security_event_type_coverage`
-  - Validates emitted event IDs currently persisted by engine event stream in this scenario:
-  - `6,7,8,9`
+  - Validates persisted event type IDs:
+  - `1,2,4,6,7,8,9,10,11`
+- `engine_integration.authz_denied_emits_type3_event`
+  - Validates event type:
+  - `3`
+- `engine_integration.replay_mismatch_emits_type5_event`
+  - Validates event type:
+  - `5`
 
 Notes:
-- Event assertions in this test are currently based on numeric event IDs to avoid enum-value drift issues while retaining deterministic validation.
-- Tx validation/execution denials are still validated through tx result codes and logs; this test only checks persisted event records from `/events/range`.
+- Event assertions are based on numeric type IDs to avoid enum-value drift issues while retaining deterministic validation.
 
 ## Replay/Snapshot/Backup Coverage
 Covered by:

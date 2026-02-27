@@ -26,7 +26,7 @@ struct policy_rule<1> final {
   std::vector<destination_rule_t>
       destination_rules;  // must be sorted deterministically.
   std::vector<claim_type_t>
-      reqired_claims;  // must be sorted deterministically.
+      required_claims;  // must be sorted deterministically.
   std::vector<velocity_limit_rule_t>
       velocity_limits;  // must be sorted deterministically.
 };

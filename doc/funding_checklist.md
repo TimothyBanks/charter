@@ -25,6 +25,7 @@ Prepare Charter for:
 - destination whitelist check
 - compliance claim/attestation gate
 - deterministic audit and replay evidence
+- canonical acceptance contract: `doc/golden_workflow_contract.md`
 
 ## Branching Rule
 - Do not expand to additional verticals until the wedge has:
@@ -42,6 +43,7 @@ Prepare Charter for:
 ### Technical Artifacts
 - [ ] Publish `one_pager.md` and production architecture memo.
 - [ ] Finalize deterministic workflow demo script (end-to-end).
+- [ ] Freeze canonical workflow inputs/expected outputs/report schema in `doc/golden_workflow_contract.md`.
 - [ ] Ensure replay/snapshot/backup flows are reproducible in demo environment.
 - [ ] Publish API/query matrix and expected control outcomes.
 - [ ] Add one scripted demo runbook that a non-author can execute.

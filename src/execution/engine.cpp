@@ -672,7 +672,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
           requirements.require_whitelisted_destination ||
           destination_rule.require_whitelisted;
     }
-    for (const auto& claim : rule.reqired_claims) {
+    for (const auto& claim : rule.required_claims) {
       auto existing = std::find_if(
           std::begin(requirements.claim_requirements),
           std::end(requirements.claim_requirements),
@@ -792,36 +792,6 @@ bool scope_has_role(
   return role_granted_by_policy(policy.value(), role, signer);
 }
 
-bool scope_has_role_configuration(
-    charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
-    encoder_t& encoder,
-    const charter::schema::policy_scope_t& scope,
-    const charter::schema::role_id_t role) {
-  auto override_prefix = make_prefixed_key(kRoleAssignmentKeyPrefix,
-                                           encoder.encode(std::tuple{scope}));
-  auto override_rows = storage.list_by_prefix(charter::schema::bytes_view_t{
-      override_prefix.data(), override_prefix.size()});
-  for (const auto& [unused_key, value] : override_rows) {
-    (void)unused_key;
-    auto assignment =
-        encoder.try_decode<charter::schema::role_assignment_state_t>(
-            charter::schema::bytes_view_t{value.data(), value.size()});
-    if (assignment.has_value() && assignment->role == role) {
-      return true;
-    }
-  }
-  auto policy = load_active_policy_set_for_scope(storage, encoder, scope);
-  if (!policy.has_value()) {
-    return false;
-  }
-  return std::any_of(
-      std::begin(policy->roles), std::end(policy->roles),
-      [&](const std::pair<charter::schema::role_id_t,
-                          std::vector<charter::schema::signer_id_t>>& entry) {
-        return entry.first == role;
-      });
-}
-
 bool signer_has_role_for_scope(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     encoder_t& encoder,
@@ -832,32 +802,101 @@ bool signer_has_role_for_scope(
   if (scope_has_role(storage, encoder, scope, signer, role, now_ms)) {
     return true;
   }
-  if (std::holds_alternative<charter::schema::vault_t>(scope)) {
-    const auto& vault = std::get<charter::schema::vault_t>(scope);
-    auto workspace_scope = charter::schema::policy_scope_t{
-        charter::schema::workspace_scope_t{.workspace_id = vault.workspace_id}};
-    return scope_has_role(storage, encoder, workspace_scope, signer, role,
-                          now_ms);
-  }
-  return false;
-}
-
-bool role_is_configured_for_scope_or_parent(
-    charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
-    encoder_t& encoder,
-    const charter::schema::policy_scope_t& scope,
-    const charter::schema::role_id_t role) {
-  if (scope_has_role_configuration(storage, encoder, scope, role)) {
+  // Scope admins are allowed to satisfy operation roles as a superuser
+  // fallback for operational recovery.
+  if (role != charter::schema::role_id_t::admin &&
+      scope_has_role(storage, encoder, scope, signer,
+                     charter::schema::role_id_t::admin, now_ms)) {
     return true;
   }
   if (std::holds_alternative<charter::schema::vault_t>(scope)) {
     const auto& vault = std::get<charter::schema::vault_t>(scope);
     auto workspace_scope = charter::schema::policy_scope_t{
         charter::schema::workspace_scope_t{.workspace_id = vault.workspace_id}};
-    return scope_has_role_configuration(storage, encoder, workspace_scope,
-                                        role);
+    if (scope_has_role(storage, encoder, workspace_scope, signer, role,
+                       now_ms)) {
+      return true;
+    }
+    if (role != charter::schema::role_id_t::admin &&
+        scope_has_role(storage, encoder, workspace_scope, signer,
+                       charter::schema::role_id_t::admin, now_ms)) {
+      return true;
+    }
   }
   return false;
+}
+
+bool signer_has_required_global_role(
+    charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
+    encoder_t& encoder,
+    const charter::schema::signer_id_t& signer,
+    const std::vector<charter::schema::role_id_t>& required_roles,
+    const uint64_t now_ms) {
+  auto prefix = charter::schema::make_bytes(kRoleAssignmentKeyPrefix);
+  auto rows = storage.list_by_prefix(
+      charter::schema::bytes_view_t{prefix.data(), prefix.size()});
+  for (const auto& [unused_key, value] : rows) {
+    (void)unused_key;
+    auto assignment =
+        encoder.try_decode<charter::schema::role_assignment_state_t>(
+            charter::schema::bytes_view_t{value.data(), value.size()});
+    if (!assignment.has_value()) {
+      continue;
+    }
+    if (!signer_ids_equal(assignment->subject, signer)) {
+      continue;
+    }
+    if (!assignment->enabled) {
+      continue;
+    }
+    if (assignment->not_before.has_value() &&
+        now_ms < assignment->not_before.value()) {
+      continue;
+    }
+    if (assignment->expires_at.has_value() &&
+        now_ms > assignment->expires_at.value()) {
+      continue;
+    }
+    if (assignment->role == charter::schema::role_id_t::admin) {
+      return true;
+    }
+    if (std::find(std::begin(required_roles), std::end(required_roles),
+                  assignment->role) != std::end(required_roles)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool is_policy_denial_code(const uint32_t code) {
+  switch (code) {
+    case 20:
+    case 23:
+    case 26:
+    case 28:
+    case 29:
+    case 30:
+    case 34:
+    case 35:
+    case 39:
+      return true;
+    default:
+      return false;
+  }
+}
+
+charter::schema::security_event_type_t event_type_for_tx_error(
+    const uint32_t code,
+    const bool validation_phase) {
+  if (code == 33) {
+    return charter::schema::security_event_type_t::authz_denied;
+  }
+  if (is_policy_denial_code(code)) {
+    return charter::schema::security_event_type_t::policy_denied;
+  }
+  return validation_phase
+             ? charter::schema::security_event_type_t::tx_validation_failed
+             : charter::schema::security_event_type_t::tx_execution_denied;
 }
 
 uint64_t velocity_window_start_ms(
@@ -1474,7 +1513,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                 .vault_id = operation.vault_id,
                 .intent_id = operation.intent_id,
                 .created_by = tx.signer,
-                .create_at = now_ms,
+                .created_at = now_ms,
                 .not_before = not_before,
                 .expires_at = operation.expires_at,
                 .action = operation.action,
@@ -1987,8 +2026,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
   }
   if (result.code != 0) {
     append_security_event(
-        storage_, encoder,
-        charter::schema::security_event_type_t::tx_execution_denied,
+        storage_, encoder, event_type_for_tx_error(result.code, false),
         charter::schema::security_event_severity_t::error, result.code,
         result.log, tx.signer, workspace_id, vault_id, current_block_time_ms_,
         current_block_height_);
@@ -2022,26 +2060,21 @@ tx_result engine::validate_tx(const charter::schema::transaction_t& tx,
   auto required_roles = required_roles_for_payload(tx.payload);
   if (!required_roles.empty()) {
     auto scope = scope_from_payload(tx.payload);
-    if (!scope.has_value()) {
-      return make_error_tx_result(33, "authorization scope missing",
-                                  "operation requires scoped authorization",
-                                  std::string{codespace});
-    }
     auto authorized = false;
-    auto enforcement_active = false;
-    for (const auto role : required_roles) {
-      if (!role_is_configured_for_scope_or_parent(storage_, encoder,
-                                                  scope.value(), role)) {
-        continue;
+    if (scope.has_value()) {
+      for (const auto role : required_roles) {
+        if (signer_has_role_for_scope(storage_, encoder, scope.value(),
+                                      tx.signer, role,
+                                      current_block_time_ms_)) {
+          authorized = true;
+          break;
+        }
       }
-      enforcement_active = true;
-      if (signer_has_role_for_scope(storage_, encoder, scope.value(), tx.signer,
-                                    role, current_block_time_ms_)) {
-        authorized = true;
-        break;
-      }
+    } else {
+      authorized = signer_has_required_global_role(
+          storage_, encoder, tx.signer, required_roles, current_block_time_ms_);
     }
-    if (enforcement_active && !authorized) {
+    if (!authorized) {
       return make_error_tx_result(33, "authorization denied",
                                   "signer lacks required role for operation",
                                   std::string{codespace});
@@ -2121,8 +2154,7 @@ block_result engine::finalize_block(
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{tx_result.code, txs[i]});
       append_security_event(
-          storage_, encoder,
-          charter::schema::security_event_type_t::tx_validation_failed,
+          storage_, encoder, event_type_for_tx_error(tx_result.code, true),
           charter::schema::security_event_severity_t::error, tx_result.code,
           tx_result.log, std::nullopt, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
@@ -2145,8 +2177,7 @@ block_result engine::finalize_block(
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{validation.code, txs[i]});
       append_security_event(
-          storage_, encoder,
-          charter::schema::security_event_type_t::tx_validation_failed,
+          storage_, encoder, event_type_for_tx_error(validation.code, true),
           charter::schema::security_event_severity_t::error, validation.code,
           validation.log, maybe_tx->signer, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
