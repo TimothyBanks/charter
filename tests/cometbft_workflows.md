@@ -65,15 +65,22 @@ curl -s http://127.0.0.1:26657 \
 ## Charter Query Paths
 
 - `/engine/info`
+- `/engine/keyspaces`
 - `/state/workspace`
 - `/state/vault`
+- `/state/destination`
 - `/state/policy_set`
 - `/state/active_policy`
 - `/state/intent`
 - `/state/approval`
 - `/state/attestation`
+- `/state/role_assignment`
+- `/state/signer_quarantine`
+- `/state/degraded_mode`
+- `/state/destination_update`
 - `/history/range`
 - `/history/export`
+- `/events/range`
 
 ## Suggested End-to-End Flow
 

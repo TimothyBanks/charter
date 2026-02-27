@@ -1,11 +1,21 @@
 #include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/schema/create_workspace.hpp>
+#include <charter/schema/destination_update_state.hpp>
 #include <charter/schema/policy_rule.hpp>
 #include <charter/schema/security_event_record.hpp>
+#include <charter/schema/set_degraded_mode.hpp>
 #include <charter/schema/transaction.hpp>
+#include <charter/schema/upsert_role_assignment.hpp>
+#include <charter/schema/upsert_signer_quarantine.hpp>
+#include <charter/schema/velocity_counter_state.hpp>
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <fstream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -34,6 +44,165 @@ std::string to_hex(const charter::schema::bytes_t& bytes) {
     out[(2 * i) + 1] = kHex[bytes[i] & 0x0Fu];
   }
   return out;
+}
+
+std::vector<std::pair<std::string, charter::schema::transaction_t>>
+build_payload_vector_transactions() {
+  auto signer = make_ed25519_signer(140);
+  auto chain = make_hash(141);
+  auto workspace = make_hash(142);
+  auto vault = make_hash(143);
+  auto destination = make_hash(144);
+  auto intent = make_hash(145);
+  auto policy = make_hash(146);
+  auto asset = make_hash(147);
+  auto update = make_hash(148);
+
+  auto scope = charter::schema::policy_scope_t{
+      charter::schema::vault_t{.workspace_id = workspace, .vault_id = vault}};
+  auto transfer = charter::schema::transfer_parameters_t{
+      .asset_id = asset, .destination_id = destination, .amount = 5};
+  auto rule = charter::schema::policy_rule_t{
+      .operation = charter::schema::operation_type_t::transfer,
+      .approvals = {},
+      .limits = {},
+      .time_locks = {},
+      .destination_rules = {},
+      .reqired_claims = {},
+      .velocity_limits = {}};
+
+  auto build_tx = [&](const uint64_t nonce,
+                      const charter::schema::transaction_payload_t& payload) {
+    return charter::schema::transaction_t{
+        .version = 1,
+        .chain_id = chain,
+        .nonce = nonce,
+        .signer = signer,
+        .payload = payload,
+        .signature = charter::schema::ed25519_signature_t{}};
+  };
+
+  auto txs = std::vector<std::pair<std::string, charter::schema::transaction_t>>{};
+  txs.push_back({"create_workspace",
+                 build_tx(1, charter::schema::create_workspace_t{
+                                 .workspace_id = workspace,
+                                 .admin_set = {signer},
+                                 .quorum_size = 1,
+                                 .metadata_ref = std::nullopt})});
+  txs.push_back({"create_vault",
+                 build_tx(2, charter::schema::create_vault_t{
+                                 .workspace_id = workspace,
+                                 .vault_id = vault,
+                                 .model = charter::schema::vault_model_t::segregated,
+                                 .label = std::nullopt})});
+  txs.push_back({"upsert_destination",
+                 build_tx(3, charter::schema::upsert_destination_t{
+                                 .workspace_id = workspace,
+                                 .destination_id = destination,
+                                 .type = charter::schema::destination_type_t::address,
+                                 .chain_type = charter::schema::chain_type_t{
+                                     charter::schema::chain_type::ethereum},
+                                 .address_or_contract = charter::schema::bytes_t{0x01, 0x02},
+                                 .enabled = true,
+                                 .label = std::nullopt})});
+  txs.push_back({"create_policy_set",
+                 build_tx(4, charter::schema::create_policy_set_t{
+                                 .policy_set_id = policy,
+                                 .scope = scope,
+                                 .policy_version = 1,
+                                 .roles = {{charter::schema::role_id_t::approver, {signer}}},
+                                 .rules = {rule}})});
+  txs.push_back({"activate_policy_set",
+                 build_tx(5, charter::schema::activate_policy_set_t{
+                                 .scope = scope,
+                                 .policy_set_id = policy,
+                                 .policy_set_version = 1})});
+  txs.push_back({"propose_intent",
+                 build_tx(6, charter::schema::propose_intent_t{
+                                 .workspace_id = workspace,
+                                 .vault_id = vault,
+                                 .intent_id = intent,
+                                 .action = transfer,
+                                 .expires_at = std::nullopt})});
+  txs.push_back({"approve_intent",
+                 build_tx(7, charter::schema::approve_intent_t{
+                                 .workspace_id = workspace,
+                                 .vault_id = vault,
+                                 .intent_id = intent})});
+  txs.push_back({"execute_intent",
+                 build_tx(8, charter::schema::execute_intent_t{
+                                 .workspace_id = workspace,
+                                 .vault_id = vault,
+                                 .intent_id = intent})});
+  txs.push_back({"cancel_intent",
+                 build_tx(9, charter::schema::cancel_intent_t{
+                                 .workspace_id = workspace,
+                                 .vault_id = vault,
+                                 .intent_id = intent})});
+  txs.push_back({"upsert_attestation",
+                 build_tx(10, charter::schema::upsert_attestation_t{
+                                  .workspace_id = workspace,
+                                  .subject = workspace,
+                                  .claim = charter::schema::claim_type_t{
+                                      charter::schema::claim_type::kyb_verified},
+                                  .issuer = signer,
+                                  .expires_at = 1700000000000ULL,
+                                  .reference_hash = make_hash(149)})});
+  txs.push_back({"revoke_attestation",
+                 build_tx(11, charter::schema::revoke_attestation_t{
+                                  .workspace_id = workspace,
+                                  .subject = workspace,
+                                  .claim = charter::schema::claim_type_t{
+                                      charter::schema::claim_type::kyb_verified},
+                                  .issuer = signer})});
+  txs.push_back({"set_degraded_mode",
+                 build_tx(12, charter::schema::set_degraded_mode_t{
+                                  .mode = charter::schema::degraded_mode_t::read_only,
+                                  .effective_at = 1700000000001ULL,
+                                  .reason = charter::schema::make_bytes(
+                                      std::string_view{"incident"})})});
+  txs.push_back({"upsert_role_assignment",
+                 build_tx(13, charter::schema::upsert_role_assignment_t{
+                                  .scope = scope,
+                                  .subject = signer,
+                                  .role = charter::schema::role_id_t::approver,
+                                  .enabled = true,
+                                  .not_before = std::nullopt,
+                                  .expires_at = std::nullopt,
+                                  .note = charter::schema::make_bytes(
+                                      std::string_view{"grant"})})});
+  txs.push_back({"upsert_signer_quarantine",
+                 build_tx(14, charter::schema::upsert_signer_quarantine_t{
+                                  .signer = signer,
+                                  .quarantined = true,
+                                  .until = 1700000000002ULL,
+                                  .reason = charter::schema::make_bytes(
+                                      std::string_view{"alert"})})});
+  txs.push_back({"propose_destination_update",
+                 build_tx(15, charter::schema::propose_destination_update_t{
+                                  .workspace_id = workspace,
+                                  .destination_id = destination,
+                                  .update_id = update,
+                                  .type = charter::schema::destination_type_t::address,
+                                  .chain_type = charter::schema::chain_type_t{
+                                      charter::schema::chain_type::ethereum},
+                                  .address_or_contract = charter::schema::bytes_t{0xAA},
+                                  .enabled = true,
+                                  .label = charter::schema::make_bytes(
+                                      std::string_view{"new-dst"}),
+                                  .required_approvals = 1,
+                                  .delay_ms = 0})});
+  txs.push_back({"approve_destination_update",
+                 build_tx(16, charter::schema::approve_destination_update_t{
+                                  .workspace_id = workspace,
+                                  .destination_id = destination,
+                                  .update_id = update})});
+  txs.push_back({"apply_destination_update",
+                 build_tx(17, charter::schema::apply_destination_update_t{
+                                  .workspace_id = workspace,
+                                  .destination_id = destination,
+                                  .update_id = update})});
+  return txs;
 }
 
 }  // namespace
@@ -179,4 +348,267 @@ TEST(schema_encoding_types, transaction_golden_vector_create_workspace_v1) {
       "01"};
   EXPECT_TRUE(hex.starts_with(prefix));
   EXPECT_EQ(encoded.size() * 2, hex.size());
+}
+
+TEST(schema_encoding_types, destination_update_state_round_trips) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto state = charter::schema::destination_update_state_t{};
+  state.workspace_id = make_hash(60);
+  state.destination_id = make_hash(61);
+  state.update_id = make_hash(62);
+  state.type = charter::schema::destination_type_t::address;
+  state.chain_type =
+      charter::schema::chain_type_t{charter::schema::chain_type::ethereum};
+  state.address_or_contract = charter::schema::bytes_t{0xAA, 0xBB, 0xCC};
+  state.enabled = true;
+  state.label = charter::schema::make_bytes(std::string_view{"hot-wallet"});
+  state.created_by = make_ed25519_signer(71);
+  state.created_at = 1700000001000ULL;
+  state.not_before = 1700000002000ULL;
+  state.required_approvals = 2;
+  state.approvals_count = 1;
+  state.status = charter::schema::destination_update_status_t::pending_approval;
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = codec.encode(state);
+  auto decoded = codec.decode<charter::schema::destination_update_state_t>(
+      charter::schema::make_bytes_view(encoded));
+
+  EXPECT_EQ(decoded.workspace_id, state.workspace_id);
+  EXPECT_EQ(decoded.destination_id, state.destination_id);
+  EXPECT_EQ(decoded.update_id, state.update_id);
+  EXPECT_EQ(decoded.type, state.type);
+  EXPECT_EQ(decoded.chain_type, state.chain_type);
+  EXPECT_EQ(decoded.address_or_contract, state.address_or_contract);
+  EXPECT_EQ(decoded.enabled, state.enabled);
+  EXPECT_EQ(decoded.label, state.label);
+  ASSERT_TRUE(std::holds_alternative<charter::schema::ed25519_signer_id>(
+      decoded.created_by));
+  EXPECT_EQ(decoded.created_at, state.created_at);
+  EXPECT_EQ(decoded.not_before, state.not_before);
+  EXPECT_EQ(decoded.required_approvals, state.required_approvals);
+  EXPECT_EQ(decoded.approvals_count, state.approvals_count);
+  EXPECT_EQ(decoded.status, state.status);
+}
+
+TEST(schema_encoding_types, admin_state_types_round_trip) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto signer = make_ed25519_signer(80);
+
+  auto role_assignment = charter::schema::role_assignment_state_t{};
+  role_assignment.scope = charter::schema::policy_scope_t{
+      charter::schema::vault_t{.workspace_id = make_hash(81), .vault_id = make_hash(82)}};
+  role_assignment.subject = signer;
+  role_assignment.role = charter::schema::role_id_t::approver;
+  role_assignment.enabled = true;
+  role_assignment.not_before = 1700000100000ULL;
+  role_assignment.expires_at = 1700000200000ULL;
+  role_assignment.note = charter::schema::make_bytes(std::string_view{"temp grant"});
+  auto encoded_role = codec.encode(role_assignment);
+  auto decoded_role = codec.decode<charter::schema::role_assignment_state_t>(
+      charter::schema::make_bytes_view(encoded_role));
+  EXPECT_EQ(decoded_role.role, role_assignment.role);
+  EXPECT_EQ(decoded_role.enabled, role_assignment.enabled);
+  EXPECT_EQ(decoded_role.not_before, role_assignment.not_before);
+  EXPECT_EQ(decoded_role.expires_at, role_assignment.expires_at);
+  EXPECT_EQ(decoded_role.note, role_assignment.note);
+
+  auto quarantine = charter::schema::signer_quarantine_state_t{};
+  quarantine.signer = signer;
+  quarantine.quarantined = true;
+  quarantine.until = 1700000300000ULL;
+  quarantine.reason = charter::schema::make_bytes(std::string_view{"incident"});
+  auto encoded_quarantine = codec.encode(quarantine);
+  auto decoded_quarantine =
+      codec.decode<charter::schema::signer_quarantine_state_t>(
+          charter::schema::make_bytes_view(encoded_quarantine));
+  EXPECT_EQ(decoded_quarantine.quarantined, quarantine.quarantined);
+  EXPECT_EQ(decoded_quarantine.until, quarantine.until);
+  EXPECT_EQ(decoded_quarantine.reason, quarantine.reason);
+
+  auto degraded = charter::schema::degraded_mode_state_t{};
+  degraded.mode = charter::schema::degraded_mode_t::read_only;
+  degraded.effective_at = 1700000400000ULL;
+  degraded.reason = charter::schema::make_bytes(std::string_view{"maintenance"});
+  auto encoded_degraded = codec.encode(degraded);
+  auto decoded_degraded = codec.decode<charter::schema::degraded_mode_state_t>(
+      charter::schema::make_bytes_view(encoded_degraded));
+  EXPECT_EQ(decoded_degraded.mode, degraded.mode);
+  EXPECT_EQ(decoded_degraded.effective_at, degraded.effective_at);
+  EXPECT_EQ(decoded_degraded.reason, degraded.reason);
+}
+
+TEST(schema_encoding_types, velocity_counter_state_round_trips) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto state = charter::schema::velocity_counter_state_t{};
+  state.workspace_id = make_hash(90);
+  state.vault_id = make_hash(91);
+  state.asset_id = make_hash(92);
+  state.window = charter::schema::velocity_window_t::daily;
+  state.window_start = 1700000500000ULL;
+  state.used_amount = 1234;
+  state.tx_count = 7;
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = codec.encode(state);
+  auto decoded = codec.decode<charter::schema::velocity_counter_state_t>(
+      charter::schema::make_bytes_view(encoded));
+
+  EXPECT_EQ(decoded.workspace_id, state.workspace_id);
+  EXPECT_EQ(decoded.vault_id, state.vault_id);
+  EXPECT_EQ(decoded.asset_id, state.asset_id);
+  EXPECT_EQ(decoded.window, state.window);
+  EXPECT_EQ(decoded.window_start, state.window_start);
+  EXPECT_EQ(decoded.used_amount, state.used_amount);
+  EXPECT_EQ(decoded.tx_count, state.tx_count);
+}
+
+TEST(schema_encoding_types, encode_overload_appends_exact_payload_bytes) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto state = charter::schema::velocity_counter_state_t{};
+  state.workspace_id = make_hash(100);
+  state.vault_id = make_hash(101);
+  state.asset_id = make_hash(102);
+  state.window = charter::schema::velocity_window_t::weekly;
+  state.window_start = 1700000600000ULL;
+  state.used_amount = 999;
+  state.tx_count = 12;
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = codec.encode(state);
+
+  auto out = charter::schema::bytes_t{0xDE, 0xAD, 0xBE, 0xEF};
+  codec.encode(state, out);
+
+  ASSERT_EQ(out.size(), (4u + encoded.size()));
+  EXPECT_EQ(out[0], 0xDE);
+  EXPECT_EQ(out[1], 0xAD);
+  EXPECT_EQ(out[2], 0xBE);
+  EXPECT_EQ(out[3], 0xEF);
+  EXPECT_TRUE(std::equal(std::begin(encoded), std::end(encoded),
+                         std::begin(out) + 4));
+}
+
+TEST(schema_encoding_types, encoding_is_deterministic_for_identical_inputs) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto tx = charter::schema::transaction_t{};
+  tx.chain_id = make_hash(110);
+  tx.nonce = 42;
+  tx.signer = make_ed25519_signer(111);
+  tx.payload = charter::schema::set_degraded_mode_t{
+      .version = 1,
+      .mode = charter::schema::degraded_mode_t::read_only,
+      .effective_at = 1700000700000ULL,
+      .reason = charter::schema::make_bytes(std::string_view{"incident"})};
+  tx.signature = charter::schema::ed25519_signature_t{};
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto first = codec.encode(tx);
+  auto second = codec.encode(tx);
+  EXPECT_EQ(first, second);
+}
+
+TEST(schema_encoding_types, try_decode_rejects_truncated_bytes) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto tx = charter::schema::transaction_t{};
+  tx.chain_id = make_hash(120);
+  tx.nonce = 9;
+  tx.signer = make_ed25519_signer(121);
+  tx.payload = charter::schema::upsert_signer_quarantine_t{
+      .version = 1,
+      .signer = make_ed25519_signer(122),
+      .quarantined = true,
+      .until = 1700000800000ULL,
+      .reason = charter::schema::make_bytes(std::string_view{"test"})};
+  tx.signature = charter::schema::ed25519_signature_t{};
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = codec.encode(tx);
+  ASSERT_GT(encoded.size(), 8u);
+  encoded.resize(encoded.size() - 5);
+
+  auto decoded = codec.try_decode<charter::schema::transaction_t>(
+      charter::schema::make_bytes_view(encoded));
+  EXPECT_FALSE(decoded.has_value());
+}
+
+TEST(schema_encoding_types, try_decode_rejects_random_garbage_bytes) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = charter::schema::bytes_t{0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x01};
+
+  auto decoded = codec.try_decode<charter::schema::transaction_t>(
+      charter::schema::make_bytes_view(encoded));
+  EXPECT_FALSE(decoded.has_value());
+}
+
+TEST(schema_encoding_types, transaction_round_trips_all_payload_variants) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto txs = build_payload_vector_transactions();
+
+  auto codec = encoder<scale_encoder_tag>{};
+  for (const auto& [name, tx] : txs) {
+    auto encoded = codec.encode(tx);
+    auto decoded = codec.decode<charter::schema::transaction_t>(
+        charter::schema::make_bytes_view(encoded));
+
+    SCOPED_TRACE(name);
+    EXPECT_EQ(decoded.version, tx.version);
+    EXPECT_EQ(decoded.chain_id, tx.chain_id);
+    EXPECT_EQ(decoded.nonce, tx.nonce);
+    EXPECT_EQ(codec.encode(decoded.signer), codec.encode(tx.signer));
+    EXPECT_EQ(decoded.signature.index(), tx.signature.index());
+    EXPECT_EQ(decoded.payload.index(), tx.payload.index());
+    EXPECT_EQ(codec.encode(decoded), encoded);
+  }
+}
+
+TEST(schema_encoding_types, transaction_payload_vectors_match_fixture_v1) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto fixture = std::ifstream{"tests/fixtures/schema_payload_tx_vectors_v1.txt"};
+  ASSERT_TRUE(fixture.is_open());
+
+  auto expected = std::map<std::string, std::string>{};
+  for (auto line = std::string{}; std::getline(fixture, line);) {
+    if (line.empty()) {
+      continue;
+    }
+    auto row = std::istringstream{line};
+    auto name = std::string{};
+    auto hex = std::string{};
+    row >> name >> hex;
+    ASSERT_FALSE(name.empty());
+    ASSERT_FALSE(hex.empty());
+    expected.emplace(std::move(name), std::move(hex));
+  }
+
+  auto txs = build_payload_vector_transactions();
+  ASSERT_EQ(expected.size(), txs.size());
+
+  auto codec = encoder<scale_encoder_tag>{};
+  for (const auto& [name, tx] : txs) {
+    auto it = expected.find(name);
+    ASSERT_NE(it, expected.end()) << name;
+    auto encoded = codec.encode(tx);
+    EXPECT_EQ(to_hex(encoded), it->second) << name;
+  }
 }

@@ -73,6 +73,7 @@ Code definitions:
 
 Supported query paths:
 - `/engine/info`
+- `/engine/keyspaces`
 - `/state/workspace`
 - `/state/vault`
 - `/state/destination`

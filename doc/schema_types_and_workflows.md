@@ -25,14 +25,15 @@ Types:
 - `upsert_destination_t`
 - `upsert_attestation_t`
 - `revoke_attestation_t`
-- `disable_asset_t`
-- `asset_state_t`, `attestation_record_t`
+- `asset_state_t` (schema-defined, currently not in `transaction_payload_t`)
+- `disable_asset_t` (schema-defined, currently not in `transaction_payload_t`)
+- `attestation_record_t`
 
 Attached workflows:
 - Tenant bootstrap (`create_workspace_t`)
 - Vault creation and destination enrollment (`create_vault_t`, `upsert_destination_t`)
 - Claims/compliance gating (`upsert_attestation_t`, `revoke_attestation_t`)
-- Asset operational state transitions (`disable_asset_t`)
+- Asset operational state transitions are schema-defined but not currently executable via tx payload routing.
 
 ## 3) Policy and Approval Model
 
@@ -147,6 +148,7 @@ Attached workflows:
 5. RocksDB persists state for query, replay, backup, and snapshot.
 
 This is the current schema-to-engine contract for the PoC baseline.
+Note: asset registry schemas are present but not yet wired into tx payload dispatch/execution paths.
 
 ## 11) Workflow Attachments (Happy Path)
 

@@ -852,6 +852,106 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
   std::filesystem::remove_all(restored_db, ec);
 }
 
+TEST(engine_integration, replay_history_is_idempotent_for_same_chain_state) {
+  auto db = make_db_path("charter_engine_replay_idempotent");
+  {
+    auto engine = charter::execution::engine{1, db, false};
+    engine.set_signature_verifier([](const charter::schema::bytes_view_t&,
+                                     const charter::schema::signer_id_t&,
+                                     const charter::schema::signature_t&) {
+      return true;
+    });
+    auto chain_id = chain_id_from_engine(engine);
+    auto signer = make_named_signer(91);
+    auto workspace = make_hash(92);
+
+    auto block = engine.finalize_block(
+        1, {encode_tx(make_tx(chain_id, 1, signer,
+                              charter::schema::create_workspace_t{
+                                  .workspace_id = workspace,
+                                  .admin_set = {signer},
+                                  .quorum_size = 1,
+                                  .metadata_ref = std::nullopt}))});
+    ASSERT_EQ(block.tx_results.size(), 1u);
+    EXPECT_EQ(block.tx_results[0].code, 0u);
+    (void)engine.commit();
+
+    auto replay1 = engine.replay_history();
+    auto replay2 = engine.replay_history();
+    EXPECT_TRUE(replay1.ok);
+    EXPECT_TRUE(replay2.ok);
+    EXPECT_EQ(replay1.tx_count, replay2.tx_count);
+    EXPECT_EQ(replay1.applied_count, replay2.applied_count);
+    EXPECT_EQ(replay1.last_height, replay2.last_height);
+    EXPECT_EQ(replay1.app_hash, replay2.app_hash);
+    EXPECT_EQ(engine.info().last_block_height, replay2.last_height);
+  }
+
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
+TEST(engine_integration, snapshot_chunk_corruption_is_rejected_then_recovers) {
+  auto db = make_db_path("charter_engine_snapshot_corrupt");
+  {
+    auto engine = charter::execution::engine{1, db, false};
+    engine.set_signature_verifier([](const charter::schema::bytes_view_t&,
+                                     const charter::schema::signer_id_t&,
+                                     const charter::schema::signature_t&) {
+      return true;
+    });
+    auto chain_id = chain_id_from_engine(engine);
+    auto signer = make_named_signer(101);
+    auto workspace = make_hash(102);
+
+    auto block = engine.finalize_block(
+        1, {encode_tx(make_tx(chain_id, 1, signer,
+                              charter::schema::create_workspace_t{
+                                  .workspace_id = workspace,
+                                  .admin_set = {signer},
+                                  .quorum_size = 1,
+                                  .metadata_ref = std::nullopt}))});
+    ASSERT_EQ(block.tx_results.size(), 1u);
+    EXPECT_EQ(block.tx_results[0].code, 0u);
+    (void)engine.commit();
+
+    auto snapshots = engine.list_snapshots();
+    ASSERT_FALSE(snapshots.empty());
+    auto offered = snapshots.front();
+    EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
+              charter::execution::offer_snapshot_result::accept);
+
+    auto chunk = engine.load_snapshot_chunk(offered.height, offered.format, 0);
+    ASSERT_TRUE(chunk.has_value());
+    ASSERT_FALSE(chunk->empty());
+
+    auto corrupted = *chunk;
+    corrupted[0] ^= 0xFF;
+    auto corrupted_result = engine.apply_snapshot_chunk(
+        0, charter::schema::bytes_view_t{corrupted.data(), corrupted.size()},
+        "peer-a");
+    EXPECT_EQ(corrupted_result,
+              charter::execution::apply_snapshot_chunk_result::reject_snapshot);
+
+    auto wrong_index = engine.apply_snapshot_chunk(
+        1, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
+        "peer-a");
+    EXPECT_EQ(wrong_index,
+              charter::execution::apply_snapshot_chunk_result::retry_snapshot);
+
+    EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
+              charter::execution::offer_snapshot_result::accept);
+    auto applied_result = engine.apply_snapshot_chunk(
+        0, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
+        "peer-a");
+    EXPECT_EQ(applied_result,
+              charter::execution::apply_snapshot_chunk_result::accept);
+  }
+
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
 TEST(engine_integration, tx_error_code_matrix_coverage) {
   auto observed = std::set<uint32_t>{};
   auto run = [&](const std::string& label, const auto& fn) {

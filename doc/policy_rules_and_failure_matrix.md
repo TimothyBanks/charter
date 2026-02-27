@@ -247,7 +247,7 @@ Note: this is an implementation-oriented policy catalog based on common institut
 ### 8.1 Identity and actor controls
 
 - Role-based initiator permissions (who can propose by workspace/vault/asset)
-  - Status: missing
+  - Status: partially present (role assignments + policy roles are enforced for tx paths; asset-specific role tiering remains missing)
 - Approver set constraints by role tier (ops/compliance/risk)
   - Status: partially present (threshold exists; role model missing)
 - Break-glass roles with explicit emergency policy path
@@ -262,7 +262,7 @@ Note: this is an implementation-oriented policy catalog based on common institut
 - Threshold tiers by destination risk class
   - Status: missing
 - Prohibit self-approval by proposer
-  - Status: missing
+  - Status: implemented (SoD rule path with `code=35`)
 
 ### 8.3 Time controls
 
@@ -278,7 +278,7 @@ Note: this is an implementation-oriented policy catalog based on common institut
 - Per-transaction amount limit
   - Status: implemented
 - Daily/weekly/monthly cumulative spend velocity limits
-  - Status: missing
+  - Status: implemented (velocity rules + counters with deny `code=34`)
 - Per-asset and per-chain limit profiles
   - Status: missing
 
@@ -289,7 +289,7 @@ Note: this is an implementation-oriented policy catalog based on common institut
 - Destination allow/deny list with reason and owner metadata
   - Status: partially present (enabled flag exists; metadata governance missing)
 - Destination approval workflow (add/edit/remove needs approvals + delay)
-  - Status: missing
+  - Status: implemented (propose/approve/apply destination update flow; `codes=36..39`)
 
 ### 8.6 Compliance/claims controls
 
@@ -323,7 +323,7 @@ Note: this is an implementation-oriented policy catalog based on common institut
 - Explicit anomaly flags (nonce gaps, sudden spend spikes, new destination + high value)
   - Status: missing
 - Tamper-evident audit events (security-event stream)
-  - Status: missing
+  - Status: implemented (`security_event_record_t` persistence + `/events/range`)
 - Replay safety checks as alertable event class
   - Status: partially present (warning log exists)
 
@@ -381,7 +381,7 @@ Selling points unlocked:
 
 Current status in Charter:
 - partial: cryptographic verification path, deterministic tx history, export/replay
-- missing: explicit security event stream, role-governed emergency actions, key lifecycle policy objects
+- missing: role-governed emergency operations hardening and key lifecycle policy objects
 
 ### 9.3 AML/Travel-Rule/Regulatory Expectations (Licensing Readiness)
 
@@ -549,14 +549,14 @@ Use one issue per item below.
 ## 12. Sprint Execution Checklist
 
 ### Sprint S1 (Proof hardening)
-- [ ] Implement actor authorization model
-- [ ] Implement destination governance workflow
+- [x] Implement actor authorization model (baseline role checks)
+- [x] Implement destination governance workflow
 - [ ] Add tests for authorization and destination lifecycle bypass attempts
 - [ ] Update workflow docs and tx_builder flags
 
 ### Sprint S2 (Risk controls)
-- [ ] Implement cumulative velocity limits
-- [ ] Implement durable security/audit event stream
+- [x] Implement cumulative velocity limits
+- [x] Implement durable security/audit event stream
 - [ ] Add replay/snapshot coverage tests for new state and counters
 - [ ] Add event query examples to Comet workflow guide
 
