@@ -6,6 +6,7 @@
 #include <charter/schema/operation_type.hpp>
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/time_lock_rule.hpp>
+#include <charter/schema/velocity_limit_rule.hpp>
 #include <optional>
 
 namespace charter::schema {
@@ -26,6 +27,8 @@ struct policy_rule<1> final {
       destination_rules;  // must be sorted deterministically.
   std::vector<claim_type_t>
       reqired_claims;  // must be sorted deterministically.
+  std::vector<velocity_limit_rule_t>
+      velocity_limits;  // must be sorted deterministically.
 };
 
 using policy_rule_t = policy_rule<1>;

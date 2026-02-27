@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 #include <boost/program_options.hpp>
 #include <charter/abci/server.hpp>
+#include <charter/crypto/verify.hpp>
 #include <csignal>
 #include <string>
 
@@ -22,6 +23,7 @@ void signal_handler(int) {
 
 int main(int argc, char* argv[]) {
   std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
 
   spdlog::init_thread_pool(8192, 1);
   spdlog::set_pattern("%H:%M:%S.%e [%^%l%$] [%n] %v");
@@ -42,7 +44,8 @@ int main(int argc, char* argv[]) {
   //   spdlog::set_pattern("%H:%M:%S.%e [%^%l%$] [%n] %s:%# %! - %v");
 
   auto grpc_port = std::string{};
-  auto verbose = false;
+  auto backup_path = std::string{};
+  auto allow_insecure_crypto = false;
 
   auto vm = boost::program_options::variables_map{};
   auto description = boost::program_options::options_description{"Charter"};
@@ -50,7 +53,13 @@ int main(int argc, char* argv[]) {
       "grpc-port,g",
       boost::program_options::value<std::string>(&grpc_port)
           ->default_value("0.0.0.0:26658"),
-      "IP:Port for the ABCI server")("verbose,v", "Enable verbose output");
+      "IP:Port for the ABCI server")(
+      "backup-file,b",
+      boost::program_options::value<std::string>(&backup_path)
+          ->default_value("charter.backup"),
+      "Path to backup bundle used for startup/shutdown restore")(
+      "allow-insecure-crypto",
+      "Allow startup without strict cryptographic verification backend");
   boost::program_options::store(
       boost::program_options::parse_command_line(argc, argv, description), vm);
   boost::program_options::notify(vm);
@@ -60,18 +69,32 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  if (vm.contains("verbose")) {
-    verbose = true;
+  if (vm.contains("allow-insecure-crypto")) {
+    allow_insecure_crypto = true;
   }
 
   auto copy = grpc_port;
   std::ranges::replace(copy, ':', ' ');
+  spdlog::info(
+      "startup config: grpc_port='{}' backup_file='{}' strict_crypto={} "
+      "openssl_backend_available={} snapshot_interval_default={} cxx={}",
+      grpc_port, backup_path, !allow_insecure_crypto,
+      charter::crypto::available(), 100, __cplusplus);
   spdlog::info("gRPC service listening on {}", copy);
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
-  auto grpc_listener = charter::abci::listener();
+  auto grpc_listener = charter::abci::listener{!allow_insecure_crypto};
+  auto loaded_backup = grpc_listener.load_backup(backup_path);
+  if (loaded_backup) {
+    auto replay = grpc_listener.replay_history();
+    if (!replay.ok) {
+      spdlog::warn(
+          "Backup loaded but replay could not fully validate local history: {}",
+          replay.error);
+    }
+  }
   auto grpc_builder = grpc::ServerBuilder();
   grpc_builder.AddListeningPort(grpc_port, grpc::InsecureServerCredentials());
   grpc_builder.RegisterService(&grpc_listener);
@@ -86,6 +109,7 @@ int main(int argc, char* argv[]) {
       grpc_server->GetHealthCheckService()->SetServingStatus(true);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
+    grpc_listener.persist_backup(backup_path);
     grpc_server->GetHealthCheckService()->SetServingStatus(false);
     grpc_server->Shutdown();
   });

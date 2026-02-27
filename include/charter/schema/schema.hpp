@@ -2,8 +2,10 @@
 
 #include <charter/schema/activate_policy_set.hpp>
 #include <charter/schema/active_policy_pointer.hpp>
+#include <charter/schema/apply_destination_update.hpp>
 #include <charter/schema/approval_rule.hpp>
 #include <charter/schema/approval_state.hpp>
+#include <charter/schema/approve_destination_update.hpp>
 #include <charter/schema/approve_intent.hpp>
 #include <charter/schema/asset_kind.hpp>
 #include <charter/schema/asset_ref.hpp>
@@ -17,8 +19,11 @@
 #include <charter/schema/create_policy_set.hpp>
 #include <charter/schema/create_vault.hpp>
 #include <charter/schema/create_workspace.hpp>
+#include <charter/schema/degraded_mode.hpp>
 #include <charter/schema/destination_rule.hpp>
 #include <charter/schema/destination_type.hpp>
+#include <charter/schema/destination_update_state.hpp>
+#include <charter/schema/destination_update_status.hpp>
 #include <charter/schema/disable_asset.hpp>
 #include <charter/schema/execute_intent.hpp>
 #include <charter/schema/intent_action.hpp>
@@ -29,14 +34,24 @@
 #include <charter/schema/policy_rule.hpp>
 #include <charter/schema/policy_set.hpp>
 #include <charter/schema/primitives.hpp>
+#include <charter/schema/propose_destination_update.hpp>
 #include <charter/schema/propose_intent.hpp>
 #include <charter/schema/revoke_attestation.hpp>
 #include <charter/schema/role_id.hpp>
+#include <charter/schema/security_event_record.hpp>
+#include <charter/schema/security_event_severity.hpp>
+#include <charter/schema/security_event_type.hpp>
+#include <charter/schema/set_degraded_mode.hpp>
 #include <charter/schema/time_lock_rule.hpp>
 #include <charter/schema/transaction.hpp>
 #include <charter/schema/transfer_parameters.hpp>
 #include <charter/schema/upsert_attestation.hpp>
 #include <charter/schema/upsert_destination.hpp>
+#include <charter/schema/upsert_role_assignment.hpp>
+#include <charter/schema/upsert_signer_quarantine.hpp>
 #include <charter/schema/vault_model.hpp>
 #include <charter/schema/vault_state.hpp>
+#include <charter/schema/velocity_counter_state.hpp>
+#include <charter/schema/velocity_limit_rule.hpp>
+#include <charter/schema/velocity_window.hpp>
 #include <charter/schema/workspace_state.hpp>

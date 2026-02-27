@@ -1,6 +1,10 @@
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <charter/abci/server.hpp>
+#include <filesystem>
+#include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -67,9 +71,109 @@ void populate_exec_tx_result(const charter::execution::tx_result& source,
   destination->set_codespace(source.codespace);
 }
 
+std::optional<charter::schema::hash32_t> try_make_hash32(
+    const std::string& value) {
+  if (value.size() == 32) {
+    auto hash = charter::schema::hash32_t{};
+    std::copy_n(std::begin(value), hash.size(), std::begin(hash));
+    return hash;
+  }
+  auto hex = std::string_view{value};
+  if (hex.size() >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) {
+    hex.remove_prefix(2);
+  }
+  if (hex.size() != 64) {
+    return std::nullopt;
+  }
+  auto nibble = [](char c) -> std::optional<uint8_t> {
+    if (c >= '0' && c <= '9') {
+      return static_cast<uint8_t>(c - '0');
+    }
+    if (c >= 'a' && c <= 'f') {
+      return static_cast<uint8_t>(c - 'a' + 10);
+    }
+    if (c >= 'A' && c <= 'F') {
+      return static_cast<uint8_t>(c - 'A' + 10);
+    }
+    return std::nullopt;
+  };
+  auto hash = charter::schema::hash32_t{};
+  for (size_t i = 0; i < hash.size(); ++i) {
+    auto hi = nibble(hex[2 * i]);
+    auto lo = nibble(hex[(2 * i) + 1]);
+    if (!hi || !lo) {
+      return std::nullopt;
+    }
+    hash[i] = static_cast<uint8_t>((*hi << 4u) | *lo);
+  }
+  return hash;
+}
+
 }  // namespace
 
 void reactor::OnDone() {}
+
+bool listener::load_backup(const std::string& backup_path) {
+  if (backup_path.empty()) {
+    return false;
+  }
+  if (!std::filesystem::exists(backup_path)) {
+    spdlog::info("No backup file found at '{}'", backup_path);
+    return false;
+  }
+
+  auto input = std::ifstream{backup_path, std::ios::binary};
+  if (!input.good()) {
+    spdlog::error("Failed opening backup file '{}'", backup_path);
+    return false;
+  }
+  auto bytes = std::vector<uint8_t>{std::istreambuf_iterator<char>{input},
+                                    std::istreambuf_iterator<char>{}};
+  if (bytes.empty()) {
+    spdlog::warn("Backup file '{}' is empty", backup_path);
+    return false;
+  }
+
+  auto error = std::string{};
+  auto imported = execution_engine_.import_backup(
+      charter::schema::bytes_view_t{bytes.data(), bytes.size()}, error);
+  if (!imported) {
+    spdlog::error("Failed importing backup '{}': {}", backup_path, error);
+    return false;
+  }
+  spdlog::info("Imported backup from '{}'", backup_path);
+  return true;
+}
+
+bool listener::persist_backup(const std::string& backup_path) const {
+  if (backup_path.empty()) {
+    return false;
+  }
+  auto backup = execution_engine_.export_backup();
+  auto output = std::ofstream{backup_path, std::ios::binary | std::ios::trunc};
+  if (!output.good()) {
+    spdlog::error("Failed opening backup output '{}'", backup_path);
+    return false;
+  }
+  output.write(reinterpret_cast<const char*>(backup.data()), backup.size());
+  if (!output.good()) {
+    spdlog::error("Failed writing backup output '{}'", backup_path);
+    return false;
+  }
+  spdlog::info("Persisted backup to '{}'", backup_path);
+  return true;
+}
+
+charter::execution::replay_result listener::replay_history() {
+  auto replay = execution_engine_.replay_history();
+  if (replay.ok) {
+    spdlog::info("History replay complete: txs={}, applied={}, height={}",
+                 replay.tx_count, replay.applied_count, replay.last_height);
+  } else {
+    spdlog::warn("History replay failed: {}", replay.error);
+  }
+  return replay;
+}
 
 grpc::ServerUnaryReactor* listener::Echo(
     grpc::CallbackServerContext* context,
@@ -120,9 +224,16 @@ grpc::ServerUnaryReactor* listener::Query(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestQuery* request,
     tendermint::abci::ResponseQuery* response) {
-  response->set_code(0);
-  response->set_key(request->data());
-  response->set_value("query not yet implemented");
+  auto data = make_bytes(request->data());
+  auto query = execution_engine_.query(
+      request->path(), charter::schema::bytes_view_t{data.data(), data.size()});
+  response->set_code(query.code);
+  response->set_log(query.log);
+  response->set_info(query.info);
+  response->set_key(make_string(query.key));
+  response->set_value(make_string(query.value));
+  response->set_height(query.height);
+  response->set_codespace(query.codespace);
   return finish_ok(context);
 }
 
@@ -164,15 +275,21 @@ grpc::ServerUnaryReactor* listener::OfferSnapshot(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestOfferSnapshot* request,
     tendermint::abci::ResponseOfferSnapshot* response) {
+  auto offered_hash = try_make_hash32(request->snapshot().hash());
+  auto trusted_hash = try_make_hash32(request->app_hash());
+  if (!offered_hash || !trusted_hash) {
+    response->set_result(tendermint::abci::ResponseOfferSnapshot_Result_REJECT);
+    return finish_ok(context);
+  }
+
   auto offered = charter::execution::snapshot_descriptor{};
   offered.height = request->snapshot().height();
   offered.format = request->snapshot().format();
   offered.chunks = request->snapshot().chunks();
-  offered.hash = make_hash32(request->snapshot().hash());
+  offered.hash = *offered_hash;
   offered.metadata = make_bytes(request->snapshot().metadata());
 
-  auto result = execution_engine_.offer_snapshot(
-      offered, make_hash32(request->app_hash()));
+  auto result = execution_engine_.offer_snapshot(offered, *trusted_hash);
   response->set_result(map_offer_result(result));
   return finish_ok(context);
 }
@@ -205,7 +322,20 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestPrepareProposal* request,
     tendermint::abci::ResponsePrepareProposal* response) {
+  auto total_size = int64_t{};
+  auto max_bytes = request->max_tx_bytes();
   for (const auto& tx : request->txs()) {
+    auto tx_bytes = make_bytes(tx);
+    auto check = execution_engine_.check_tx(
+        charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
+    if (check.code != 0) {
+      continue;
+    }
+    auto next_size = total_size + static_cast<int64_t>(tx.size());
+    if (max_bytes > 0 && next_size > max_bytes) {
+      break;
+    }
+    total_size = next_size;
     *response->add_txs() = tx;
   }
   return finish_ok(context);
@@ -213,8 +343,18 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
 
 grpc::ServerUnaryReactor* listener::ProcessProposal(
     grpc::CallbackServerContext* context,
-    const tendermint::abci::RequestProcessProposal* /*request*/,
+    const tendermint::abci::RequestProcessProposal* request,
     tendermint::abci::ResponseProcessProposal* response) {
+  for (const auto& tx : request->txs()) {
+    auto tx_bytes = make_bytes(tx);
+    auto tx_result = execution_engine_.process_proposal_tx(
+        charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
+    if (tx_result.code != 0) {
+      response->set_status(
+          tendermint::abci::ResponseProcessProposal_ProposalStatus_REJECT);
+      return finish_ok(context);
+    }
+  }
   response->set_status(
       tendermint::abci::ResponseProcessProposal_ProposalStatus_ACCEPT);
   return finish_ok(context);

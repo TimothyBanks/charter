@@ -3,6 +3,7 @@
 #include <rocksdb/iterator.h>
 #include <rocksdb/options.h>
 #include <rocksdb/slice.h>
+#include <rocksdb/write_batch.h>
 #include <spdlog/spdlog.h>
 #include <charter/common/critical.hpp>
 #include <charter/schema/encoding/scale/encoder.hpp>
@@ -87,9 +88,13 @@ struct storage<rocksdb_storage_tag> final {
   void save_committed_state(const committed_state& state) const;
   std::vector<snapshot_descriptor> list_snapshots() const;
   void save_snapshot(const snapshot_descriptor& snapshot,
-                     const charter::schema::hash32_t& chunk) const;
+                     const charter::schema::bytes_t& chunk) const;
   std::optional<charter::schema::bytes_t>
   load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
+  std::vector<key_value_entry_t> list_by_prefix(
+      const charter::schema::bytes_view_t& prefix) const;
+  void replace_by_prefix(const charter::schema::bytes_view_t& prefix,
+                         const std::vector<key_value_entry_t>& entries) const;
 };
 
 template <>
@@ -110,7 +115,6 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
       database->Get(ROCKSDB_NAMESPACE::ReadOptions{}, key_slice, &value);
   if (!status.ok()) {
     if (status.IsNotFound()) {
-      spdlog::info("Key not found in RocksDB");
       return std::nullopt;
     } else {
       spdlog::error("Failed to get value from RocksDB: {}", status.ToString());
@@ -245,7 +249,7 @@ storage<rocksdb_storage_tag>::list_snapshots() const {
 
 inline void storage<rocksdb_storage_tag>::save_snapshot(
     const snapshot_descriptor& snapshot,
-    const charter::schema::hash32_t& chunk) const {
+    const charter::schema::bytes_t& chunk) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
@@ -290,6 +294,81 @@ storage<rocksdb_storage_tag>::load_snapshot_chunk(uint64_t height,
     return std::nullopt;
   }
   return charter::schema::bytes_t(std::begin(raw_value), std::end(raw_value));
+}
+
+inline std::vector<key_value_entry_t>
+storage<rocksdb_storage_tag>::list_by_prefix(
+    const charter::schema::bytes_view_t& prefix) const {
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
+
+  auto entries = std::vector<key_value_entry_t>{};
+  auto prefix_string =
+      std::string{reinterpret_cast<const char*>(prefix.data()), prefix.size()};
+
+  auto read_options = ROCKSDB_NAMESPACE::ReadOptions{};
+  auto iterator = std::unique_ptr<ROCKSDB_NAMESPACE::Iterator>{
+      database->NewIterator(read_options)};
+  iterator->Seek(prefix_string);
+  while (iterator->Valid()) {
+    auto key_view =
+        std::string_view{iterator->key().data(), iterator->key().size()};
+    if (!key_view.starts_with(prefix_string)) {
+      break;
+    }
+    entries.push_back(key_value_entry_t{detail::to_bytes(iterator->key()),
+                                        detail::to_bytes(iterator->value())});
+    iterator->Next();
+  }
+  return entries;
+}
+
+inline void storage<rocksdb_storage_tag>::replace_by_prefix(
+    const charter::schema::bytes_view_t& prefix,
+    const std::vector<key_value_entry_t>& entries) const {
+  if (!database) {
+    charter::common::critical("RocksDB database is not initialized");
+  }
+
+  auto prefix_string =
+      std::string{reinterpret_cast<const char*>(prefix.data()), prefix.size()};
+  auto read_options = ROCKSDB_NAMESPACE::ReadOptions{};
+  auto iterator = std::unique_ptr<ROCKSDB_NAMESPACE::Iterator>{
+      database->NewIterator(read_options)};
+  auto batch = ROCKSDB_NAMESPACE::WriteBatch{};
+
+  iterator->Seek(prefix_string);
+  while (iterator->Valid()) {
+    auto key_view =
+        std::string_view{iterator->key().data(), iterator->key().size()};
+    if (!key_view.starts_with(prefix_string)) {
+      break;
+    }
+    auto delete_status = batch.Delete(iterator->key());
+    if (!delete_status.ok()) {
+      charter::common::critical(
+          "failed deleting key during prefix replacement");
+    }
+    iterator->Next();
+  }
+
+  for (const auto& [key, value] : entries) {
+    auto put_status = batch.Put(
+        ROCKSDB_NAMESPACE::Slice{reinterpret_cast<const char*>(key.data()),
+                                 key.size()},
+        ROCKSDB_NAMESPACE::Slice{reinterpret_cast<const char*>(value.data()),
+                                 value.size()});
+    if (!put_status.ok()) {
+      charter::common::critical("failed writing key during prefix replacement");
+    }
+  }
+
+  auto write_status =
+      database->Write(ROCKSDB_NAMESPACE::WriteOptions{}, &batch);
+  if (!write_status.ok()) {
+    charter::common::critical("failed to commit prefix replacement");
+  }
 }
 
 }  // namespace charter::storage

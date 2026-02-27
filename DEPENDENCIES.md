@@ -294,3 +294,14 @@ $ cmake \
     ..
 $ make install -j8
 ```
+## openssl
+```
+$ git clone --depth 1 --branch openssl-3.5.5 https://github.com/openssl/openssl.git
+$ cd openssl
+$ ./Configure linux-x86_64 \
+  --prefix="/home/timothybanks/sandbox/usr/local" \
+  --openssldir="/home/timothybanks/sandbox/usr/local/ssl" \
+  shared
+$ make -j"$(nproc)"
+$ make install_sw
+```

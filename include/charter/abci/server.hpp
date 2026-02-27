@@ -48,7 +48,12 @@ struct reactor final : public grpc::ServerUnaryReactor {
 };
 
 struct listener final : public tendermint::abci::ABCI::CallbackService {
-  listener() = default;
+  explicit listener(bool require_strict_crypto = true)
+      : execution_engine_{100, "charter.db", require_strict_crypto} {}
+
+  bool load_backup(const std::string& backup_path);
+  bool persist_backup(const std::string& backup_path) const;
+  charter::execution::replay_result replay_history();
 
   virtual grpc::ServerUnaryReactor* Echo(
       grpc::CallbackServerContext* /*context*/,
@@ -133,7 +138,7 @@ struct listener final : public tendermint::abci::ABCI::CallbackService {
       tendermint::abci::ResponseFinalizeBlock* /*response*/) override final;
 
  private:
-  charter::execution::engine execution_engine_{};
+  charter::execution::engine execution_engine_;
 };
 
 }  // namespace charter::abci

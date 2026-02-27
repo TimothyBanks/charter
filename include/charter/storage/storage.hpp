@@ -5,6 +5,9 @@
 
 namespace charter::storage {
 
+using key_value_entry_t =
+    std::pair<charter::schema::bytes_t, charter::schema::bytes_t>;
+
 struct committed_state final {
   int64_t height{};
   charter::schema::hash32_t app_hash;
@@ -33,9 +36,13 @@ struct storage {
   void save_committed_state(const committed_state& state) const;
   std::vector<snapshot_descriptor> list_snapshots() const;
   void save_snapshot(const snapshot_descriptor& snapshot,
-                     const charter::schema::hash32_t& chunk) const;
+                     const charter::schema::bytes_t& chunk) const;
   std::optional<charter::schema::bytes_t>
   load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
+  std::vector<key_value_entry_t> list_by_prefix(
+      const charter::schema::bytes_view_t& prefix) const;
+  void replace_by_prefix(const charter::schema::bytes_view_t& prefix,
+                         const std::vector<key_value_entry_t>& entries) const;
 };
 
 template <typename Library>
