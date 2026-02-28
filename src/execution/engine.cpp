@@ -497,6 +497,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
   if (!pointer) {
     return std::nullopt;
   }
+
   auto policy_key = make_policy_set_key(encoder, pointer->policy_set_id,
                                         pointer->policy_set_version);
   auto policy = storage.get<encoder_t, charter::schema::policy_set_state_t>(
@@ -514,6 +515,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
     if (rule.operation != operation_type) {
       continue;
     }
+
     for (const auto& approval : rule.approvals) {
       requirements.threshold =
           std::max(requirements.threshold, approval.threshold);
@@ -524,6 +526,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
           requirements.require_distinct_from_executor ||
           approval.require_distinct_from_executor;
     }
+
     if (rule.time_locks.has_value()) {
       for (const auto& time_lock : *rule.time_locks) {
         if (time_lock.operation == operation_type) {
@@ -532,6 +535,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
         }
       }
     }
+
     for (const auto& limit : rule.limits) {
       if (!requirements.per_transaction_limit.has_value() ||
           limit.per_transaction_amount <
@@ -539,30 +543,34 @@ std::optional<policy_requirements> resolve_policy_requirements(
         requirements.per_transaction_limit = limit.per_transaction_amount;
       }
     }
+
     for (const auto& destination_rule : rule.destination_rules) {
       requirements.require_whitelisted_destination =
           requirements.require_whitelisted_destination ||
           destination_rule.require_whitelisted;
     }
+
     for (const auto& claim : rule.required_claims) {
-      auto existing = std::find_if(
-          std::begin(requirements.claim_requirements),
-          std::end(requirements.claim_requirements),
+      auto existing = std::ranges::find_if(
+          requirements.claim_requirements,
           [&](const charter::schema::claim_requirement_t& requirement) {
             return requirement.claim == claim;
           });
+
       if (existing == std::end(requirements.claim_requirements)) {
-        requirements.claim_requirements.push_back(
+        requirements.claim_requirements.emplace_back(
             charter::schema::claim_requirement_t{
                 .claim = claim,
                 .minimum_valid_until = std::nullopt,
                 .trusted_issuers = std::nullopt});
       }
     }
+
     for (const auto& velocity_limit : rule.velocity_limits) {
-      requirements.velocity_limits.push_back(velocity_limit);
+      requirements.velocity_limits.emplace_back(velocity_limit);
     }
   }
+
   return requirements;
 }
 
@@ -596,8 +604,8 @@ load_active_policy_set_for_scope(
 bool role_granted_by_policy(const charter::schema::policy_set_state_t& policy,
                             const charter::schema::role_id_t role,
                             const charter::schema::signer_id_t& signer) {
-  auto role_it = std::find_if(
-      std::begin(policy.roles), std::end(policy.roles),
+  auto role_it = std::ranges::find_if(
+      policy.roles,
       [&](const std::pair<charter::schema::role_id_t,
                           std::vector<charter::schema::signer_id_t>>& entry) {
         return entry.first == role;
@@ -605,10 +613,10 @@ bool role_granted_by_policy(const charter::schema::policy_set_state_t& policy,
   if (role_it == std::end(policy.roles)) {
     return false;
   }
-  return std::any_of(std::begin(role_it->second), std::end(role_it->second),
-                     [&](const charter::schema::signer_id_t& candidate) {
-                       return signer_ids_equal(candidate, signer);
-                     });
+  return std::ranges::any_of(
+      role_it->second, [&](const charter::schema::signer_id_t& candidate) {
+        return signer_ids_equal(candidate, signer);
+      });
 }
 
 bool role_granted_by_override(
@@ -732,8 +740,8 @@ bool signer_has_required_global_role(
     if (assignment->role == charter::schema::role_id_t::admin) {
       return true;
     }
-    if (std::find(std::begin(required_roles), std::end(required_roles),
-                  assignment->role) != std::end(required_roles)) {
+    if (std::ranges::find(required_roles, assignment->role) !=
+        std::end(required_roles)) {
       return true;
     }
   }
@@ -1074,7 +1082,7 @@ std::vector<charter::schema::bytes_t> make_state_prefixes(encoder_t& encoder) {
   auto prefixes = std::vector<charter::schema::bytes_t>{};
   for (const auto& keyspace : kEngineKeyspaces) {
     if (keyspace.starts_with(kStatePrefix)) {
-      prefixes.push_back(make_prefix_key(encoder, keyspace));
+      prefixes.emplace_back(make_prefix_key(encoder, keyspace));
     }
   }
   return prefixes;
@@ -1104,7 +1112,7 @@ void replace_state_entries(
         std::vector<charter::storage::key_value_entry_t>{};
     for (const auto& entry : state_entries) {
       if (key_starts_with_prefix(entry.first, prefix)) {
-        entries_for_prefix.push_back(entry);
+        entries_for_prefix.emplace_back(entry);
       }
     }
     storage.replace_by_prefix(
@@ -2174,7 +2182,7 @@ block_result_t engine::finalize_block(
           current_block_time_ms_, current_block_height_);
       append_transaction_result_event(tx_result, height,
                                       static_cast<uint32_t>(i), std::nullopt);
-      result.tx_results.push_back(std::move(tx_result));
+      result.tx_results.emplace_back(std::move(tx_result));
       continue;
     }
     auto signer_key = make_signer_cache_key(encoder, maybe_tx->signer);
@@ -2201,7 +2209,7 @@ block_result_t engine::finalize_block(
           current_block_time_ms_, current_block_height_);
       append_transaction_result_event(validation, height,
                                       static_cast<uint32_t>(i), maybe_tx);
-      result.tx_results.push_back(std::move(validation));
+      result.tx_results.emplace_back(std::move(validation));
       continue;
     }
 
@@ -2215,7 +2223,7 @@ block_result_t engine::finalize_block(
         std::tuple{tx_result.code, txs[i]});
     append_transaction_result_event(tx_result, height, static_cast<uint32_t>(i),
                                     maybe_tx);
-    result.tx_results.push_back(std::move(tx_result));
+    result.tx_results.emplace_back(std::move(tx_result));
     if (tx_result.code == 0) {
       auto nonce_key = make_nonce_key(encoder, maybe_tx->signer);
       storage_.put(
@@ -2553,9 +2561,9 @@ query_result_t engine::query(std::string_view path,
       if (!decoded_row) {
         continue;
       }
-      encoded_rows.push_back(std::tuple{height, index,
-                                        std::get<0>(decoded_row.value()),
-                                        std::get<1>(decoded_row.value())});
+      encoded_rows.emplace_back(std::tuple{height, index,
+                                           std::get<0>(decoded_row.value()),
+                                           std::get<1>(decoded_row.value())});
     }
     result.value = encoder.encode(encoded_rows);
     return result;
@@ -2599,7 +2607,7 @@ query_result_t engine::query(std::string_view path,
       auto event = encoder.try_decode<charter::schema::security_event_record_t>(
           charter::schema::bytes_view_t{value.data(), value.size()});
       if (event.has_value()) {
-        events.push_back(event.value());
+        events.emplace_back(event.value());
       }
     }
     result.value = encoder.encode(events);
@@ -2641,10 +2649,10 @@ std::vector<history_entry_t> engine::history(uint64_t from_height,
     if (!decoded) {
       continue;
     }
-    output.push_back(history_entry_t{.height = height,
-                                     .index = index,
-                                     .code = std::get<0>(decoded.value()),
-                                     .tx = std::get<1>(decoded.value())});
+    output.emplace_back(history_entry_t{.height = height,
+                                        .index = index,
+                                        .code = std::get<0>(decoded.value()),
+                                        .tx = std::get<1>(decoded.value())});
   }
   return output;
 }
@@ -3008,13 +3016,12 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
       .height = last_committed_height_,
       .state_root = last_committed_state_root_});
   auto existing =
-      std::find_if(std::begin(snapshots_), std::end(snapshots_),
-                   [&](const snapshot_descriptor_t& value) {
-                     return value.height == pending_snapshot_offer_->height &&
-                            value.format == pending_snapshot_offer_->format;
-                   });
+      std::ranges::find_if(snapshots_, [&](const snapshot_descriptor_t& value) {
+        return value.height == pending_snapshot_offer_->height &&
+               value.format == pending_snapshot_offer_->format;
+      });
   if (existing == std::end(snapshots_)) {
-    snapshots_.push_back(*pending_snapshot_offer_);
+    snapshots_.emplace_back(*pending_snapshot_offer_);
   } else {
     *existing = *pending_snapshot_offer_;
   }
@@ -3047,13 +3054,13 @@ void engine::create_snapshot_if_due(int64_t height) {
                                             .metadata = snapshot.metadata},
       chunk);
 
-  auto existing = std::find_if(std::begin(snapshots_), std::end(snapshots_),
-                               [&](const snapshot_descriptor_t& value) {
-                                 return value.height == snapshot.height &&
-                                        value.format == snapshot.format;
-                               });
+  auto existing =
+      std::ranges::find_if(snapshots_, [&](const snapshot_descriptor_t& value) {
+        return value.height == snapshot.height &&
+               value.format == snapshot.format;
+      });
   if (existing == std::end(snapshots_)) {
-    snapshots_.push_back(snapshot);
+    snapshots_.emplace_back(snapshot);
   } else {
     *existing = snapshot;
   }
@@ -3073,11 +3080,12 @@ void engine::load_persisted_state() {
   snapshots_.clear();
   snapshots_.reserve(stored_snapshots.size());
   for (const auto& snapshot : stored_snapshots) {
-    snapshots_.push_back(snapshot_descriptor_t{.height = snapshot.height,
-                                               .format = snapshot.format,
-                                               .chunks = snapshot.chunks,
-                                               .hash = snapshot.hash,
-                                               .metadata = snapshot.metadata});
+    snapshots_.emplace_back(
+        snapshot_descriptor_t{.height = snapshot.height,
+                              .format = snapshot.format,
+                              .chunks = snapshot.chunks,
+                              .hash = snapshot.hash,
+                              .metadata = snapshot.metadata});
   }
 }
 
