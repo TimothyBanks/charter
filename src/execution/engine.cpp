@@ -20,6 +20,8 @@
 #include <charter/schema/upsert_role_assignment.hpp>
 #include <charter/schema/upsert_signer_quarantine.hpp>
 #include <charter/schema/velocity_counter_state.hpp>
+#include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <map>
 #include <string_view>
@@ -286,6 +288,121 @@ std::string to_hex(const charter::schema::bytes_view_t& bytes) {
     out[(2 * i) + 1] = kHex[bytes[i] & 0x0Fu];
   }
   return out;
+}
+
+std::string payload_type_name(
+    const charter::schema::transaction_payload_t& payload) {
+  return std::visit(
+      overloaded{
+          [](const charter::schema::activate_policy_set_t&) {
+            return std::string{"activate_policy_set"};
+          },
+          [](const charter::schema::apply_destination_update_t&) {
+            return std::string{"apply_destination_update"};
+          },
+          [](const charter::schema::approve_destination_update_t&) {
+            return std::string{"approve_destination_update"};
+          },
+          [](const charter::schema::approve_intent_t&) {
+            return std::string{"approve_intent"};
+          },
+          [](const charter::schema::cancel_intent_t&) {
+            return std::string{"cancel_intent"};
+          },
+          [](const charter::schema::create_policy_set_t&) {
+            return std::string{"create_policy_set"};
+          },
+          [](const charter::schema::create_workspace_t&) {
+            return std::string{"create_workspace"};
+          },
+          [](const charter::schema::create_vault_t&) {
+            return std::string{"create_vault"};
+          },
+          [](const charter::schema::execute_intent_t&) {
+            return std::string{"execute_intent"};
+          },
+          [](const charter::schema::propose_destination_update_t&) {
+            return std::string{"propose_destination_update"};
+          },
+          [](const charter::schema::propose_intent_t&) {
+            return std::string{"propose_intent"};
+          },
+          [](const charter::schema::revoke_attestation_t&) {
+            return std::string{"revoke_attestation"};
+          },
+          [](const charter::schema::set_degraded_mode_t&) {
+            return std::string{"set_degraded_mode"};
+          },
+          [](const charter::schema::upsert_attestation_t&) {
+            return std::string{"upsert_attestation"};
+          },
+          [](const charter::schema::upsert_destination_t&) {
+            return std::string{"upsert_destination"};
+          },
+          [](const charter::schema::upsert_role_assignment_t&) {
+            return std::string{"upsert_role_assignment"};
+          },
+          [](const charter::schema::upsert_signer_quarantine_t&) {
+            return std::string{"upsert_signer_quarantine"};
+          }},
+      payload);
+}
+
+void append_tx_result_event(charter::execution::tx_result& result,
+                            uint64_t height,
+                            uint32_t index,
+                            const std::optional<charter::schema::transaction_t>&
+                                maybe_tx) {
+  auto event = charter::execution::tx_event{};
+  event.type = "charter.tx_result";
+  auto codespace =
+      result.codespace.empty() ? std::string{kExecuteCodespace} : result.codespace;
+  event.attributes.push_back(charter::execution::tx_event_attribute{
+      .key = "code",
+      .value = std::to_string(result.code),
+      .index = true});
+  event.attributes.push_back(charter::execution::tx_event_attribute{
+      .key = "success",
+      .value = result.code == 0 ? "true" : "false",
+      .index = true});
+  event.attributes.push_back(charter::execution::tx_event_attribute{
+      .key = "codespace", .value = codespace, .index = true});
+  event.attributes.push_back(charter::execution::tx_event_attribute{
+      .key = "height",
+      .value = std::to_string(height),
+      .index = true});
+  event.attributes.push_back(charter::execution::tx_event_attribute{
+      .key = "tx_index",
+      .value = std::to_string(index),
+      .index = true});
+  if (!result.log.empty()) {
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "log", .value = result.log, .index = false});
+  }
+  if (!result.info.empty()) {
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "info", .value = result.info, .index = false});
+  }
+  if (maybe_tx.has_value()) {
+    auto encoded_signer = encoder_t{}.encode(maybe_tx->signer);
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "signer",
+        .value = to_hex(charter::schema::bytes_view_t{
+            encoded_signer.data(), encoded_signer.size()}),
+        .index = true});
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "nonce",
+        .value = std::to_string(maybe_tx->nonce),
+        .index = true});
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "payload_type",
+        .value = payload_type_name(maybe_tx->payload),
+        .index = true});
+  } else {
+    event.attributes.push_back(charter::execution::tx_event_attribute{
+        .key = "payload_type", .value = "decode_failed", .index = true});
+  }
+  result.events.push_back(std::move(event));
 }
 
 std::string make_signer_cache_key(const charter::schema::signer_id_t& signer) {
@@ -1229,12 +1346,12 @@ engine::engine(uint64_t snapshot_interval,
           db_path_);
   load_persisted_state();
 
-  if (last_committed_app_hash_.empty()) {
-    last_committed_app_hash_ = make_zero_hash();
-    pending_app_hash_ = last_committed_app_hash_;
+  if (last_committed_state_root_.empty()) {
+    last_committed_state_root_ = make_zero_hash();
+    pending_state_root_ = last_committed_state_root_;
     storage_.save_committed_state(charter::storage::committed_state{
         .height = last_committed_height_,
-        .app_hash = last_committed_app_hash_});
+        .state_root = last_committed_state_root_});
   }
   if (snapshot_interval_ == 0) {
     spdlog::warn("Snapshot interval is 0; snapshots disabled");
@@ -2137,7 +2254,7 @@ block_result engine::finalize_block(
   current_block_time_ms_ = height * 1000;
   current_block_height_ = height;
 
-  auto rolling_hash = last_committed_app_hash_;
+  auto rolling_hash = last_committed_state_root_;
   auto expected_nonces = std::map<std::string, uint64_t>{};
   for (size_t i = 0; i < txs.size(); ++i) {
     auto decode_error = std::string{};
@@ -2158,6 +2275,8 @@ block_result engine::finalize_block(
           charter::schema::security_event_severity_t::error, tx_result.code,
           tx_result.log, std::nullopt, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
+      append_tx_result_event(tx_result, height, static_cast<uint32_t>(i),
+                             std::nullopt);
       result.tx_results.push_back(std::move(tx_result));
       continue;
     }
@@ -2181,6 +2300,8 @@ block_result engine::finalize_block(
           charter::schema::security_event_severity_t::error, validation.code,
           validation.log, maybe_tx->signer, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
+      append_tx_result_event(validation, height, static_cast<uint32_t>(i),
+                             maybe_tx);
       result.tx_results.push_back(std::move(validation));
       continue;
     }
@@ -2192,7 +2313,9 @@ block_result engine::finalize_block(
         encoder,
         charter::schema::bytes_view_t{history_key.data(), history_key.size()},
         std::tuple{tx_result.code, txs[i]});
-    result.tx_results.push_back(tx_result);
+    append_tx_result_event(tx_result, height, static_cast<uint32_t>(i),
+                           maybe_tx);
+    result.tx_results.push_back(std::move(tx_result));
     if (tx_result.code == 0) {
       auto nonce_key = make_nonce_key(maybe_tx->signer);
       storage_.put(
@@ -2205,8 +2328,8 @@ block_result engine::finalize_block(
   }
 
   pending_height_ = static_cast<int64_t>(height);
-  pending_app_hash_ = rolling_hash;
-  result.app_hash = rolling_hash;
+  pending_state_root_ = rolling_hash;
+  result.state_root = rolling_hash;
   return result;
 }
 
@@ -2214,18 +2337,18 @@ commit_result engine::commit() {
   auto lock = std::scoped_lock{mutex_};
   if (pending_height_ > 0) {
     last_committed_height_ = pending_height_;
-    last_committed_app_hash_ = pending_app_hash_;
+    last_committed_state_root_ = pending_state_root_;
     pending_height_ = 0;
   }
 
   create_snapshot_if_due(last_committed_height_);
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .app_hash = last_committed_app_hash_});
+      .height = last_committed_height_, .state_root = last_committed_state_root_});
 
   auto result = commit_result{};
   result.retain_height = 0;
   result.committed_height = last_committed_height_;
-  result.app_hash = last_committed_app_hash_;
+  result.state_root = last_committed_state_root_;
   return result;
 }
 
@@ -2233,7 +2356,7 @@ app_info engine::info() const {
   auto lock = std::scoped_lock{mutex_};
   auto result = app_info{};
   result.last_block_height = last_committed_height_;
-  result.last_block_app_hash = last_committed_app_hash_;
+  result.last_block_state_root = last_committed_state_root_;
   return result;
 }
 
@@ -2253,7 +2376,7 @@ query_result engine::query(std::string_view path,
 
   if (path == "/engine/info") {
     result.value = encoder.encode(std::tuple{
-        last_committed_height_, last_committed_app_hash_, chain_id_});
+        last_committed_height_, last_committed_state_root_, chain_id_});
     return result;
   }
 
@@ -2626,6 +2749,26 @@ std::vector<history_entry> engine::history(uint64_t from_height,
   return output;
 }
 
+bool engine::export_backup(std::string_view backup_path) const {
+  if (backup_path.empty()) {
+    return false;
+  }
+  auto backup = export_backup();
+  auto output =
+      std::ofstream{backup_path.data(), std::ios::binary | std::ios::trunc};
+  if (!output.good()) {
+    spdlog::error("Failed opening backup output '{}'", backup_path);
+    return false;
+  }
+  output.write(reinterpret_cast<const char*>(backup.data()), backup.size());
+  if (!output.good()) {
+    spdlog::error("Failed writing backup output '{}'", backup_path);
+    return false;
+  }
+  spdlog::info("Persisted backup to '{}'", backup_path);
+  return true;
+}
+
 charter::schema::bytes_t engine::export_backup() const {
   auto lock = std::scoped_lock{mutex_};
   auto state_prefix = charter::schema::make_bytes(kStatePrefix);
@@ -2644,8 +2787,40 @@ charter::schema::bytes_t engine::export_backup() const {
                                    snapshots, chain_id_});
 }
 
-bool engine::import_backup(const charter::schema::bytes_view_t& backup,
-                           std::string& error) {
+bool engine::load_backup(std::string_view backup_path) {
+  if (backup_path.empty()) {
+    return false;
+  }
+  if (!std::filesystem::exists(backup_path)) {
+    spdlog::info("No backup file found at '{}'", backup_path);
+    return false;
+  }
+
+  auto input = std::ifstream{backup_path.data(), std::ios::binary};
+  if (!input.good()) {
+    spdlog::error("Failed opening backup file '{}'", backup_path);
+    return false;
+  }
+  auto bytes = std::vector<uint8_t>{std::istreambuf_iterator<char>{input},
+                                    std::istreambuf_iterator<char>{}};
+  if (bytes.empty()) {
+    spdlog::warn("Backup file '{}' is empty", backup_path);
+    return false;
+  }
+
+  auto error = std::string{};
+  auto imported = load_backup(
+      charter::schema::bytes_view_t{bytes.data(), bytes.size()}, error);
+  if (!imported) {
+    spdlog::error("Failed importing backup '{}': {}", backup_path, error);
+    return false;
+  }
+  spdlog::info("Imported backup from '{}'", backup_path);
+  return true;
+}
+
+bool engine::load_backup(const charter::schema::bytes_view_t& backup,
+                         std::string& error) {
   auto lock = std::scoped_lock{mutex_};
   auto encoder = encoder_t{};
   auto decoded = encoder.try_decode<
@@ -2738,6 +2913,7 @@ replay_result engine::replay_history() {
             charter::schema::bytes_view_t{value.data(), value.size()});
     if (!decoded) {
       result.error = "failed decoding history record";
+      spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
     auto stored_code = std::get<0>(decoded.value());
@@ -2754,6 +2930,7 @@ replay_result engine::replay_history() {
         continue;
       }
       result.error = "failed decoding history tx during replay";
+      spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
     auto signer_key = make_signer_cache_key(maybe_tx->signer);
@@ -2765,6 +2942,7 @@ replay_result engine::replay_history() {
     auto validation = validate_tx(*maybe_tx, "charter.replay", expected_nonce);
     if (validation.code != stored_code) {
       result.error = "history tx validation code mismatch during replay";
+      spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
     if (stored_code != 0) {
@@ -2773,6 +2951,7 @@ replay_result engine::replay_history() {
     auto execution = execute_operation(*maybe_tx);
     if (execution.code != 0) {
       result.error = "history tx execution failed during replay";
+      spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
     auto nonce_key = make_nonce_key(maybe_tx->signer);
@@ -2786,15 +2965,15 @@ replay_result engine::replay_history() {
   }
 
   last_committed_height_ = static_cast<int64_t>(max_height);
-  last_committed_app_hash_ = rolling_hash;
-  pending_app_hash_ = rolling_hash;
+  last_committed_state_root_ = rolling_hash;
+  pending_state_root_ = rolling_hash;
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .app_hash = last_committed_app_hash_});
+      .height = last_committed_height_, .state_root = last_committed_state_root_});
   load_persisted_state();
 
   if (expected_committed.has_value() &&
       (expected_committed->height != last_committed_height_ ||
-       expected_committed->app_hash != last_committed_app_hash_)) {
+       expected_committed->state_root != last_committed_state_root_)) {
     spdlog::warn(
         "Replay checkpoint mismatch (stored height={}, replayed height={})",
         expected_committed->height, last_committed_height_);
@@ -2809,7 +2988,9 @@ replay_result engine::replay_history() {
   }
   result.ok = true;
   result.last_height = last_committed_height_;
-  result.app_hash = last_committed_app_hash_;
+  result.state_root = last_committed_state_root_;
+  spdlog::info("History replay complete: txs={}, applied={}, height={}",
+               result.tx_count, result.applied_count, result.last_height);
   return result;
 }
 
@@ -2838,7 +3019,7 @@ std::optional<charter::schema::bytes_t> engine::load_snapshot_chunk(
 
 offer_snapshot_result engine::offer_snapshot(
     const snapshot_descriptor& offered,
-    const charter::schema::hash32_t& trusted_app_hash) {
+    const charter::schema::hash32_t& trusted_state_root) {
   auto lock = std::scoped_lock{mutex_};
   if (offered.format != 1) {
     spdlog::warn("Rejecting snapshot offer with unsupported format {}",
@@ -2865,7 +3046,7 @@ offer_snapshot_result engine::offer_snapshot(
         static_cast<uint64_t>(last_committed_height_));
     return offer_snapshot_result::reject;
   }
-  if (!trusted_app_hash.empty() && trusted_app_hash != offered.hash) {
+  if (!trusted_state_root.empty() && trusted_state_root != offered.hash) {
     spdlog::warn("Rejecting snapshot offer at height {} due to hash mismatch",
                  offered.height);
     auto encoder = encoder_t{};
@@ -2924,10 +3105,10 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
 
   last_committed_height_ =
       static_cast<int64_t>(pending_snapshot_offer_->height);
-  last_committed_app_hash_ = pending_snapshot_offer_->hash;
-  pending_app_hash_ = last_committed_app_hash_;
+  last_committed_state_root_ = pending_snapshot_offer_->hash;
+  pending_state_root_ = last_committed_state_root_;
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .app_hash = last_committed_app_hash_});
+      .height = last_committed_height_, .state_root = last_committed_state_root_});
   auto existing =
       std::find_if(std::begin(snapshots_), std::end(snapshots_),
                    [&](const snapshot_descriptor& value) {
@@ -2986,8 +3167,8 @@ void engine::load_persisted_state() {
   spdlog::debug("Loading persisted engine state");
   if (auto committed = storage_.load_committed_state()) {
     last_committed_height_ = committed->height;
-    last_committed_app_hash_ = committed->app_hash;
-    pending_app_hash_ = committed->app_hash;
+    last_committed_state_root_ = committed->state_root;
+    pending_state_root_ = committed->state_root;
   }
 
   auto stored_snapshots = storage_.list_snapshots();

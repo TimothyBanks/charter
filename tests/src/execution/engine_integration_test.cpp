@@ -352,7 +352,7 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
       return true;
     });
     auto error = std::string{};
-    EXPECT_TRUE(restored.import_backup(
+    EXPECT_TRUE(restored.load_backup(
         charter::schema::bytes_view_t{backup.data(), backup.size()}, error))
         << error;
     auto restored_info = restored.info();
@@ -756,6 +756,50 @@ TEST(engine_integration, query_errors_echo_key_and_codespace) {
   std::filesystem::remove_all(db, ec);
 }
 
+TEST(engine_integration, tx_results_include_useful_events) {
+  auto db = make_db_path("charter_engine_tx_events");
+  {
+    auto engine = charter::execution::engine{1, db, false};
+    engine.set_signature_verifier([](const charter::schema::bytes_view_t&,
+                                     const charter::schema::signer_id_t&,
+                                     const charter::schema::signature_t&) {
+      return true;
+    });
+
+    auto chain = chain_id_from_engine(engine);
+    auto signer = make_named_signer(10);
+    auto workspace_id = make_hash(11);
+
+    auto tx = make_tx(chain, 1, signer, charter::schema::create_workspace_t{
+                                          .workspace_id = workspace_id,
+                                          .admin_set = {signer},
+                                          .quorum_size = 1,
+                                          .metadata_ref = std::nullopt});
+
+    auto block = engine.finalize_block(1, {encode_tx(tx)});
+    ASSERT_EQ(block.tx_results.size(), 1u);
+    const auto& result = block.tx_results.front();
+    EXPECT_EQ(result.code, 0u);
+    ASSERT_FALSE(result.events.empty());
+    EXPECT_EQ(result.events.front().type, "charter.tx_result");
+
+    auto attrs = std::map<std::string, std::string>{};
+    for (const auto& attribute : result.events.front().attributes) {
+      attrs[attribute.key] = attribute.value;
+    }
+    EXPECT_EQ(attrs["code"], "0");
+    EXPECT_EQ(attrs["success"], "true");
+    EXPECT_EQ(attrs["codespace"], "charter.execute");
+    EXPECT_EQ(attrs["payload_type"], "create_workspace");
+    EXPECT_EQ(attrs["height"], "1");
+    EXPECT_EQ(attrs["tx_index"], "0");
+    EXPECT_EQ(attrs["nonce"], "1");
+    EXPECT_FALSE(attrs["signer"].empty());
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
 TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
   auto db1 = make_db_path("charter_engine_determinism_1");
   auto db2 = make_db_path("charter_engine_determinism_2");
@@ -819,7 +863,7 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
     engine.commit();
     auto exported = engine.query("/history/export", {});
     EXPECT_EQ(exported.code, 0u);
-    return std::tuple{engine.export_backup(), exported.value, engine.info().last_block_app_hash};
+    return std::tuple{engine.export_backup(), exported.value, engine.info().last_block_state_root};
   };
 
   auto [backup1, export1, app_hash1] = run_sequence(db1);
@@ -838,7 +882,7 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
     return true;
   });
   auto error = std::string{};
-  EXPECT_TRUE(restored.import_backup(
+  EXPECT_TRUE(restored.load_backup(
       charter::schema::bytes_view_t{backup1.data(), backup1.size()}, error));
   auto replay = restored.replay_history();
   EXPECT_TRUE(replay.ok);
@@ -883,7 +927,7 @@ TEST(engine_integration, replay_history_is_idempotent_for_same_chain_state) {
     EXPECT_EQ(replay1.tx_count, replay2.tx_count);
     EXPECT_EQ(replay1.applied_count, replay2.applied_count);
     EXPECT_EQ(replay1.last_height, replay2.last_height);
-    EXPECT_EQ(replay1.app_hash, replay2.app_hash);
+    EXPECT_EQ(replay1.state_root, replay2.state_root);
     EXPECT_EQ(engine.info().last_block_height, replay2.last_height);
   }
 
@@ -1247,7 +1291,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
              .note = std::nullopt})}};
     auto role_backup = make_state_backup(chain, role_rows);
     auto import_error = std::string{};
-    ASSERT_TRUE(engine.import_backup(
+    ASSERT_TRUE(engine.load_backup(
         charter::schema::bytes_view_t{role_backup.data(), role_backup.size()},
         import_error));
 
@@ -1774,7 +1818,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
                         .policy_set_id = bad_policy_id, .policy_set_version = 1})}};
     auto backup = make_state_backup(chain, rows);
     auto error = std::string{};
-    ASSERT_TRUE(engine.import_backup(charter::schema::bytes_view_t{backup.data(), backup.size()},
+    ASSERT_TRUE(engine.load_backup(charter::schema::bytes_view_t{backup.data(), backup.size()},
                                      error))
         << error;
     auto tx = make_tx(chain, 1, signer, charter::schema::propose_intent_t{
@@ -1841,7 +1885,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
         make_state_backup(chain, std::vector<charter::storage::key_value_entry_t>{
                                      {quarantine_key, quarantine_value}});
     auto error = std::string{};
-    ASSERT_TRUE(engine.import_backup(
+    ASSERT_TRUE(engine.load_backup(
         charter::schema::bytes_view_t{backup_quarantine.data(), backup_quarantine.size()},
         error));
     auto tx31 = make_tx(chain, 1, signer, charter::schema::create_workspace_t{
@@ -1862,7 +1906,7 @@ TEST(engine_integration, tx_error_code_matrix_coverage) {
     auto backup_degraded =
         make_state_backup(chain, std::vector<charter::storage::key_value_entry_t>{
                                      {degraded_key, degraded_value}});
-    ASSERT_TRUE(engine.import_backup(
+    ASSERT_TRUE(engine.load_backup(
         charter::schema::bytes_view_t{backup_degraded.data(), backup_degraded.size()},
         error));
     auto tx32 = make_tx(chain, 1, signer, charter::schema::create_workspace_t{
@@ -1997,7 +2041,7 @@ TEST(engine_integration, security_event_type_coverage) {
 
     auto bad_backup = charter::schema::bytes_t{1, 2, 3};
     auto import_error = std::string{};
-    EXPECT_FALSE(engine.import_backup(
+    EXPECT_FALSE(engine.load_backup(
         charter::schema::bytes_view_t{bad_backup.data(), bad_backup.size()},
         import_error));
 
@@ -2121,12 +2165,12 @@ TEST(engine_integration, replay_mismatch_emits_type5_event) {
         charter::schema::bytes_view_t{backup.data(), backup.size()});
     auto committed = std::get<1>(decoded);
     ASSERT_TRUE(committed.has_value());
-    committed->app_hash[0] ^= 0xAA;
+    committed->state_root[0] ^= 0xAA;
     auto tampered = encoder.encode(std::tuple{
         std::get<0>(decoded), committed, std::get<2>(decoded),
         std::get<3>(decoded), std::get<4>(decoded), std::get<5>(decoded)});
     auto import_error = std::string{};
-    ASSERT_TRUE(engine.import_backup(
+    ASSERT_TRUE(engine.load_backup(
         charter::schema::bytes_view_t{tampered.data(), tampered.size()},
         import_error));
 

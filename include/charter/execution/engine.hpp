@@ -14,6 +14,17 @@
 
 namespace charter::execution {
 
+struct tx_event_attribute final {
+  std::string key;
+  std::string value;
+  bool index{};
+};
+
+struct tx_event final {
+  std::string type;
+  std::vector<tx_event_attribute> attributes;
+};
+
 struct tx_result final {
   uint32_t code{};
   charter::schema::bytes_t data;
@@ -22,17 +33,18 @@ struct tx_result final {
   int64_t gas_wanted{};
   int64_t gas_used{};
   std::string codespace;
+  std::vector<tx_event> events;
 };
 
 struct block_result final {
   std::vector<tx_result> tx_results;
-  charter::schema::hash32_t app_hash;
+  charter::schema::hash32_t state_root;
 };
 
 struct commit_result final {
   int64_t retain_height{};
   int64_t committed_height{};
-  charter::schema::hash32_t app_hash;
+  charter::schema::hash32_t state_root;
 };
 
 struct app_info final {
@@ -40,7 +52,7 @@ struct app_info final {
   std::string version{"0.1.0-poc"};
   uint64_t app_version{1};
   int64_t last_block_height{};
-  charter::schema::hash32_t last_block_app_hash;
+  charter::schema::hash32_t last_block_state_root;
 };
 
 struct query_result final {
@@ -65,7 +77,7 @@ struct replay_result final {
   uint64_t tx_count{};
   uint64_t applied_count{};
   int64_t last_height{};
-  charter::schema::hash32_t app_hash;
+  charter::schema::hash32_t state_root;
   std::string error;
 };
 
@@ -116,9 +128,14 @@ class engine final {
                      const charter::schema::bytes_view_t& data);
   std::vector<history_entry> history(uint64_t from_height,
                                      uint64_t to_height) const;
+
+  bool export_backup(std::string_view backup_path) const;
   charter::schema::bytes_t export_backup() const;
-  bool import_backup(const charter::schema::bytes_view_t& backup,
-                     std::string& error);
+
+  bool load_backup(std::string_view backup_path);
+  bool load_backup(const charter::schema::bytes_view_t& backup,
+                   std::string& error);
+
   replay_result replay_history();
   void set_signature_verifier(signature_verifier_t verifier);
 
@@ -127,7 +144,7 @@ class engine final {
   load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
   offer_snapshot_result offer_snapshot(
       const snapshot_descriptor& offered,
-      const charter::schema::hash32_t& trusted_app_hash);
+      const charter::schema::hash32_t& trusted_state_root);
   apply_snapshot_chunk_result apply_snapshot_chunk(
       uint32_t index,
       const charter::schema::bytes_view_t& chunk,
@@ -145,9 +162,9 @@ class engine final {
   charter::storage::storage<charter::storage::rocksdb_storage_tag> storage_;
   std::string db_path_;
   int64_t last_committed_height_{};
-  charter::schema::hash32_t last_committed_app_hash_;
+  charter::schema::hash32_t last_committed_state_root_;
   int64_t pending_height_{};
-  charter::schema::hash32_t pending_app_hash_;
+  charter::schema::hash32_t pending_state_root_;
   uint64_t current_block_time_ms_{};
   uint64_t current_block_height_{};
   charter::schema::hash32_t chain_id_;

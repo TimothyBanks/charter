@@ -48,97 +48,89 @@ struct reactor final : public grpc::ServerUnaryReactor {
 };
 
 struct listener final : public tendermint::abci::ABCI::CallbackService {
-  explicit listener(bool require_strict_crypto = true)
-      : execution_engine_{100, "charter.db", require_strict_crypto} {}
-
-  bool load_backup(const std::string& backup_path);
-  bool persist_backup(const std::string& backup_path) const;
-  charter::execution::replay_result replay_history();
+  explicit listener(charter::execution::engine& engine);
 
   virtual grpc::ServerUnaryReactor* Echo(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestEcho* /*request*/,
-      tendermint::abci::ResponseEcho* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestEcho* request,
+      tendermint::abci::ResponseEcho* response) override final;
 
   virtual grpc::ServerUnaryReactor* Flush(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestFlush* /*request*/,
-      tendermint::abci::ResponseFlush* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestFlush* request,
+      tendermint::abci::ResponseFlush* response) override final;
 
   virtual grpc::ServerUnaryReactor* Info(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestInfo* /*request*/,
-      tendermint::abci::ResponseInfo* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestInfo* request,
+      tendermint::abci::ResponseInfo* response) override final;
 
   virtual grpc::ServerUnaryReactor* CheckTx(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestCheckTx* /*request*/,
-      tendermint::abci::ResponseCheckTx* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestCheckTx* request,
+      tendermint::abci::ResponseCheckTx* response) override final;
 
   virtual grpc::ServerUnaryReactor* Query(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestQuery* /*request*/,
-      tendermint::abci::ResponseQuery* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestQuery* request,
+      tendermint::abci::ResponseQuery* response) override final;
 
   virtual grpc::ServerUnaryReactor* Commit(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestCommit* /*request*/,
-      tendermint::abci::ResponseCommit* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestCommit* request,
+      tendermint::abci::ResponseCommit* response) override final;
 
   virtual grpc::ServerUnaryReactor* InitChain(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestInitChain* /*request*/,
-      tendermint::abci::ResponseInitChain* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestInitChain* request,
+      tendermint::abci::ResponseInitChain* response) override final;
 
   virtual grpc::ServerUnaryReactor* ListSnapshots(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestListSnapshots* /*request*/,
-      tendermint::abci::ResponseListSnapshots* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestListSnapshots* request,
+      tendermint::abci::ResponseListSnapshots* response) override final;
 
   virtual grpc::ServerUnaryReactor* OfferSnapshot(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestOfferSnapshot* /*request*/,
-      tendermint::abci::ResponseOfferSnapshot* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestOfferSnapshot* request,
+      tendermint::abci::ResponseOfferSnapshot* response) override final;
 
   virtual grpc::ServerUnaryReactor* LoadSnapshotChunk(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestLoadSnapshotChunk* /*request*/,
-      tendermint::abci::ResponseLoadSnapshotChunk* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestLoadSnapshotChunk* request,
+      tendermint::abci::ResponseLoadSnapshotChunk* response) override final;
 
   virtual grpc::ServerUnaryReactor* ApplySnapshotChunk(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestApplySnapshotChunk* /*request*/,
-      tendermint::abci::ResponseApplySnapshotChunk* /*response*/)
-      override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestApplySnapshotChunk* request,
+      tendermint::abci::ResponseApplySnapshotChunk* response) override final;
 
   virtual grpc::ServerUnaryReactor* PrepareProposal(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestPrepareProposal* /*request*/,
-      tendermint::abci::ResponsePrepareProposal* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestPrepareProposal* request,
+      tendermint::abci::ResponsePrepareProposal* response) override final;
 
   virtual grpc::ServerUnaryReactor* ProcessProposal(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestProcessProposal* /*request*/,
-      tendermint::abci::ResponseProcessProposal* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestProcessProposal* request,
+      tendermint::abci::ResponseProcessProposal* response) override final;
 
   virtual grpc::ServerUnaryReactor* ExtendVote(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestExtendVote* /*request*/,
-      tendermint::abci::ResponseExtendVote* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestExtendVote* request,
+      tendermint::abci::ResponseExtendVote* response) override final;
 
   virtual grpc::ServerUnaryReactor* VerifyVoteExtension(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestVerifyVoteExtension* /*request*/,
-      tendermint::abci::ResponseVerifyVoteExtension* /*response*/)
-      override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestVerifyVoteExtension* request,
+      tendermint::abci::ResponseVerifyVoteExtension* response) override final;
 
   virtual grpc::ServerUnaryReactor* FinalizeBlock(
-      grpc::CallbackServerContext* /*context*/,
-      const tendermint::abci::RequestFinalizeBlock* /*request*/,
-      tendermint::abci::ResponseFinalizeBlock* /*response*/) override final;
+      grpc::CallbackServerContext* context,
+      const tendermint::abci::RequestFinalizeBlock* request,
+      tendermint::abci::ResponseFinalizeBlock* response) override final;
 
- private:
-  charter::execution::engine execution_engine_;
+  charter::execution::engine& execution_engine_;
 };
 
 }  // namespace charter::abci

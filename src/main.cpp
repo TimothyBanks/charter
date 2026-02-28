@@ -85,16 +85,19 @@ int main(int argc, char* argv[]) {
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
-  auto grpc_listener = charter::abci::listener{!allow_insecure_crypto};
-  auto loaded_backup = grpc_listener.load_backup(backup_path);
+  auto execution_engine =
+      charter::execution::engine{100, "charter.db", !allow_insecure_crypto};
+  auto loaded_backup = execution_engine.load_backup(backup_path);
   if (loaded_backup) {
-    auto replay = grpc_listener.replay_history();
+    auto replay = execution_engine.replay_history();
     if (!replay.ok) {
       spdlog::warn(
           "Backup loaded but replay could not fully validate local history: {}",
           replay.error);
     }
   }
+
+  auto grpc_listener = charter::abci::listener{execution_engine};
   auto grpc_builder = grpc::ServerBuilder();
   grpc_builder.AddListeningPort(grpc_port, grpc::InsecureServerCredentials());
   grpc_builder.RegisterService(&grpc_listener);
@@ -109,7 +112,6 @@ int main(int argc, char* argv[]) {
       grpc_server->GetHealthCheckService()->SetServingStatus(true);
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    grpc_listener.persist_backup(backup_path);
     grpc_server->GetHealthCheckService()->SetServingStatus(false);
     grpc_server->Shutdown();
   });
@@ -117,6 +119,8 @@ int main(int argc, char* argv[]) {
   for (auto& t : threads) {
     t.join();
   }
+
+  execution_engine.export_backup(backup_path);
 
   spdlog::shutdown();
   return 0;

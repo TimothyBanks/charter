@@ -37,6 +37,8 @@ std::string make_string(const bytes_view_t& bytes);
 hash32_t make_hash32(const bytes_t& bytes);
 hash32_t make_hash32(const std::string& bytes);
 hash32_t make_hash32(const std::string_view& bytes);
+std::optional<hash32_t> try_make_hash32(const std::string& bytes);
+std::optional<hash32_t> try_make_hash32(const std::string_view& bytes);
 hash32_t make_zero_hash();
 
 struct ed25519_signer_id final {

@@ -50,13 +50,13 @@ TEST(storage_types, committed_state_round_trips) {
   {
     auto storage = charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(db);
     auto state = charter::storage::committed_state{
-        .height = 42, .app_hash = make_hash(10)};
+        .height = 42, .state_root = make_hash(10)};
     storage.save_committed_state(state);
 
     auto loaded = storage.load_committed_state();
     ASSERT_TRUE(loaded.has_value());
     EXPECT_EQ(loaded->height, state.height);
-    EXPECT_EQ(loaded->app_hash, state.app_hash);
+    EXPECT_EQ(loaded->state_root, state.state_root);
   }
   std::error_code ec;
   std::filesystem::remove_all(db, ec);

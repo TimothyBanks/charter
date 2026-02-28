@@ -1,8 +1,6 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <charter/abci/server.hpp>
-#include <filesystem>
-#include <fstream>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -69,111 +67,26 @@ void populate_exec_tx_result(const charter::execution::tx_result& source,
   destination->set_gas_wanted(source.gas_wanted);
   destination->set_gas_used(source.gas_used);
   destination->set_codespace(source.codespace);
-}
-
-std::optional<charter::schema::hash32_t> try_make_hash32(
-    const std::string& value) {
-  if (value.size() == 32) {
-    auto hash = charter::schema::hash32_t{};
-    std::copy_n(std::begin(value), hash.size(), std::begin(hash));
-    return hash;
-  }
-  auto hex = std::string_view{value};
-  if (hex.size() >= 2 && hex[0] == '0' && (hex[1] == 'x' || hex[1] == 'X')) {
-    hex.remove_prefix(2);
-  }
-  if (hex.size() != 64) {
-    return std::nullopt;
-  }
-  auto nibble = [](char c) -> std::optional<uint8_t> {
-    if (c >= '0' && c <= '9') {
-      return static_cast<uint8_t>(c - '0');
+  for (const auto& event : source.events) {
+    auto* out_event = destination->add_events();
+    out_event->set_type(event.type);
+    for (const auto& attribute : event.attributes) {
+      auto* out_attribute = out_event->add_attributes();
+      out_attribute->set_key(attribute.key);
+      out_attribute->set_value(attribute.value);
+      out_attribute->set_index(attribute.index);
     }
-    if (c >= 'a' && c <= 'f') {
-      return static_cast<uint8_t>(c - 'a' + 10);
-    }
-    if (c >= 'A' && c <= 'F') {
-      return static_cast<uint8_t>(c - 'A' + 10);
-    }
-    return std::nullopt;
-  };
-  auto hash = charter::schema::hash32_t{};
-  for (size_t i = 0; i < hash.size(); ++i) {
-    auto hi = nibble(hex[2 * i]);
-    auto lo = nibble(hex[(2 * i) + 1]);
-    if (!hi || !lo) {
-      return std::nullopt;
-    }
-    hash[i] = static_cast<uint8_t>((*hi << 4u) | *lo);
   }
-  return hash;
 }
 
 }  // namespace
 
-void reactor::OnDone() {}
-
-bool listener::load_backup(const std::string& backup_path) {
-  if (backup_path.empty()) {
-    return false;
-  }
-  if (!std::filesystem::exists(backup_path)) {
-    spdlog::info("No backup file found at '{}'", backup_path);
-    return false;
-  }
-
-  auto input = std::ifstream{backup_path, std::ios::binary};
-  if (!input.good()) {
-    spdlog::error("Failed opening backup file '{}'", backup_path);
-    return false;
-  }
-  auto bytes = std::vector<uint8_t>{std::istreambuf_iterator<char>{input},
-                                    std::istreambuf_iterator<char>{}};
-  if (bytes.empty()) {
-    spdlog::warn("Backup file '{}' is empty", backup_path);
-    return false;
-  }
-
-  auto error = std::string{};
-  auto imported = execution_engine_.import_backup(
-      charter::schema::bytes_view_t{bytes.data(), bytes.size()}, error);
-  if (!imported) {
-    spdlog::error("Failed importing backup '{}': {}", backup_path, error);
-    return false;
-  }
-  spdlog::info("Imported backup from '{}'", backup_path);
-  return true;
+void reactor::OnDone() {
+  delete this;  // ughhh
 }
 
-bool listener::persist_backup(const std::string& backup_path) const {
-  if (backup_path.empty()) {
-    return false;
-  }
-  auto backup = execution_engine_.export_backup();
-  auto output = std::ofstream{backup_path, std::ios::binary | std::ios::trunc};
-  if (!output.good()) {
-    spdlog::error("Failed opening backup output '{}'", backup_path);
-    return false;
-  }
-  output.write(reinterpret_cast<const char*>(backup.data()), backup.size());
-  if (!output.good()) {
-    spdlog::error("Failed writing backup output '{}'", backup_path);
-    return false;
-  }
-  spdlog::info("Persisted backup to '{}'", backup_path);
-  return true;
-}
-
-charter::execution::replay_result listener::replay_history() {
-  auto replay = execution_engine_.replay_history();
-  if (replay.ok) {
-    spdlog::info("History replay complete: txs={}, applied={}, height={}",
-                 replay.tx_count, replay.applied_count, replay.last_height);
-  } else {
-    spdlog::warn("History replay failed: {}", replay.error);
-  }
-  return replay;
-}
+listener::listener(charter::execution::engine& engine)
+    : execution_engine_{engine} {}
 
 grpc::ServerUnaryReactor* listener::Echo(
     grpc::CallbackServerContext* context,
@@ -199,7 +112,7 @@ grpc::ServerUnaryReactor* listener::Info(
   response->set_version(info.version);
   response->set_app_version(info.app_version);
   response->set_last_block_height(info.last_block_height);
-  response->set_last_block_app_hash(make_string(info.last_block_app_hash));
+  response->set_last_block_app_hash(make_string(info.last_block_state_root));
   return finish_ok(context);
 }
 
@@ -207,6 +120,8 @@ grpc::ServerUnaryReactor* listener::CheckTx(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestCheckTx* request,
     tendermint::abci::ResponseCheckTx* response) {
+  // This is called by the mempool to verify if a transaction
+  // can or should be added the mempool.
   auto tx = make_bytes(request->tx());
   auto tx_view = charter::schema::bytes_view_t{tx.data(), tx.size()};
   auto check = execution_engine_.check_tx(tx_view);
@@ -251,7 +166,12 @@ grpc::ServerUnaryReactor* listener::InitChain(
     const tendermint::abci::RequestInitChain* /*request*/,
     tendermint::abci::ResponseInitChain* response) {
   auto info = execution_engine_.info();
-  response->set_app_hash(make_string(info.last_block_app_hash));
+  // CometBFT ABCI wire field is named "app_hash", but this is the state root:
+  // - consensus agreement on post-state
+  // - light-client/state proof verification anchor
+  // - snapshot/state sync trust anchor
+  // - replay consistency and fork detection checkpoint
+  response->set_app_hash(make_string(info.last_block_state_root));
   return finish_ok(context);
 }
 
@@ -276,8 +196,9 @@ grpc::ServerUnaryReactor* listener::OfferSnapshot(
     const tendermint::abci::RequestOfferSnapshot* request,
     tendermint::abci::ResponseOfferSnapshot* response) {
   auto offered_hash = try_make_hash32(request->snapshot().hash());
-  auto trusted_hash = try_make_hash32(request->app_hash());
-  if (!offered_hash || !trusted_hash) {
+  auto trusted_state_root = try_make_hash32(request->app_hash());
+
+  if (!offered_hash || !trusted_state_root) {
     response->set_result(tendermint::abci::ResponseOfferSnapshot_Result_REJECT);
     return finish_ok(context);
   }
@@ -289,7 +210,7 @@ grpc::ServerUnaryReactor* listener::OfferSnapshot(
   offered.hash = *offered_hash;
   offered.metadata = make_bytes(request->snapshot().metadata());
 
-  auto result = execution_engine_.offer_snapshot(offered, *trusted_hash);
+  auto result = execution_engine_.offer_snapshot(offered, *trusted_state_root);
   response->set_result(map_offer_result(result));
   return finish_ok(context);
 }
@@ -322,6 +243,13 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestPrepareProposal* request,
     tendermint::abci::ResponsePrepareProposal* response) {
+  // This is called when the block proposer is about to
+  // send a proposal message. This allows the engine
+  // to reject choices from the mempool if they are not ready.
+  // There is an idea of immediate execution where the engine
+  // could execute the transactions here or in process proposal
+  // as a way to speed up finalize block.  State should
+  // not be mutated before that.
   auto total_size = int64_t{};
   auto max_bytes = request->max_tx_bytes();
   for (const auto& tx : request->txs()) {
@@ -345,10 +273,14 @@ grpc::ServerUnaryReactor* listener::ProcessProposal(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestProcessProposal* request,
     tendermint::abci::ResponseProcessProposal* response) {
+  // This is called by the validator.  The engine can either
+  // reject the entire block or not.
   for (const auto& tx : request->txs()) {
     auto tx_bytes = make_bytes(tx);
     auto tx_result = execution_engine_.process_proposal_tx(
         charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
+    // As a general rule the engine should accept the proposal and
+    // just ignore the invalid part.
     if (tx_result.code != 0) {
       response->set_status(
           tendermint::abci::ResponseProcessProposal_ProposalStatus_REJECT);
@@ -364,6 +296,13 @@ grpc::ServerUnaryReactor* listener::ExtendVote(
     grpc::CallbackServerContext* context,
     const tendermint::abci::RequestExtendVote* /*request*/,
     tendermint::abci::ResponseExtendVote* response) {
+  // ExtendVote/VerifyVoteExtension can carry validator-signed custody
+  // attestations (risk/compliance/oracle/HSM signals) for later policy
+  // decisions and audit trails. Treat suspicious signals as early warning:
+  // trigger deterministic on-chain response (for example, degraded mode) via
+  // normal tx flow, rather than using vote extensions as a direct halt
+  // mechanism; this preserves consensus safety/liveness.
+  // ExtendVote and VerifyVoteExtension should not mutate world state.
   response->set_vote_extension("");
   return finish_ok(context);
 }
@@ -391,6 +330,8 @@ grpc::ServerUnaryReactor* listener::FinalizeBlock(
   for (const auto& tx_result : execution.tx_results) {
     populate_exec_tx_result(tx_result, response->add_tx_results());
   }
-  response->set_app_hash(make_string(execution.app_hash));
+
+  // ABCI uses "app_hash" naming on the wire; we treat this as the state root.
+  response->set_app_hash(make_string(execution.state_root));
   return finish_ok(context);
 }

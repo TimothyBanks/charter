@@ -6,6 +6,7 @@ TEST(engine_types, defaults_are_stable) {
   EXPECT_EQ(tx.code, 0u);
   EXPECT_EQ(tx.gas_wanted, 0);
   EXPECT_EQ(tx.gas_used, 0);
+  EXPECT_TRUE(tx.events.empty());
 
   auto block = charter::execution::block_result{};
   EXPECT_TRUE(block.tx_results.empty());

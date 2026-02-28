@@ -10,7 +10,7 @@ using key_value_entry_t =
 
 struct committed_state final {
   int64_t height{};
-  charter::schema::hash32_t app_hash;
+  charter::schema::hash32_t state_root;
 };
 
 struct snapshot_descriptor final {

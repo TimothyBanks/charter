@@ -174,7 +174,7 @@ storage<rocksdb_storage_tag>::load_committed_state() const {
     charter::common::critical("failed to decode committed state");
   }
   state.height = std::get<0>(decoded.value());
-  state.app_hash = std::get<1>(decoded.value());
+  state.state_root = std::get<1>(decoded.value());
 
   return state;
 }
@@ -185,7 +185,7 @@ inline void storage<rocksdb_storage_tag>::save_committed_state(
     charter::common::critical("RocksDB database is not initialized");
   }
   auto encoder = detail::encoder_t{};
-  auto encoded = encoder.encode(std::tuple{state.height, state.app_hash});
+  auto encoded = encoder.encode(std::tuple{state.height, state.state_root});
   auto write_options = ROCKSDB_NAMESPACE::WriteOptions{};
   auto state_status =
       database->Put(write_options, std::string{detail::kCommittedHeightKey},
