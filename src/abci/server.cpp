@@ -18,8 +18,8 @@ grpc::ServerUnaryReactor* finish_ok(grpc::CallbackServerContext* context) {
 }
 
 tendermint::abci::ResponseOfferSnapshot_Result map_offer_result(
-    charter::execution::offer_snapshot_result result) {
-  using enum charter::execution::offer_snapshot_result;
+    charter::schema::offer_snapshot_result result) {
+  using enum charter::schema::offer_snapshot_result;
   switch (result) {
     case accept:
       return tendermint::abci::ResponseOfferSnapshot_Result_ACCEPT;
@@ -38,8 +38,8 @@ tendermint::abci::ResponseOfferSnapshot_Result map_offer_result(
 }
 
 tendermint::abci::ResponseApplySnapshotChunk_Result map_apply_result(
-    charter::execution::apply_snapshot_chunk_result result) {
-  using enum charter::execution::apply_snapshot_chunk_result;
+    charter::schema::apply_snapshot_chunk_result result) {
+  using enum charter::schema::apply_snapshot_chunk_result;
   switch (result) {
     case accept:
       return tendermint::abci::ResponseApplySnapshotChunk_Result_ACCEPT;
@@ -58,8 +58,9 @@ tendermint::abci::ResponseApplySnapshotChunk_Result map_apply_result(
   }
 }
 
-void populate_exec_tx_result(charter::execution::tx_result& source,
-                             tendermint::abci::ExecTxResult* destination) {
+void populate_exec_transaction_result(
+    charter::schema::transaction_result_t& source,
+    tendermint::abci::ExecTxResult* destination) {
   destination->set_code(source.code);
   destination->set_data(make_string(source.data));
   destination->set_log(std::move(source.log));
@@ -109,7 +110,7 @@ grpc::ServerUnaryReactor* listener::Info(
     const tendermint::abci::RequestInfo* /*request*/,
     tendermint::abci::ResponseInfo* response) {
   auto info = execution_engine_.info();
-  response->set_data(std:::move(info.data));
+  response->set_data(std::move(info.data));
   response->set_version(std::move(info.version));
   response->set_app_version(info.app_version);
   response->set_last_block_height(info.last_block_height);
@@ -125,7 +126,7 @@ grpc::ServerUnaryReactor* listener::CheckTx(
   // can or should be added the mempool.
   auto tx = make_bytes(request->tx());
   auto tx_view = charter::schema::bytes_view_t{tx.data(), tx.size()};
-  auto check = execution_engine_.check_tx(tx_view);
+  auto check = execution_engine_.check_transaction(tx_view);
   response->set_code(check.code);
   response->set_data(make_string(check.data));
   response->set_log(std::move(check.log));
@@ -204,7 +205,7 @@ grpc::ServerUnaryReactor* listener::OfferSnapshot(
     return finish_ok(context);
   }
 
-  auto offered = charter::execution::snapshot_descriptor{};
+  auto offered = charter::schema::snapshot_descriptor_t{};
   offered.height = request->snapshot().height();
   offered.format = request->snapshot().format();
   offered.chunks = request->snapshot().chunks();
@@ -255,7 +256,7 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
   auto max_bytes = request->max_tx_bytes();
   for (auto& tx : request->txs()) {
     auto tx_bytes = make_bytes(tx);
-    auto check = execution_engine_.check_tx(
+    auto check = execution_engine_.check_transaction(
         charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
     if (check.code != 0) {
       continue;
@@ -278,7 +279,7 @@ grpc::ServerUnaryReactor* listener::ProcessProposal(
   // reject the entire block or not.
   for (const auto& tx : request->txs()) {
     auto tx_bytes = make_bytes(tx);
-    auto tx_result = execution_engine_.process_proposal_tx(
+    auto tx_result = execution_engine_.process_proposal_transaction(
         charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
     // As a general rule the engine should accept the proposal and
     // just ignore the invalid part.
@@ -329,7 +330,7 @@ grpc::ServerUnaryReactor* listener::FinalizeBlock(
 
   auto execution = execution_engine_.finalize_block(request->height(), txs);
   for (auto& tx_result : execution.tx_results) {
-    populate_exec_tx_result(tx_result, response->add_tx_results());
+    populate_exec_transaction_result(tx_result, response->add_tx_results());
   }
 
   // ABCI uses "app_hash" naming on the wire; we treat this as the state root.

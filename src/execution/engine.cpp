@@ -14,6 +14,7 @@
 #include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/schema/encoding/scale/transaction.hpp>
 #include <charter/schema/intent_state.hpp>
+#include <charter/schema/key/engine_keys.hpp>
 #include <charter/schema/propose_destination_update.hpp>
 #include <charter/schema/security_event_record.hpp>
 #include <charter/schema/set_degraded_mode.hpp>
@@ -34,249 +35,15 @@ namespace {
 
 using encoder_t = charter::schema::encoding::encoder<
     charter::schema::encoding::scale_encoder_tag>;
+using namespace charter::schema::key;
 
-inline constexpr auto kNonceKeyPrefix = std::string_view{"SYS|STATE|NONCE|"};
-inline constexpr auto kStatePrefix = std::string_view{"SYS|STATE|"};
-inline constexpr auto kWorkspaceKeyPrefix =
-    std::string_view{"SYS|STATE|WORKSPACE|"};
-inline constexpr auto kVaultKeyPrefix = std::string_view{"SYS|STATE|VAULT|"};
-inline constexpr auto kDestinationKeyPrefix =
-    std::string_view{"SYS|STATE|DESTINATION|"};
-inline constexpr auto kPolicySetKeyPrefix =
-    std::string_view{"SYS|STATE|POLICY_SET|"};
-inline constexpr auto kActivePolicyPrefix =
-    std::string_view{"SYS|STATE|ACTIVE_POLICY|"};
-inline constexpr auto kIntentKeyPrefix = std::string_view{"SYS|STATE|INTENT|"};
-inline constexpr auto kApprovalKeyPrefix =
-    std::string_view{"SYS|STATE|APPROVAL|"};
-inline constexpr auto kDestinationUpdateKeyPrefix =
-    std::string_view{"SYS|STATE|DESTINATION_UPDATE|"};
-inline constexpr auto kAttestationKeyPrefix =
-    std::string_view{"SYS|STATE|ATTEST|"};
-inline constexpr auto kRoleAssignmentKeyPrefix =
-    std::string_view{"SYS|STATE|ROLE_ASSIGNMENT|"};
-inline constexpr auto kSignerQuarantineKeyPrefix =
-    std::string_view{"SYS|STATE|SIGNER_QUARANTINE|"};
-inline constexpr auto kDegradedModeKeyPrefix =
-    std::string_view{"SYS|STATE|DEGRADED_MODE|"};
-inline constexpr auto kEventSeqKeyPrefix =
-    std::string_view{"SYS|STATE|EVENT_SEQ|"};
-inline constexpr auto kVelocityKeyPrefix =
-    std::string_view{"SYS|STATE|VELOCITY|"};
-inline constexpr auto kHistoryPrefix = std::string_view{"SYS|HISTORY|TX|"};
-inline constexpr auto kEventPrefix = std::string_view{"SYS|EVENT|"};
-inline constexpr auto kSnapshotPrefix = std::string_view{"SYS|SNAP|"};
 inline constexpr auto kQueryCodespace = std::string_view{"charter.query"};
 inline constexpr auto kExecuteCodespace = std::string_view{"charter.execute"};
 inline constexpr auto kCheckTxCodespace = std::string_view{"charter.checktx"};
 inline constexpr auto kProposalCodespace = std::string_view{"charter.proposal"};
 
-constexpr auto kEngineKeyspaces = std::array{kNonceKeyPrefix,
-                                             kStatePrefix,
-                                             kWorkspaceKeyPrefix,
-                                             kVaultKeyPrefix,
-                                             kDestinationKeyPrefix,
-                                             kPolicySetKeyPrefix,
-                                             kActivePolicyPrefix,
-                                             kIntentKeyPrefix,
-                                             kApprovalKeyPrefix,
-                                             kDestinationUpdateKeyPrefix,
-                                             kAttestationKeyPrefix,
-                                             kRoleAssignmentKeyPrefix,
-                                             kSignerQuarantineKeyPrefix,
-                                             kDegradedModeKeyPrefix,
-                                             kEventSeqKeyPrefix,
-                                             kVelocityKeyPrefix,
-                                             kHistoryPrefix,
-                                             kEventPrefix,
-                                             kSnapshotPrefix};
-
 charter::schema::hash32_t make_chain_id() {
   return charter::blake3::hash(std::string_view{"charter-poc-chain"});
-}
-
-charter::schema::bytes_t make_prefixed_key(std::string_view prefix,
-                                           const charter::schema::bytes_t& id) {
-  auto key = charter::schema::make_bytes(prefix);
-  key.reserve(key.size() + id.size());
-  key.insert(std::end(key), std::begin(id), std::end(id));
-  return key;
-}
-
-charter::schema::bytes_t make_workspace_key(
-    const charter::schema::hash32_t& workspace_id) {
-  auto workspace_bytes = charter::schema::bytes_t{};
-  workspace_bytes.reserve(workspace_id.size());
-  workspace_bytes.insert(std::end(workspace_bytes), std::begin(workspace_id),
-                         std::end(workspace_id));
-  return make_prefixed_key(kWorkspaceKeyPrefix, workspace_bytes);
-}
-
-charter::schema::bytes_t make_vault_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& vault_id) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kVaultKeyPrefix,
-                           encoder.encode(std::tuple{workspace_id, vault_id}));
-}
-
-charter::schema::bytes_t make_destination_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& destination_id) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kDestinationKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, destination_id}));
-}
-
-charter::schema::bytes_t make_nonce_key(
-    const charter::schema::signer_id_t& signer) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kNonceKeyPrefix, encoder.encode(signer));
-}
-
-charter::schema::bytes_t make_policy_set_key(
-    const charter::schema::hash32_t& policy_set_id,
-    uint32_t policy_version) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kPolicySetKeyPrefix,
-      encoder.encode(std::tuple{policy_set_id, policy_version}));
-}
-
-charter::schema::bytes_t make_active_policy_key(
-    const charter::schema::policy_scope_t& scope) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kActivePolicyPrefix, encoder.encode(scope));
-}
-
-charter::schema::bytes_t make_intent_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& vault_id,
-    const charter::schema::hash32_t& intent_id) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kIntentKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, vault_id, intent_id}));
-}
-
-charter::schema::bytes_t make_approval_key(
-    const charter::schema::hash32_t& intent_id,
-    const charter::schema::signer_id_t& signer) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kApprovalKeyPrefix,
-                           encoder.encode(std::tuple{intent_id, signer}));
-}
-
-charter::schema::bytes_t make_destination_update_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& destination_id,
-    const charter::schema::hash32_t& update_id) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kDestinationUpdateKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, destination_id, update_id}));
-}
-
-charter::schema::bytes_t make_attestation_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& subject,
-    const charter::schema::claim_type_t& claim,
-    const charter::schema::signer_id_t& issuer) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kAttestationKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, subject, claim, issuer}));
-}
-
-charter::schema::bytes_t make_attestation_prefix_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& subject,
-    const charter::schema::claim_type_t& claim) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kAttestationKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, subject, claim}));
-}
-
-charter::schema::bytes_t make_role_assignment_key(
-    const charter::schema::policy_scope_t& scope,
-    const charter::schema::signer_id_t& subject,
-    const charter::schema::role_id_t role) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kRoleAssignmentKeyPrefix,
-                           encoder.encode(std::tuple{scope, subject, role}));
-}
-
-charter::schema::bytes_t make_signer_quarantine_key(
-    const charter::schema::signer_id_t& signer) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kSignerQuarantineKeyPrefix, encoder.encode(signer));
-}
-
-charter::schema::bytes_t make_degraded_mode_key() {
-  return make_prefixed_key(
-      kDegradedModeKeyPrefix,
-      charter::schema::make_bytes(std::string_view{"CURRENT"}));
-}
-
-charter::schema::bytes_t make_event_sequence_key() {
-  return make_prefixed_key(kEventSeqKeyPrefix, charter::schema::make_bytes(
-                                                   std::string_view{"NEXT"}));
-}
-
-charter::schema::bytes_t make_history_key(uint64_t height, uint32_t index) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kHistoryPrefix,
-                           encoder.encode(std::tuple{height, index}));
-}
-
-charter::schema::bytes_t make_event_key(uint64_t event_id) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(kEventPrefix, encoder.encode(event_id));
-}
-
-charter::schema::bytes_t make_velocity_counter_key(
-    const charter::schema::hash32_t& workspace_id,
-    const charter::schema::hash32_t& vault_id,
-    const std::optional<charter::schema::asset_id_t>& asset_id,
-    const charter::schema::velocity_window_t window,
-    const uint64_t window_start_ms) {
-  auto encoder = encoder_t{};
-  return make_prefixed_key(
-      kVelocityKeyPrefix,
-      encoder.encode(std::tuple{workspace_id, vault_id, asset_id, window,
-                                window_start_ms}));
-}
-
-std::optional<std::pair<uint64_t, uint32_t>> parse_history_key(
-    const charter::schema::bytes_view_t& key) {
-  auto key_view =
-      std::string_view{reinterpret_cast<const char*>(key.data()), key.size()};
-  if (!key_view.starts_with(kHistoryPrefix)) {
-    return std::nullopt;
-  }
-  auto encoded = charter::schema::bytes_view_t{
-      key.data() + kHistoryPrefix.size(), key.size() - kHistoryPrefix.size()};
-  auto decoded =
-      encoder_t{}.try_decode<std::tuple<uint64_t, uint32_t>>(encoded);
-  if (!decoded) {
-    return std::nullopt;
-  }
-  return std::pair<uint64_t, uint32_t>{std::get<0>(decoded.value()),
-                                       std::get<1>(decoded.value())};
-}
-
-std::optional<uint64_t> parse_event_key(
-    const charter::schema::bytes_view_t& key) {
-  auto key_view =
-      std::string_view{reinterpret_cast<const char*>(key.data()), key.size()};
-  if (!key_view.starts_with(kEventPrefix)) {
-    return std::nullopt;
-  }
-  auto encoded = charter::schema::bytes_view_t{
-      key.data() + kEventPrefix.size(), key.size() - kEventPrefix.size()};
-  return encoder_t{}.try_decode<uint64_t>(encoded);
 }
 
 std::string to_hex(const charter::schema::bytes_view_t& bytes) {
@@ -293,113 +60,106 @@ std::string to_hex(const charter::schema::bytes_view_t& bytes) {
 std::string payload_type_name(
     const charter::schema::transaction_payload_t& payload) {
   return std::visit(
-      overloaded{
-          [](const charter::schema::activate_policy_set_t&) {
-            return std::string{"activate_policy_set"};
-          },
-          [](const charter::schema::apply_destination_update_t&) {
-            return std::string{"apply_destination_update"};
-          },
-          [](const charter::schema::approve_destination_update_t&) {
-            return std::string{"approve_destination_update"};
-          },
-          [](const charter::schema::approve_intent_t&) {
-            return std::string{"approve_intent"};
-          },
-          [](const charter::schema::cancel_intent_t&) {
-            return std::string{"cancel_intent"};
-          },
-          [](const charter::schema::create_policy_set_t&) {
-            return std::string{"create_policy_set"};
-          },
-          [](const charter::schema::create_workspace_t&) {
-            return std::string{"create_workspace"};
-          },
-          [](const charter::schema::create_vault_t&) {
-            return std::string{"create_vault"};
-          },
-          [](const charter::schema::execute_intent_t&) {
-            return std::string{"execute_intent"};
-          },
-          [](const charter::schema::propose_destination_update_t&) {
-            return std::string{"propose_destination_update"};
-          },
-          [](const charter::schema::propose_intent_t&) {
-            return std::string{"propose_intent"};
-          },
-          [](const charter::schema::revoke_attestation_t&) {
-            return std::string{"revoke_attestation"};
-          },
-          [](const charter::schema::set_degraded_mode_t&) {
-            return std::string{"set_degraded_mode"};
-          },
-          [](const charter::schema::upsert_attestation_t&) {
-            return std::string{"upsert_attestation"};
-          },
-          [](const charter::schema::upsert_destination_t&) {
-            return std::string{"upsert_destination"};
-          },
-          [](const charter::schema::upsert_role_assignment_t&) {
-            return std::string{"upsert_role_assignment"};
-          },
-          [](const charter::schema::upsert_signer_quarantine_t&) {
-            return std::string{"upsert_signer_quarantine"};
-          }},
+      overloaded{[](const charter::schema::activate_policy_set_t&) {
+                   return std::string{"activate_policy_set"};
+                 },
+                 [](const charter::schema::apply_destination_update_t&) {
+                   return std::string{"apply_destination_update"};
+                 },
+                 [](const charter::schema::approve_destination_update_t&) {
+                   return std::string{"approve_destination_update"};
+                 },
+                 [](const charter::schema::approve_intent_t&) {
+                   return std::string{"approve_intent"};
+                 },
+                 [](const charter::schema::cancel_intent_t&) {
+                   return std::string{"cancel_intent"};
+                 },
+                 [](const charter::schema::create_policy_set_t&) {
+                   return std::string{"create_policy_set"};
+                 },
+                 [](const charter::schema::create_workspace_t&) {
+                   return std::string{"create_workspace"};
+                 },
+                 [](const charter::schema::create_vault_t&) {
+                   return std::string{"create_vault"};
+                 },
+                 [](const charter::schema::execute_intent_t&) {
+                   return std::string{"execute_intent"};
+                 },
+                 [](const charter::schema::propose_destination_update_t&) {
+                   return std::string{"propose_destination_update"};
+                 },
+                 [](const charter::schema::propose_intent_t&) {
+                   return std::string{"propose_intent"};
+                 },
+                 [](const charter::schema::revoke_attestation_t&) {
+                   return std::string{"revoke_attestation"};
+                 },
+                 [](const charter::schema::set_degraded_mode_t&) {
+                   return std::string{"set_degraded_mode"};
+                 },
+                 [](const charter::schema::upsert_attestation_t&) {
+                   return std::string{"upsert_attestation"};
+                 },
+                 [](const charter::schema::upsert_destination_t&) {
+                   return std::string{"upsert_destination"};
+                 },
+                 [](const charter::schema::upsert_role_assignment_t&) {
+                   return std::string{"upsert_role_assignment"};
+                 },
+                 [](const charter::schema::upsert_signer_quarantine_t&) {
+                   return std::string{"upsert_signer_quarantine"};
+                 }},
       payload);
 }
 
-void append_tx_result_event(charter::execution::tx_result& result,
-                            uint64_t height,
-                            uint32_t index,
-                            const std::optional<charter::schema::transaction_t>&
-                                maybe_tx) {
-  auto event = charter::execution::tx_event{};
+void append_transaction_result_event(
+    charter::schema::transaction_result_t& result,
+    uint64_t height,
+    uint32_t index,
+    const std::optional<charter::schema::transaction_t>& maybe_tx) {
+  auto event = charter::schema::transaction_event_t{};
   event.type = "charter.tx_result";
-  auto codespace =
-      result.codespace.empty() ? std::string{kExecuteCodespace} : result.codespace;
-  event.attributes.push_back(charter::execution::tx_event_attribute{
-      .key = "code",
-      .value = std::to_string(result.code),
-      .index = true});
-  event.attributes.push_back(charter::execution::tx_event_attribute{
+  auto codespace = result.codespace.empty() ? std::string{kExecuteCodespace}
+                                            : result.codespace;
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+      .key = "code", .value = std::to_string(result.code), .index = true});
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
       .key = "success",
       .value = result.code == 0 ? "true" : "false",
       .index = true});
-  event.attributes.push_back(charter::execution::tx_event_attribute{
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
       .key = "codespace", .value = codespace, .index = true});
-  event.attributes.push_back(charter::execution::tx_event_attribute{
-      .key = "height",
-      .value = std::to_string(height),
-      .index = true});
-  event.attributes.push_back(charter::execution::tx_event_attribute{
-      .key = "tx_index",
-      .value = std::to_string(index),
-      .index = true});
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+      .key = "height", .value = std::to_string(height), .index = true});
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+      .key = "tx_index", .value = std::to_string(index), .index = true});
   if (!result.log.empty()) {
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "log", .value = result.log, .index = false});
   }
   if (!result.info.empty()) {
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "info", .value = result.info, .index = false});
   }
   if (maybe_tx.has_value()) {
     auto encoded_signer = encoder_t{}.encode(maybe_tx->signer);
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "signer",
-        .value = to_hex(charter::schema::bytes_view_t{
-            encoded_signer.data(), encoded_signer.size()}),
+        .value = to_hex(charter::schema::bytes_view_t{encoded_signer.data(),
+                                                      encoded_signer.size()}),
         .index = true});
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "nonce",
         .value = std::to_string(maybe_tx->nonce),
         .index = true});
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "payload_type",
         .value = payload_type_name(maybe_tx->payload),
         .index = true});
   } else {
-    event.attributes.push_back(charter::execution::tx_event_attribute{
+    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
         .key = "payload_type", .value = "decode_failed", .index = true});
   }
   result.events.push_back(std::move(event));
@@ -986,26 +746,34 @@ bool signer_has_required_global_role(
 }
 
 bool is_policy_denial_code(const uint32_t code) {
+  using charter::schema::transaction_error_code;
   switch (code) {
-    case 20:
-    case 23:
-    case 26:
-    case 28:
-    case 29:
-    case 30:
-    case 34:
-    case 35:
-    case 39:
+    case static_cast<uint32_t>(
+        transaction_error_code::policy_resolution_failed):
+    case static_cast<uint32_t>(transaction_error_code::intent_expired):
+    case static_cast<uint32_t>(transaction_error_code::intent_not_executable):
+    case static_cast<uint32_t>(transaction_error_code::limit_exceeded):
+    case static_cast<uint32_t>(
+        transaction_error_code::destination_not_whitelisted):
+    case static_cast<uint32_t>(
+        transaction_error_code::claim_requirement_unsatisfied):
+    case static_cast<uint32_t>(transaction_error_code::velocity_limit_exceeded):
+    case static_cast<uint32_t>(
+        transaction_error_code::separation_of_duties_violated):
+    case static_cast<uint32_t>(
+        transaction_error_code::destination_update_not_executable):
       return true;
     default:
       return false;
   }
 }
 
-charter::schema::security_event_type_t event_type_for_tx_error(
+charter::schema::security_event_type_t event_type_for_transaction_error(
     const uint32_t code,
     const bool validation_phase) {
-  if (code == 33) {
+  if (code ==
+      static_cast<uint32_t>(
+          charter::schema::transaction_error_code::authorization_denied)) {
     return charter::schema::security_event_type_t::authz_denied;
   }
   if (is_policy_denial_code(code)) {
@@ -1043,10 +811,16 @@ transfer_asset_and_amount(const charter::schema::intent_action_t& action) {
       action);
 }
 
-charter::execution::tx_result make_error_tx_result(uint32_t code,
-                                                   std::string log,
-                                                   std::string info,
-                                                   std::string codespace);
+charter::schema::transaction_result_t make_error_transaction_result(
+    uint32_t code,
+    std::string log,
+    std::string info,
+    std::string codespace);
+charter::schema::transaction_result_t make_error_transaction_result(
+    charter::schema::transaction_error_code code,
+    std::string log,
+    std::string info,
+    std::string codespace);
 
 bool enforce_velocity_limits(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
@@ -1056,7 +830,7 @@ bool enforce_velocity_limits(
     const charter::schema::intent_action_t& action,
     const std::vector<charter::schema::velocity_limit_rule_t>& limits,
     const uint64_t now_ms,
-    charter::execution::tx_result& result,
+    charter::schema::transaction_result_t& result,
     const std::string_view codespace) {
   auto transfer = transfer_asset_and_amount(action);
   if (!transfer.has_value()) {
@@ -1076,8 +850,9 @@ bool enforce_velocity_limits(
     auto used = counter.has_value() ? counter->used_amount
                                     : charter::schema::amount_t{0};
     if (used + charter::schema::amount_t{amount} > limit.maximum_amount) {
-      result = make_error_tx_result(
-          34, "velocity limit exceeded",
+      result = make_error_transaction_result(
+          charter::schema::transaction_error_code::velocity_limit_exceeded,
+          "velocity limit exceeded",
           "cumulative velocity window amount exceeded policy maximum",
           std::string{codespace});
       return false;
@@ -1173,13 +948,14 @@ bool attestation_satisfies_requirement(
   return false;
 }
 
-charter::execution::tx_result make_error_tx_result(uint32_t code,
-                                                   std::string log,
-                                                   std::string info,
-                                                   std::string codespace) {
+charter::schema::transaction_result_t make_error_transaction_result(
+    uint32_t code,
+    std::string log,
+    std::string info,
+    std::string codespace) {
   spdlog::error("tx error: code={} codespace='{}' log='{}' info='{}'", code,
                 codespace, log, info);
-  auto result = charter::execution::tx_result{};
+  auto result = charter::schema::transaction_result_t{};
   result.code = code;
   result.log = std::move(log);
   result.info = std::move(info);
@@ -1187,7 +963,17 @@ charter::execution::tx_result make_error_tx_result(uint32_t code,
   return result;
 }
 
-charter::execution::query_result make_error_query_result(
+charter::schema::transaction_result_t make_error_transaction_result(
+    charter::schema::transaction_error_code code,
+    std::string log,
+    std::string info,
+    std::string codespace) {
+  return make_error_transaction_result(static_cast<uint32_t>(code),
+                                       std::move(log), std::move(info),
+                                       std::move(codespace));
+}
+
+charter::schema::query_result_t make_error_query_result(
     uint32_t code,
     std::string log,
     std::string info,
@@ -1196,7 +982,7 @@ charter::execution::query_result make_error_query_result(
     const charter::schema::bytes_view_t& key) {
   spdlog::error("query error: code={} codespace='{}' log='{}' info='{}'", code,
                 codespace, log, info);
-  auto result = charter::execution::query_result{};
+  auto result = charter::schema::query_result_t{};
   result.code = code;
   result.log = std::move(log);
   result.info = std::move(info);
@@ -1267,10 +1053,10 @@ std::optional<charter::schema::transaction_t> decode_transaction(
   return tx;
 }
 
-charter::execution::snapshot_descriptor make_snapshot_descriptor(
+charter::schema::snapshot_descriptor_t make_snapshot_descriptor(
     uint64_t height,
     const charter::schema::bytes_t& chunk) {
-  auto snapshot = charter::execution::snapshot_descriptor{};
+  auto snapshot = charter::schema::snapshot_descriptor_t{};
   snapshot.height = height;
   snapshot.format = 1;
   snapshot.chunks = 1;
@@ -1376,17 +1162,20 @@ engine::engine(uint64_t snapshot_interval,
                last_committed_height_, snapshots_.size());
 }
 
-tx_result engine::check_tx(const charter::schema::bytes_view_t& raw_tx) {
+transaction_result_t engine::check_transaction(
+    const charter::schema::bytes_view_t& raw_tx) {
   auto lock = std::scoped_lock{mutex_};
   auto decode_error = std::string{};
   auto maybe_tx = decode_transaction(
       charter::schema::bytes_view_t{raw_tx.data(), raw_tx.size()},
       decode_error);
   if (!maybe_tx) {
-    return make_error_tx_result(1, "invalid transaction", decode_error,
-                                std::string{kCheckTxCodespace});
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::invalid_transaction,
+        "invalid transaction", decode_error, std::string{kCheckTxCodespace});
   }
-  auto result = validate_tx(*maybe_tx, kCheckTxCodespace, std::nullopt);
+  auto result =
+      validate_transaction(*maybe_tx, kCheckTxCodespace, std::nullopt);
   if (result.code != 0) {
     return result;
   }
@@ -1394,33 +1183,37 @@ tx_result engine::check_tx(const charter::schema::bytes_view_t& raw_tx) {
   return result;
 }
 
-tx_result engine::process_proposal_tx(
+transaction_result_t engine::process_proposal_transaction(
     const charter::schema::bytes_view_t& raw_tx) {
   auto lock = std::scoped_lock{mutex_};
   auto decode_error = std::string{};
   auto maybe_tx = decode_transaction(raw_tx, decode_error);
   if (!maybe_tx) {
-    return make_error_tx_result(1, "invalid transaction", decode_error,
-                                std::string{kProposalCodespace});
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::invalid_transaction,
+        "invalid transaction", decode_error, std::string{kProposalCodespace});
   }
-  auto result = validate_tx(*maybe_tx, kProposalCodespace, std::nullopt);
+  auto result =
+      validate_transaction(*maybe_tx, kProposalCodespace, std::nullopt);
   if (result.code == 0) {
     result.gas_wanted = 1000;
   }
   return result;
 }
 
-tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
-  auto result = tx_result{};
+transaction_result_t engine::execute_operation(
+    const charter::schema::transaction_t& tx) {
+  auto result = transaction_result_t{};
   auto encoder = encoder_t{};
   std::visit(
       overloaded{
           [&](const charter::schema::create_workspace_t& operation) {
             auto workspace_key = make_workspace_key(operation.workspace_id);
             if (workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(10, "workspace already exists",
-                                            "workspace_id already present",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::workspace_exists,
+                  "workspace already exists", "workspace_id already present",
+                  std::string{kExecuteCodespace});
               return;
             }
             storage_.put(encoder,
@@ -1449,7 +1242,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::create_vault_t& operation) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(
+              result = make_error_transaction_result(
                   11, "workspace missing",
                   "workspace must exist before vault creation",
                   std::string{kExecuteCodespace});
@@ -1459,9 +1252,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                 make_vault_key(operation.workspace_id, operation.vault_id);
             if (vault_exists(storage_, encoder, operation.workspace_id,
                              operation.vault_id)) {
-              result = make_error_tx_result(12, "vault already exists",
-                                            "vault_id already present",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::vault_exists,
+                  "vault already exists", "vault_id already present",
+                  std::string{kExecuteCodespace});
               return;
             }
             storage_.put(encoder,
@@ -1472,7 +1266,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::upsert_destination_t& operation) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(
+              result = make_error_transaction_result(
                   11, "workspace missing",
                   "workspace must exist before destination upsert",
                   std::string{kExecuteCodespace});
@@ -1488,9 +1282,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::create_policy_set_t& operation) {
             if (!policy_scope_exists(storage_, encoder, operation.scope)) {
-              result = make_error_tx_result(13, "policy scope missing",
-                                            "scope target does not exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::policy_scope_missing,
+                  "policy scope missing", "scope target does not exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto policy_key = make_policy_set_key(
@@ -1501,10 +1296,11 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{policy_key.data(),
                                                            policy_key.size()});
             if (existing) {
-              result =
-                  make_error_tx_result(14, "policy set already exists",
-                                       "policy_set_id/version already present",
-                                       std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::policy_set_exists,
+                  "policy set already exists",
+                  "policy_set_id/version already present",
+                  std::string{kExecuteCodespace});
               return;
             }
             storage_.put(encoder,
@@ -1515,9 +1311,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::activate_policy_set_t& operation) {
             if (!policy_scope_exists(storage_, encoder, operation.scope)) {
-              result = make_error_tx_result(13, "policy scope missing",
-                                            "scope target does not exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::policy_scope_missing,
+                  "policy scope missing", "scope target does not exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto policy_key = make_policy_set_key(operation.policy_set_id,
@@ -1527,9 +1324,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{policy_key.data(),
                                                            policy_key.size()});
             if (!policy) {
-              result = make_error_tx_result(15, "policy set missing",
-                                            "cannot activate missing policy",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::policy_set_missing,
+                  "policy set missing", "cannot activate missing policy",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto active_key = make_active_policy_key(operation.scope);
@@ -1546,18 +1344,21 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id) ||
                 !vault_exists(storage_, encoder, operation.workspace_id,
                               operation.vault_id)) {
-              result = make_error_tx_result(16, "vault scope missing",
-                                            "workspace/vault must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::vault_scope_missing,
+                  "vault scope missing", "workspace/vault must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto scope = charter::schema::policy_scope_t{
                 charter::schema::vault_t{.workspace_id = operation.workspace_id,
                                          .vault_id = operation.vault_id}};
             if (!active_policy_exists(storage_, encoder, scope)) {
-              result = make_error_tx_result(17, "active policy missing",
-                                            "activate a policy before intents",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      active_policy_missing,
+                  "active policy missing", "activate a policy before intents",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto intent_key =
@@ -1568,18 +1369,22 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
                                                            intent_key.size()});
             if (existing) {
-              result = make_error_tx_result(19, "intent already exists",
-                                            "intent_id already present",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::intent_exists,
+                  "intent already exists", "intent_id already present",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto requirements = resolve_policy_requirements(
                 storage_, encoder, scope,
                 operation_type_from_intent_action(operation.action));
             if (!requirements) {
-              result = make_error_tx_result(20, "policy resolution failed",
-                                            "active policy pointer is invalid",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      policy_resolution_failed,
+                  "policy resolution failed",
+                  "active policy pointer is invalid",
+                  std::string{kExecuteCodespace});
               return;
             }
             std::visit(
@@ -1588,7 +1393,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                       if (requirements->per_transaction_limit.has_value() &&
                           charter::schema::amount_t{action.amount} >
                               requirements->per_transaction_limit.value()) {
-                        result = make_error_tx_result(
+                        result = make_error_transaction_result(
                             28, "limit exceeded",
                             "transfer amount exceeds per-transaction policy "
                             "limit",
@@ -1599,7 +1404,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                           !destination_enabled(storage_, encoder,
                                                operation.workspace_id,
                                                action.destination_id)) {
-                        result = make_error_tx_result(
+                        result = make_error_transaction_result(
                             29, "destination not whitelisted",
                             "destination must be enabled in whitelist",
                             std::string{kExecuteCodespace});
@@ -1650,9 +1455,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id) ||
                 !vault_exists(storage_, encoder, operation.workspace_id,
                               operation.vault_id)) {
-              result = make_error_tx_result(16, "vault scope missing",
-                                            "workspace/vault must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::vault_scope_missing,
+                  "vault scope missing", "workspace/vault must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto intent_key =
@@ -1663,16 +1469,19 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
                                                            intent_key.size()});
             if (!intent) {
-              result = make_error_tx_result(21, "intent missing",
-                                            "intent must exist before approval",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::intent_missing,
+                  "intent missing", "intent must exist before approval",
+                  std::string{kExecuteCodespace});
               return;
             }
             if (intent->status == charter::schema::intent_status_t::executed ||
                 intent->status == charter::schema::intent_status_t::cancelled) {
-              result = make_error_tx_result(22, "intent not approvable",
-                                            "intent already finalized",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      intent_not_approvable,
+                  "intent not approvable", "intent already finalized",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto now_ms = current_block_time_ms_;
@@ -1683,9 +1492,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                            charter::schema::bytes_view_t{intent_key.data(),
                                                          intent_key.size()},
                            *intent);
-              result = make_error_tx_result(23, "intent expired",
-                                            "intent can no longer be approved",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::intent_expired,
+                  "intent expired", "intent can no longer be approved",
+                  std::string{kExecuteCodespace});
               return;
             }
 
@@ -1696,10 +1506,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{
                                  approval_key.data(), approval_key.size()});
             if (approval_existing) {
-              result =
-                  make_error_tx_result(24, "duplicate approval",
-                                       "signer already approved this intent",
-                                       std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::duplicate_approval,
+                  "duplicate approval", "signer already approved this intent",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto scope = charter::schema::policy_scope_t{
@@ -1709,15 +1519,20 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                 storage_, encoder, scope,
                 operation_type_from_intent_action(intent->action));
             if (!requirements) {
-              result = make_error_tx_result(20, "policy resolution failed",
-                                            "active policy pointer is invalid",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      policy_resolution_failed,
+                  "policy resolution failed",
+                  "active policy pointer is invalid",
+                  std::string{kExecuteCodespace});
               return;
             }
             if (requirements->require_distinct_from_initiator &&
                 signer_ids_equal(intent->created_by, tx.signer)) {
-              result = make_error_tx_result(
-                  35, "separation of duties violated",
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      separation_of_duties_violated,
+                  "separation of duties violated",
                   "approver must be distinct from intent initiator",
                   std::string{kExecuteCodespace});
               return;
@@ -1748,9 +1563,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id) ||
                 !vault_exists(storage_, encoder, operation.workspace_id,
                               operation.vault_id)) {
-              result = make_error_tx_result(16, "vault scope missing",
-                                            "workspace/vault must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::vault_scope_missing,
+                  "vault scope missing", "workspace/vault must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto intent_key =
@@ -1761,16 +1577,19 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
                                                            intent_key.size()});
             if (!intent) {
-              result = make_error_tx_result(21, "intent missing",
-                                            "intent must exist before cancel",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::intent_missing,
+                  "intent missing", "intent must exist before cancel",
+                  std::string{kExecuteCodespace});
               return;
             }
             if (intent->status == charter::schema::intent_status_t::executed) {
-              result =
-                  make_error_tx_result(25, "intent already executed",
-                                       "executed intent cannot be cancelled",
-                                       std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      intent_already_executed,
+                  "intent already executed",
+                  "executed intent cannot be cancelled",
+                  std::string{kExecuteCodespace});
               return;
             }
             intent->status = charter::schema::intent_status_t::cancelled;
@@ -1784,9 +1603,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id) ||
                 !vault_exists(storage_, encoder, operation.workspace_id,
                               operation.vault_id)) {
-              result = make_error_tx_result(16, "vault scope missing",
-                                            "workspace/vault must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::vault_scope_missing,
+                  "vault scope missing", "workspace/vault must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto intent_key =
@@ -1797,7 +1617,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
                                                            intent_key.size()});
             if (!intent) {
-              result = make_error_tx_result(
+              result = make_error_transaction_result(
                   21, "intent missing", "intent must exist before execution",
                   std::string{kExecuteCodespace});
               return;
@@ -1810,14 +1630,15 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                            charter::schema::bytes_view_t{intent_key.data(),
                                                          intent_key.size()},
                            *intent);
-              result = make_error_tx_result(23, "intent expired",
-                                            "intent can no longer be executed",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::intent_expired,
+                  "intent expired", "intent can no longer be executed",
+                  std::string{kExecuteCodespace});
               return;
             }
             if (intent->approvals_count < intent->required_threshold ||
                 now_ms < intent->not_before) {
-              result = make_error_tx_result(
+              result = make_error_transaction_result(
                   26, "intent not executable",
                   "threshold/timelock requirements not met",
                   std::string{kExecuteCodespace});
@@ -1830,9 +1651,12 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                 storage_, encoder, scope,
                 operation_type_from_intent_action(intent->action));
             if (!requirements) {
-              result = make_error_tx_result(20, "policy resolution failed",
-                                            "active policy pointer is invalid",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      policy_resolution_failed,
+                  "policy resolution failed",
+                  "active policy pointer is invalid",
+                  std::string{kExecuteCodespace});
               return;
             }
             if (requirements->require_distinct_from_executor) {
@@ -1844,8 +1668,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                                    executor_approval_key.data(),
                                    executor_approval_key.size()});
               if (approval_by_executor.has_value()) {
-                result = make_error_tx_result(
-                    35, "separation of duties violated",
+                result = make_error_transaction_result(
+                    charter::schema::transaction_error_code::
+                        separation_of_duties_violated,
+                    "separation of duties violated",
                     "executor must be distinct from approvers for this intent",
                     std::string{kExecuteCodespace});
                 return;
@@ -1862,7 +1688,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
               if (!attestation_satisfies_requirement(
                       storage_, encoder, intent->workspace_id,
                       intent->workspace_id, requirement, now_ms)) {
-                result = make_error_tx_result(
+                result = make_error_transaction_result(
                     30, "claim requirement unsatisfied",
                     "required attestation claim is missing or expired",
                     std::string{kExecuteCodespace});
@@ -1881,9 +1707,11 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::upsert_attestation_t& operation) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(18, "workspace missing",
-                                            "workspace must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      workspace_missing_for_operation,
+                  "workspace missing", "workspace must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto attestation_key =
@@ -1907,9 +1735,11 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::revoke_attestation_t& operation) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(18, "workspace missing",
-                                            "workspace must exist",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      workspace_missing_for_operation,
+                  "workspace missing", "workspace must exist",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto attestation_key =
@@ -1921,9 +1751,10 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     charter::schema::bytes_view_t{attestation_key.data(),
                                                   attestation_key.size()});
             if (!record) {
-              result = make_error_tx_result(27, "attestation missing",
-                                            "attestation not found",
-                                            std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::attestation_missing,
+                  "attestation missing", "attestation not found",
+                  std::string{kExecuteCodespace});
               return;
             }
             record->status = charter::schema::attestation_status_t::revoked;
@@ -1935,7 +1766,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
           },
           [&](const charter::schema::propose_destination_update_t& operation) {
             if (!workspace_exists(storage_, encoder, operation.workspace_id)) {
-              result = make_error_tx_result(
+              result = make_error_transaction_result(
                   11, "workspace missing",
                   "workspace must exist before destination update",
                   std::string{kExecuteCodespace});
@@ -1950,10 +1781,12 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{update_key.data(),
                                                            update_key.size()});
             if (existing.has_value()) {
-              result =
-                  make_error_tx_result(36, "destination update exists",
-                                       "destination update id already present",
-                                       std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      destination_update_exists,
+                  "destination update exists",
+                  "destination update id already present",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto now_ms = current_block_time_ms_;
@@ -1990,18 +1823,22 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{update_key.data(),
                                                            update_key.size()});
             if (!update.has_value()) {
-              result = make_error_tx_result(
-                  37, "destination update missing",
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      destination_update_missing,
+                  "destination update missing",
                   "destination update must exist before approval",
                   std::string{kExecuteCodespace});
               return;
             }
             if (update->status ==
                 charter::schema::destination_update_status_t::applied) {
-              result =
-                  make_error_tx_result(38, "destination update finalized",
-                                       "destination update already applied",
-                                       std::string{kExecuteCodespace});
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      destination_update_finalized,
+                  "destination update finalized",
+                  "destination update already applied",
+                  std::string{kExecuteCodespace});
               return;
             }
             auto approval_key =
@@ -2011,8 +1848,9 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{
                                  approval_key.data(), approval_key.size()});
             if (approval_existing) {
-              result = make_error_tx_result(
-                  24, "duplicate approval",
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::duplicate_approval,
+                  "duplicate approval",
                   "signer already approved this destination update",
                   std::string{kExecuteCodespace});
               return;
@@ -2046,16 +1884,20 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
                     encoder, charter::schema::bytes_view_t{update_key.data(),
                                                            update_key.size()});
             if (!update.has_value()) {
-              result = make_error_tx_result(
-                  37, "destination update missing",
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      destination_update_missing,
+                  "destination update missing",
                   "destination update must exist before apply",
                   std::string{kExecuteCodespace});
               return;
             }
             if (update->approvals_count < update->required_approvals ||
                 current_block_time_ms_ < update->not_before) {
-              result = make_error_tx_result(
-                  39, "destination update not executable",
+              result = make_error_transaction_result(
+                  charter::schema::transaction_error_code::
+                      destination_update_not_executable,
+                  "destination update not executable",
                   "destination update threshold/timelock requirements not met",
                   std::string{kExecuteCodespace});
               return;
@@ -2143,7 +1985,7 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
   }
   if (result.code != 0) {
     append_security_event(
-        storage_, encoder, event_type_for_tx_error(result.code, false),
+        storage_, encoder, event_type_for_transaction_error(result.code, false),
         charter::schema::security_event_severity_t::error, result.code,
         result.log, tx.signer, workspace_id, vault_id, current_block_time_ms_,
         current_block_height_);
@@ -2156,23 +1998,26 @@ tx_result engine::execute_operation(const charter::schema::transaction_t& tx) {
   return result;
 }
 
-tx_result engine::validate_tx(const charter::schema::transaction_t& tx,
-                              std::string_view codespace,
-                              std::optional<uint64_t> expected_nonce) {
+transaction_result_t engine::validate_transaction(
+    const charter::schema::transaction_t& tx,
+    std::string_view codespace,
+    std::optional<uint64_t> expected_nonce) {
   auto encoder = encoder_t{};
   auto degraded_mode = current_degraded_mode(storage_, encoder);
   if (degraded_mode != charter::schema::degraded_mode_t::normal &&
       !std::holds_alternative<charter::schema::set_degraded_mode_t>(
           tx.payload)) {
-    return make_error_tx_result(32, "degraded mode active",
-                                "only degraded mode updates are allowed",
-                                std::string{codespace});
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::degraded_mode_active,
+        "degraded mode active", "only degraded mode updates are allowed",
+        std::string{codespace});
   }
   if (signer_quarantined(storage_, encoder, tx.signer,
                          current_block_time_ms_)) {
-    return make_error_tx_result(31, "signer quarantined",
-                                "signer is blocked by quarantine policy",
-                                std::string{codespace});
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::signer_quarantined,
+        "signer quarantined", "signer is blocked by quarantine policy",
+        std::string{codespace});
   }
   auto required_roles = required_roles_for_payload(tx.payload);
   if (!required_roles.empty()) {
@@ -2192,25 +2037,30 @@ tx_result engine::validate_tx(const charter::schema::transaction_t& tx,
           storage_, encoder, tx.signer, required_roles, current_block_time_ms_);
     }
     if (!authorized) {
-      return make_error_tx_result(33, "authorization denied",
-                                  "signer lacks required role for operation",
-                                  std::string{codespace});
+      return make_error_transaction_result(
+          charter::schema::transaction_error_code::authorization_denied,
+          "authorization denied", "signer lacks required role for operation",
+          std::string{codespace});
     }
   }
 
   if (tx.version != 1) {
-    return make_error_tx_result(2, "unsupported transaction version",
-                                "expected version 1", std::string{codespace});
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::
+            unsupported_transaction_version,
+        "unsupported transaction version", "expected version 1",
+        std::string{codespace});
   }
   if (tx.chain_id != chain_id_) {
-    return make_error_tx_result(
-        3, "invalid chain id",
-        "transaction chain_id does not match app chain_id",
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::invalid_chain_id,
+        "invalid chain id", "transaction chain_id does not match app chain_id",
         std::string{codespace});
   }
   if (!signer_signature_compatible(tx.signer, tx.signature)) {
-    return make_error_tx_result(
-        5, "invalid signature type",
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::invalid_signature_type,
+        "invalid signature type",
         "signer_id and signature variant are incompatible",
         std::string{codespace});
   }
@@ -2219,8 +2069,9 @@ tx_result engine::validate_tx(const charter::schema::transaction_t& tx,
       !signature_verifier_(charter::schema::bytes_view_t{signing_bytes.data(),
                                                          signing_bytes.size()},
                            tx.signer, tx.signature)) {
-    return make_error_tx_result(
-        6, "signature verification failed",
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::signature_verification_failed,
+        "signature verification failed",
         "signature verifier rejected transaction signature",
         std::string{codespace});
   }
@@ -2237,19 +2088,20 @@ tx_result engine::validate_tx(const charter::schema::transaction_t& tx,
   }
 
   if (tx.nonce != nonce_to_match) {
-    return make_error_tx_result(
-        4, "invalid nonce", "expected nonce " + std::to_string(nonce_to_match),
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::invalid_nonce, "invalid nonce",
+        "expected nonce " + std::to_string(nonce_to_match),
         std::string{codespace});
   }
 
-  return tx_result{};
+  return transaction_result_t{};
 }
 
-block_result engine::finalize_block(
+block_result_t engine::finalize_block(
     uint64_t height,
     const std::vector<charter::schema::bytes_t>& txs) {
   auto lock = std::scoped_lock{mutex_};
-  auto result = block_result{};
+  auto result = block_result_t{};
   result.tx_results.reserve(txs.size());
   current_block_time_ms_ = height * 1000;
   current_block_height_ = height;
@@ -2262,8 +2114,9 @@ block_result engine::finalize_block(
         charter::schema::bytes_view_t{txs[i].data(), txs[i].size()},
         decode_error);
     if (!maybe_tx) {
-      auto tx_result = make_error_tx_result(1, "invalid transaction",
-                                            decode_error, "charter.finalize");
+      auto tx_result = make_error_transaction_result(
+          charter::schema::transaction_error_code::invalid_transaction,
+          "invalid transaction", decode_error, "charter.finalize");
       auto history_key = make_history_key(height, static_cast<uint32_t>(i));
       auto encoder = encoder_t{};
       storage_.put(
@@ -2271,12 +2124,13 @@ block_result engine::finalize_block(
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{tx_result.code, txs[i]});
       append_security_event(
-          storage_, encoder, event_type_for_tx_error(tx_result.code, true),
+          storage_, encoder,
+          event_type_for_transaction_error(tx_result.code, true),
           charter::schema::security_event_severity_t::error, tx_result.code,
           tx_result.log, std::nullopt, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
-      append_tx_result_event(tx_result, height, static_cast<uint32_t>(i),
-                             std::nullopt);
+      append_transaction_result_event(tx_result, height,
+                                      static_cast<uint32_t>(i), std::nullopt);
       result.tx_results.push_back(std::move(tx_result));
       continue;
     }
@@ -2287,7 +2141,7 @@ block_result engine::finalize_block(
       expected_nonce = it->second;
     }
     auto validation =
-        validate_tx(*maybe_tx, "charter.finalize", expected_nonce);
+        validate_transaction(*maybe_tx, "charter.finalize", expected_nonce);
     if (validation.code != 0) {
       auto history_key = make_history_key(height, static_cast<uint32_t>(i));
       auto encoder = encoder_t{};
@@ -2296,12 +2150,13 @@ block_result engine::finalize_block(
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{validation.code, txs[i]});
       append_security_event(
-          storage_, encoder, event_type_for_tx_error(validation.code, true),
+          storage_, encoder,
+          event_type_for_transaction_error(validation.code, true),
           charter::schema::security_event_severity_t::error, validation.code,
           validation.log, maybe_tx->signer, std::nullopt, std::nullopt,
           current_block_time_ms_, current_block_height_);
-      append_tx_result_event(validation, height, static_cast<uint32_t>(i),
-                             maybe_tx);
+      append_transaction_result_event(validation, height,
+                                      static_cast<uint32_t>(i), maybe_tx);
       result.tx_results.push_back(std::move(validation));
       continue;
     }
@@ -2313,8 +2168,8 @@ block_result engine::finalize_block(
         encoder,
         charter::schema::bytes_view_t{history_key.data(), history_key.size()},
         std::tuple{tx_result.code, txs[i]});
-    append_tx_result_event(tx_result, height, static_cast<uint32_t>(i),
-                           maybe_tx);
+    append_transaction_result_event(tx_result, height, static_cast<uint32_t>(i),
+                                    maybe_tx);
     result.tx_results.push_back(std::move(tx_result));
     if (tx_result.code == 0) {
       auto nonce_key = make_nonce_key(maybe_tx->signer);
@@ -2333,7 +2188,7 @@ block_result engine::finalize_block(
   return result;
 }
 
-commit_result engine::commit() {
+commit_result_t engine::commit() {
   auto lock = std::scoped_lock{mutex_};
   if (pending_height_ > 0) {
     last_committed_height_ = pending_height_;
@@ -2343,28 +2198,29 @@ commit_result engine::commit() {
 
   create_snapshot_if_due(last_committed_height_);
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .state_root = last_committed_state_root_});
+      .height = last_committed_height_,
+      .state_root = last_committed_state_root_});
 
-  auto result = commit_result{};
+  auto result = commit_result_t{};
   result.retain_height = 0;
   result.committed_height = last_committed_height_;
   result.state_root = last_committed_state_root_;
   return result;
 }
 
-app_info engine::info() const {
+app_info_t engine::info() const {
   auto lock = std::scoped_lock{mutex_};
-  auto result = app_info{};
+  auto result = app_info_t{};
   result.last_block_height = last_committed_height_;
   result.last_block_state_root = last_committed_state_root_;
   return result;
 }
 
-query_result engine::query(std::string_view path,
-                           const charter::schema::bytes_view_t& data) {
+query_result_t engine::query(std::string_view path,
+                             const charter::schema::bytes_view_t& data) {
   auto lock = std::scoped_lock{mutex_};
   auto encoder = encoder_t{};
-  auto result = query_result{};
+  auto result = query_result_t{};
   result.height = last_committed_height_;
   result.codespace = std::string{kQueryCodespace};
   result.key = charter::schema::make_bytes(data);
@@ -2717,13 +2573,13 @@ query_result engine::query(std::string_view path,
       "/history/range, /history/export, /events/range, /engine/keyspaces");
 }
 
-std::vector<history_entry> engine::history(uint64_t from_height,
-                                           uint64_t to_height) const {
+std::vector<history_entry_t> engine::history(uint64_t from_height,
+                                             uint64_t to_height) const {
   auto lock = std::scoped_lock{mutex_};
   auto prefix = charter::schema::make_bytes(kHistoryPrefix);
   auto rows = storage_.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
-  auto output = std::vector<history_entry>{};
+  auto output = std::vector<history_entry_t>{};
   auto encoder = encoder_t{};
   for (const auto& [key, value] : rows) {
     auto parsed = parse_history_key(
@@ -2741,10 +2597,10 @@ std::vector<history_entry> engine::history(uint64_t from_height,
     if (!decoded) {
       continue;
     }
-    output.push_back(history_entry{.height = height,
-                                   .index = index,
-                                   .code = std::get<0>(decoded.value()),
-                                   .tx = std::get<1>(decoded.value())});
+    output.push_back(history_entry_t{.height = height,
+                                     .index = index,
+                                     .code = std::get<0>(decoded.value()),
+                                     .tx = std::get<1>(decoded.value())});
   }
   return output;
 }
@@ -2883,9 +2739,9 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
   return true;
 }
 
-replay_result engine::replay_history() {
+replay_result_t engine::replay_history() {
   auto lock = std::scoped_lock{mutex_};
-  auto result = replay_result{};
+  auto result = replay_result_t{};
   auto expected_committed = storage_.load_committed_state();
 
   auto history_prefix = charter::schema::make_bytes(kHistoryPrefix);
@@ -2939,7 +2795,8 @@ replay_result engine::replay_history() {
         it != std::end(expected_nonces)) {
       expected_nonce = it->second;
     }
-    auto validation = validate_tx(*maybe_tx, "charter.replay", expected_nonce);
+    auto validation =
+        validate_transaction(*maybe_tx, "charter.replay", expected_nonce);
     if (validation.code != stored_code) {
       result.error = "history tx validation code mismatch during replay";
       spdlog::warn("History replay failed: {}", result.error);
@@ -2968,7 +2825,8 @@ replay_result engine::replay_history() {
   last_committed_state_root_ = rolling_hash;
   pending_state_root_ = rolling_hash;
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .state_root = last_committed_state_root_});
+      .height = last_committed_height_,
+      .state_root = last_committed_state_root_});
   load_persisted_state();
 
   if (expected_committed.has_value() &&
@@ -2999,7 +2857,7 @@ void engine::set_signature_verifier(signature_verifier_t verifier) {
   signature_verifier_ = std::move(verifier);
 }
 
-std::vector<snapshot_descriptor> engine::list_snapshots() const {
+std::vector<snapshot_descriptor_t> engine::list_snapshots() const {
   auto lock = std::scoped_lock{mutex_};
   return snapshots_;
 }
@@ -3018,7 +2876,7 @@ std::optional<charter::schema::bytes_t> engine::load_snapshot_chunk(
 }
 
 offer_snapshot_result engine::offer_snapshot(
-    const snapshot_descriptor& offered,
+    const snapshot_descriptor_t& offered,
     const charter::schema::hash32_t& trusted_state_root) {
   auto lock = std::scoped_lock{mutex_};
   if (offered.format != 1) {
@@ -3108,10 +2966,11 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
   last_committed_state_root_ = pending_snapshot_offer_->hash;
   pending_state_root_ = last_committed_state_root_;
   storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_, .state_root = last_committed_state_root_});
+      .height = last_committed_height_,
+      .state_root = last_committed_state_root_});
   auto existing =
       std::find_if(std::begin(snapshots_), std::end(snapshots_),
-                   [&](const snapshot_descriptor& value) {
+                   [&](const snapshot_descriptor_t& value) {
                      return value.height == pending_snapshot_offer_->height &&
                             value.format == pending_snapshot_offer_->format;
                    });
@@ -3150,7 +3009,7 @@ void engine::create_snapshot_if_due(int64_t height) {
       chunk);
 
   auto existing = std::find_if(std::begin(snapshots_), std::end(snapshots_),
-                               [&](const snapshot_descriptor& value) {
+                               [&](const snapshot_descriptor_t& value) {
                                  return value.height == snapshot.height &&
                                         value.format == snapshot.format;
                                });
@@ -3175,11 +3034,11 @@ void engine::load_persisted_state() {
   snapshots_.clear();
   snapshots_.reserve(stored_snapshots.size());
   for (const auto& snapshot : stored_snapshots) {
-    snapshots_.push_back(snapshot_descriptor{.height = snapshot.height,
-                                             .format = snapshot.format,
-                                             .chunks = snapshot.chunks,
-                                             .hash = snapshot.hash,
-                                             .metadata = snapshot.metadata});
+    snapshots_.push_back(snapshot_descriptor_t{.height = snapshot.height,
+                                               .format = snapshot.format,
+                                               .chunks = snapshot.chunks,
+                                               .hash = snapshot.hash,
+                                               .metadata = snapshot.metadata});
   }
 }
 

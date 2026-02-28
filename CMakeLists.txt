@@ -52,6 +52,7 @@ option(WITH_UBSAN "Build with UBSAN support" OFF)
 option(WITH_STATIC_ANALYZER "Build with clang static analyzer" OFF)
 option(WITH_CLANG_TIDY "Enable clang tidy" OFF)
 option(WITH_COVERAGE "Enable gcov / llcov support" OFF)
+option(WITH_PCH "Enable precompiled headers for heavy dependencies" ON)
 
 if(WITH_ASAN)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
@@ -237,10 +238,8 @@ list(APPEND ABCI_PROTO_FILES ${CMAKE_CURRENT_LIST_DIR}/third_party/cometbft/prot
 message(STATUS ${ABCI_PROTO_FILES})
 generate_proto(abci_proto ${ABCI_PROTO_FILES})
 
-add_executable(charter 
-  src/main.cpp 
-  src/abci/server.cpp
-
+set(CHARTER_SCHEMA_SOURCES
+  src/schema/keys/engine_keys.cpp
   src/schema/primitives.cpp
   src/schema/encoding/scale/activate_policy_set.cpp
   src/schema/encoding/scale/active_policy_pointer.cpp
@@ -249,11 +248,14 @@ add_executable(charter
   src/schema/encoding/scale/approval_rule.cpp
   src/schema/encoding/scale/approval_state.cpp
   src/schema/encoding/scale/approve_intent.cpp
+  src/schema/encoding/scale/app_info.cpp
   src/schema/encoding/scale/asset_ref.cpp
   src/schema/encoding/scale/asset_state.cpp
   src/schema/encoding/scale/attestation_record.cpp
+  src/schema/encoding/scale/block_result.cpp
   src/schema/encoding/scale/cancel_intent.cpp
   src/schema/encoding/scale/claim_requirement.cpp
+  src/schema/encoding/scale/commit_result.cpp
   src/schema/encoding/scale/create_policy_set.cpp
   src/schema/encoding/scale/create_vault.cpp
   src/schema/encoding/scale/create_workspace.cpp
@@ -261,6 +263,7 @@ add_executable(charter
   src/schema/encoding/scale/destination_update_state.cpp
   src/schema/encoding/scale/disable_asset.cpp
   src/schema/encoding/scale/execute_intent.cpp
+  src/schema/encoding/scale/history_entry.cpp
   src/schema/encoding/scale/intent_state.cpp
   src/schema/encoding/scale/limit_rule.cpp
   src/schema/encoding/scale/policy_rule.cpp
@@ -268,11 +271,17 @@ add_executable(charter
   src/schema/encoding/scale/primitives.cpp
   src/schema/encoding/scale/propose_destination_update.cpp
   src/schema/encoding/scale/propose_intent.cpp
+  src/schema/encoding/scale/query_result.cpp
+  src/schema/encoding/scale/replay_result.cpp
   src/schema/encoding/scale/revoke_attestation.cpp
   src/schema/encoding/scale/security_event_record.cpp
   src/schema/encoding/scale/set_degraded_mode.cpp
+  src/schema/encoding/scale/snapshot_descriptor.cpp
   src/schema/encoding/scale/time_lock_rule.cpp
   src/schema/encoding/scale/transaction.cpp
+  src/schema/encoding/scale/transaction_event.cpp
+  src/schema/encoding/scale/transaction_event_attribute.cpp
+  src/schema/encoding/scale/transaction_result.cpp
   src/schema/encoding/scale/transfer_parameters.cpp
   src/schema/encoding/scale/upsert_attestation.cpp
   src/schema/encoding/scale/upsert_destination.cpp
@@ -280,91 +289,139 @@ add_executable(charter
   src/schema/encoding/scale/upsert_signer_quarantine.cpp
   src/schema/encoding/scale/velocity_counter_state.cpp
   src/schema/encoding/scale/velocity_limit_rule.cpp
+)
 
+set(CHARTER_CRYPTO_SOURCES
   src/blake3/hash.cpp
   src/crypto/verify.cpp
+)
 
+set(CHARTER_STORAGE_SOURCES
   src/storage/rocksdb/storage.cpp
+)
+
+set(CHARTER_EXECUTION_SOURCES
   src/execution/engine.cpp
 )
-target_link_libraries(charter
-    PRIVATE
-        coverage_config
-        abci_proto
-        gogo_proto
-        health_check
-        protobuf::libprotobuf
-        BLAKE3::blake3
-        gRPC::grpc
-        gRPC::grpc++
-        gRPC::grpc++_reflection
-        utf8_range::utf8_range
-        utf8_range::utf8_validity
-        RocksDB::rocksdb
-        ${Boost_LIBRARIES}
-        OpenSSL::Crypto
-        ${SPD_LIBS}
+
+set(CHARTER_ABCI_SOURCES
+  src/abci/server.cpp
 )
 
-target_compile_definitions(charter PRIVATE SPDLOG_USE_STD_FORMAT)
-
-add_executable(tx_builder
-  src/blake3/hash.cpp
-  src/tools/tx_builder.cpp
-  src/schema/primitives.cpp
-  src/schema/encoding/scale/activate_policy_set.cpp
-  src/schema/encoding/scale/active_policy_pointer.cpp
-  src/schema/encoding/scale/apply_destination_update.cpp
-  src/schema/encoding/scale/approve_destination_update.cpp
-  src/schema/encoding/scale/approval_rule.cpp
-  src/schema/encoding/scale/approval_state.cpp
-  src/schema/encoding/scale/approve_intent.cpp
-  src/schema/encoding/scale/asset_ref.cpp
-  src/schema/encoding/scale/asset_state.cpp
-  src/schema/encoding/scale/attestation_record.cpp
-  src/schema/encoding/scale/cancel_intent.cpp
-  src/schema/encoding/scale/claim_requirement.cpp
-  src/schema/encoding/scale/create_policy_set.cpp
-  src/schema/encoding/scale/create_vault.cpp
-  src/schema/encoding/scale/create_workspace.cpp
-  src/schema/encoding/scale/destination_rule.cpp
-  src/schema/encoding/scale/destination_update_state.cpp
-  src/schema/encoding/scale/disable_asset.cpp
-  src/schema/encoding/scale/execute_intent.cpp
-  src/schema/encoding/scale/intent_state.cpp
-  src/schema/encoding/scale/limit_rule.cpp
-  src/schema/encoding/scale/policy_rule.cpp
-  src/schema/encoding/scale/policy_set.cpp
-  src/schema/encoding/scale/primitives.cpp
-  src/schema/encoding/scale/propose_destination_update.cpp
-  src/schema/encoding/scale/propose_intent.cpp
-  src/schema/encoding/scale/revoke_attestation.cpp
-  src/schema/encoding/scale/security_event_record.cpp
-  src/schema/encoding/scale/set_degraded_mode.cpp
-  src/schema/encoding/scale/time_lock_rule.cpp
-  src/schema/encoding/scale/transaction.cpp
-  src/schema/encoding/scale/transfer_parameters.cpp
-  src/schema/encoding/scale/upsert_attestation.cpp
-  src/schema/encoding/scale/upsert_destination.cpp
-  src/schema/encoding/scale/upsert_role_assignment.cpp
-  src/schema/encoding/scale/upsert_signer_quarantine.cpp
-  src/schema/encoding/scale/velocity_counter_state.cpp
-  src/schema/encoding/scale/velocity_limit_rule.cpp
+add_library(schema_core STATIC ${CHARTER_SCHEMA_SOURCES})
+target_link_libraries(schema_core
+  PRIVATE
+    coverage_config
+    spdlog::spdlog
 )
-target_link_libraries(tx_builder
-    PRIVATE
-        coverage_config
-        BLAKE3::blake3
-        ${Boost_LIBRARIES}
-        spdlog::spdlog
-)
-target_compile_definitions(tx_builder PRIVATE SPDLOG_USE_STD_FORMAT)
+target_compile_definitions(schema_core PRIVATE SPDLOG_USE_STD_FORMAT)
+if(WITH_PCH)
+  target_precompile_headers(schema_core PRIVATE
+    <scale/scale.hpp>
+  )
+endif()
 
-add_dependencies(charter 
+add_library(crypto_core STATIC ${CHARTER_CRYPTO_SOURCES})
+target_link_libraries(crypto_core
+  PUBLIC
+    BLAKE3::blake3
+    OpenSSL::Crypto
+    spdlog::spdlog
+  PRIVATE
+    coverage_config
+)
+target_compile_definitions(crypto_core PRIVATE SPDLOG_USE_STD_FORMAT)
+
+add_library(storage_core STATIC ${CHARTER_STORAGE_SOURCES})
+target_link_libraries(storage_core
+  PUBLIC
+    schema_core
+    RocksDB::rocksdb
+    spdlog::spdlog
+  PRIVATE
+    coverage_config
+)
+target_compile_definitions(storage_core PRIVATE SPDLOG_USE_STD_FORMAT)
+if(WITH_PCH)
+  target_precompile_headers(storage_core PRIVATE
+    <scale/scale.hpp>
+  )
+endif()
+
+add_library(execution_core STATIC ${CHARTER_EXECUTION_SOURCES})
+target_link_libraries(execution_core
+  PUBLIC
+    schema_core
+    storage_core
+    crypto_core
+    spdlog::spdlog
+  PRIVATE
+    coverage_config
+)
+target_compile_definitions(execution_core PRIVATE SPDLOG_USE_STD_FORMAT)
+if(WITH_PCH)
+  target_precompile_headers(execution_core PRIVATE
+    <scale/scale.hpp>
+  )
+endif()
+
+add_library(abci_core STATIC ${CHARTER_ABCI_SOURCES})
+target_link_libraries(abci_core
+  PUBLIC
+    execution_core
     abci_proto
     gogo_proto
     health_check
+    protobuf::libprotobuf
+    gRPC::grpc
+    gRPC::grpc++
+    gRPC::grpc++_reflection
+    utf8_range::utf8_range
+    utf8_range::utf8_validity
+  PRIVATE
+    coverage_config
+    spdlog::spdlog
 )
+target_compile_definitions(abci_core PRIVATE SPDLOG_USE_STD_FORMAT)
+add_dependencies(abci_core
+  abci_proto
+  gogo_proto
+  health_check
+)
+
+add_executable(charter
+  src/main.cpp
+)
+target_link_libraries(charter
+  PRIVATE
+    abci_core
+    execution_core
+    schema_core
+    crypto_core
+    storage_core
+    coverage_config
+    ${Boost_LIBRARIES}
+    spdlog::spdlog
+)
+target_compile_definitions(charter PRIVATE SPDLOG_USE_STD_FORMAT)
+
+add_executable(transaction_builder
+  src/tools/transaction_builder.cpp
+)
+target_link_libraries(transaction_builder
+  PRIVATE
+    schema_core
+    crypto_core
+    coverage_config
+    ${Boost_LIBRARIES}
+    spdlog::spdlog
+)
+target_compile_definitions(transaction_builder PRIVATE SPDLOG_USE_STD_FORMAT)
+if(WITH_PCH)
+  target_precompile_headers(transaction_builder PRIVATE
+    <scale/scale.hpp>
+  )
+endif()
 
 if(WITH_TESTS)
   enable_testing()
@@ -377,61 +434,25 @@ if(WITH_TESTS)
     tests/src/schema/primitives_test.cpp
     tests/src/schema/transaction_types_test.cpp
     tests/src/storage/storage_types_test.cpp
-    src/blake3/hash.cpp
-    src/crypto/verify.cpp
-    src/execution/engine.cpp
-    src/schema/encoding/scale/activate_policy_set.cpp
-    src/schema/encoding/scale/active_policy_pointer.cpp
-    src/schema/encoding/scale/apply_destination_update.cpp
-    src/schema/encoding/scale/approve_destination_update.cpp
-    src/schema/encoding/scale/approval_rule.cpp
-    src/schema/encoding/scale/approval_state.cpp
-    src/schema/encoding/scale/approve_intent.cpp
-    src/schema/encoding/scale/asset_ref.cpp
-    src/schema/encoding/scale/asset_state.cpp
-    src/schema/encoding/scale/attestation_record.cpp
-    src/schema/encoding/scale/cancel_intent.cpp
-    src/schema/encoding/scale/claim_requirement.cpp
-    src/schema/encoding/scale/create_policy_set.cpp
-    src/schema/encoding/scale/create_vault.cpp
-    src/schema/encoding/scale/create_workspace.cpp
-    src/schema/encoding/scale/destination_rule.cpp
-    src/schema/encoding/scale/destination_update_state.cpp
-    src/schema/encoding/scale/disable_asset.cpp
-    src/schema/encoding/scale/execute_intent.cpp
-    src/schema/encoding/scale/intent_state.cpp
-    src/schema/encoding/scale/limit_rule.cpp
-    src/schema/encoding/scale/policy_rule.cpp
-    src/schema/encoding/scale/policy_set.cpp
-    src/schema/primitives.cpp
-    src/schema/encoding/scale/primitives.cpp
-    src/schema/encoding/scale/propose_destination_update.cpp
-    src/schema/encoding/scale/propose_intent.cpp
-    src/schema/encoding/scale/revoke_attestation.cpp
-    src/schema/encoding/scale/security_event_record.cpp
-    src/schema/encoding/scale/set_degraded_mode.cpp
-    src/schema/encoding/scale/time_lock_rule.cpp
-    src/schema/encoding/scale/transaction.cpp
-    src/schema/encoding/scale/transfer_parameters.cpp
-    src/schema/encoding/scale/upsert_attestation.cpp
-    src/schema/encoding/scale/upsert_destination.cpp
-    src/schema/encoding/scale/upsert_role_assignment.cpp
-    src/schema/encoding/scale/upsert_signer_quarantine.cpp
-    src/schema/encoding/scale/velocity_counter_state.cpp
-    src/schema/encoding/scale/velocity_limit_rule.cpp
-    src/storage/rocksdb/storage.cpp
   )
   target_link_libraries(charter_tests
     PRIVATE
+      abci_core
+      execution_core
+      schema_core
+      crypto_core
+      storage_core
       coverage_config
       GTest::gtest
       GTest::gtest_main
-      BLAKE3::blake3
-      OpenSSL::Crypto
-      RocksDB::rocksdb
       spdlog::spdlog
       ${Boost_LIBRARIES}
   )
   target_compile_definitions(charter_tests PRIVATE SPDLOG_USE_STD_FORMAT)
+  if(WITH_PCH)
+    target_precompile_headers(charter_tests PRIVATE
+      <scale/scale.hpp>
+    )
+  endif()
   add_test(NAME charter_tests COMMAND charter_tests)
 endif()

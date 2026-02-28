@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build.debug}"
-TX_BUILDER="${TX_BUILDER:-$BUILD_DIR/tx_builder}"
+TX_BUILDER="${TX_BUILDER:-$BUILD_DIR/transaction_builder}"
 CHARTER_BIN="${CHARTER_BIN:-$BUILD_DIR/charter}"
 COMET_BIN="${COMET_BIN:-cometbft}"
 COMET_RPC="${COMET_RPC:-http://127.0.0.1:26657}"
@@ -82,13 +82,13 @@ print(obj.get("result", {}).get("response", {}).get("code", 0))
 PY
 }
 
-broadcast_tx() {
+broadcast_transaction() {
   local expected="$1"
   shift
-  local tx_b64
-  tx_b64="$("$TX_BUILDER" tx "$@")"
+  local transaction_b64
+  transaction_b64="$("$TX_BUILDER" transaction "$@")"
   local response
-  response="$(rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"broadcast_tx_commit\",\"params\":{\"tx\":\"$tx_b64\"}}")"
+  response="$(rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"broadcast_tx_commit\",\"params\":{\"tx\":\"$transaction_b64\"}}")"
   read -r check_code deliver_code txhash height <<<"$(parse_broadcast "$response")"
   log "broadcast payload=$(printf '%q ' "$@") -> check=$check_code deliver=$deliver_code height=$height hash=$txhash"
   if [[ "$check_code" != "0" ]]; then
@@ -129,23 +129,23 @@ DEST_ID="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 log "chain_id=$CHAIN_ID"
 log "starting golden workflow proof run"
 
-broadcast_tx 0 --payload create_workspace --chain-id "$CHAIN_ID" --nonce 1 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID"
-broadcast_tx 0 --payload create_vault --chain-id "$CHAIN_ID" --nonce 2 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID"
-broadcast_tx 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 3 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled false --address-or-contract-hex aabb
-broadcast_tx 0 --payload create_policy_set --chain-id "$CHAIN_ID" --nonce 4 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID" --asset-id "$ASSET_ID" --threshold 1 --timelock-ms 0 --limit-amount 10 --require-whitelisted-destination true --required-claim kyb_verified --approver "$SIGNER"
-broadcast_tx 0 --payload activate_policy_set --chain-id "$CHAIN_ID" --nonce 5 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID"
+broadcast_transaction 0 --payload create_workspace --chain-id "$CHAIN_ID" --nonce 1 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID"
+broadcast_transaction 0 --payload create_vault --chain-id "$CHAIN_ID" --nonce 2 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID"
+broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 3 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled false --address-or-contract-hex aabb
+broadcast_transaction 0 --payload create_policy_set --chain-id "$CHAIN_ID" --nonce 4 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID" --asset-id "$ASSET_ID" --threshold 1 --timelock-ms 0 --limit-amount 10 --require-whitelisted-destination true --required-claim kyb_verified --approver "$SIGNER"
+broadcast_transaction 0 --payload activate_policy_set --chain-id "$CHAIN_ID" --nonce 5 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID"
 
 # Negative path checks
-broadcast_tx 28 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 6 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0101010101010101010101010101010101010101010101010101010101010101 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 11
-broadcast_tx 29 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 7 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0202020202020202020202020202020202020202020202020202020202020202 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
+broadcast_transaction 28 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 6 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0101010101010101010101010101010101010101010101010101010101010101 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 11
+broadcast_transaction 29 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 7 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0202020202020202020202020202020202020202020202020202020202020202 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
 
 # Positive path setup
-broadcast_tx 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 8 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled true --address-or-contract-hex aabb
-broadcast_tx 0 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 9 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID" --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
-broadcast_tx 0 --payload approve_intent --chain-id "$CHAIN_ID" --nonce 10 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
-broadcast_tx 30 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 11 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
-broadcast_tx 0 --payload upsert_attestation --chain-id "$CHAIN_ID" --nonce 12 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --subject-id "$WORKSPACE_ID" --claim kyb_verified --issuer "$SIGNER" --attestation-expires-at 999999999999
-broadcast_tx 0 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 13 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 8 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled true --address-or-contract-hex aabb
+broadcast_transaction 0 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 9 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID" --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
+broadcast_transaction 0 --payload approve_intent --chain-id "$CHAIN_ID" --nonce 10 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 30 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 11 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 0 --payload upsert_attestation --chain-id "$CHAIN_ID" --nonce 12 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --subject-id "$WORKSPACE_ID" --claim kyb_verified --issuer "$SIGNER" --attestation-expires-at 999999999999
+broadcast_transaction 0 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 13 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
 
 intent_key="$("$TX_BUILDER" query-key --path /state/intent --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID")"
 history_key="$("$TX_BUILDER" query-key --path /history/range --from-height 1 --to-height 100)"

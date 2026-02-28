@@ -2,20 +2,20 @@
 #include <gtest/gtest.h>
 
 TEST(engine_types, defaults_are_stable) {
-  auto tx = charter::execution::tx_result{};
+  auto tx = charter::schema::transaction_result_t{};
   EXPECT_EQ(tx.code, 0u);
   EXPECT_EQ(tx.gas_wanted, 0);
   EXPECT_EQ(tx.gas_used, 0);
   EXPECT_TRUE(tx.events.empty());
 
-  auto block = charter::execution::block_result{};
+  auto block = charter::schema::block_result_t{};
   EXPECT_TRUE(block.tx_results.empty());
 
-  auto commit = charter::execution::commit_result{};
+  auto commit = charter::schema::commit_result_t{};
   EXPECT_EQ(commit.retain_height, 0);
   EXPECT_EQ(commit.committed_height, 0);
 
-  auto info = charter::execution::app_info{};
+  auto info = charter::schema::app_info_t{};
   EXPECT_EQ(info.data, "charter-custody");
   EXPECT_EQ(info.version, "0.1.0-poc");
 }

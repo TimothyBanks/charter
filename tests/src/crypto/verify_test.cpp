@@ -10,6 +10,15 @@
 #include <optional>
 #include <vector>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+
 namespace {
 
 struct secp_fixture_t final {
@@ -259,3 +268,9 @@ TEST(crypto_verify, rejects_invalid_secp256k1_recovery_id) {
       charter::schema::signature_t{fixture->signature});
   EXPECT_FALSE(ok);
 }
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif

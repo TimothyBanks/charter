@@ -153,16 +153,16 @@ You can build tx bytes via:
 - A tiny C++ utility in `tools/` that links your schema/encoder and prints base64.
 - A test helper that serializes tx fixtures and dumps base64 blobs.
 
-This repo now includes `tx_builder`:
+This repo now includes `transaction_builder`:
 
 ```bash
-./build.debug/tx_builder --help
+./build.debug/transaction_builder --help
 ```
 
 Example tx build:
 
 ```bash
-./build.debug/tx_builder tx \
+./build.debug/transaction_builder transaction \
   --payload create_workspace \
   --chain-id <CHAIN_ID_HEX32> \
   --nonce 1 \
@@ -173,7 +173,7 @@ Example tx build:
 Example query key build:
 
 ```bash
-./build.debug/tx_builder query-key \
+./build.debug/transaction_builder query-key \
   --path /state/vault \
   --workspace-id <WORKSPACE_HEX32> \
   --vault-id <VAULT_HEX32>
@@ -188,7 +188,7 @@ tests/run_proof_first_demo.sh
 ```
 
 Defaults:
-- uses `build.debug/tx_builder`
+- uses `build.debug/transaction_builder`
 - expects Comet RPC at `http://127.0.0.1:26657`
 - writes a timestamped report under `tests/`
 

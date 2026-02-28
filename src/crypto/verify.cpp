@@ -6,6 +6,7 @@
 #include <openssl/evp.h>
 
 #include <array>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -13,53 +14,65 @@ namespace charter::crypto {
 
 namespace {
 
+using evp_pkey_ctx_ptr =
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
+using evp_pkey_ptr = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
+using evp_md_ctx_ptr = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
+using ecdsa_sig_ptr = std::unique_ptr<ECDSA_SIG, decltype(&ECDSA_SIG_free)>;
+using bignum_ptr = std::unique_ptr<BIGNUM, decltype(&BN_free)>;
+
 bool openssl_has_ed25519() {
-  auto* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr);
-  if (ctx == nullptr) {
+  auto ctx = evp_pkey_ctx_ptr{EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr),
+                              EVP_PKEY_CTX_free};
+  if (!ctx) {
     return false;
   }
-  EVP_PKEY_CTX_free(ctx);
   return true;
 }
 
 bool openssl_has_secp256k1() {
-  auto* ctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
-  if (ctx == nullptr) {
+  auto ctx = evp_pkey_ctx_ptr{
+      EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr), EVP_PKEY_CTX_free};
+  if (!ctx) {
     return false;
   }
-  EVP_PKEY_CTX_free(ctx);
   return true;
 }
 
 bool verify_ed25519(const charter::schema::bytes_view_t& message,
                     const charter::schema::ed25519_signer_id& signer,
                     const charter::schema::ed25519_signature_t& signature) {
-  auto* pkey = EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519, nullptr,
-                                           signer.public_key.data(),
-                                           signer.public_key.size());
-  if (pkey == nullptr) {
+  auto pkey =
+      evp_pkey_ptr{EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519, nullptr,
+                                               signer.public_key.data(),
+                                               signer.public_key.size()),
+                   EVP_PKEY_free};
+  if (!pkey) {
     return false;
   }
 
-  auto* ctx = EVP_MD_CTX_new();
-  if (ctx == nullptr) {
-    EVP_PKEY_free(pkey);
+  auto ctx = evp_md_ctx_ptr{EVP_MD_CTX_new(), EVP_MD_CTX_free};
+  if (!ctx) {
     return false;
   }
 
   auto ok = false;
-  if (EVP_DigestVerifyInit(ctx, nullptr, nullptr, nullptr, pkey) == 1) {
-    ok = EVP_DigestVerify(ctx, signature.data(), signature.size(),
+  if (EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()) ==
+      1) {
+    ok = EVP_DigestVerify(ctx.get(), signature.data(), signature.size(),
                           message.data(), message.size()) == 1;
   }
-
-  EVP_MD_CTX_free(ctx);
-  EVP_PKEY_free(pkey);
   return ok;
 }
 
 std::optional<std::array<uint8_t, 64>> canonical_secp_signature(
     const charter::schema::secp256k1_signature_t& signature) {
+  // Charter accepts both common 65-byte secp256k1 encodings:
+  // - [v || r || s] where the first byte is a recovery id
+  // - [r || s || v] where the last byte is a recovery id
+  // We detect which side carries v and return canonical compact [r || s].
+  // Recovery ids are accepted as small values (0..3) and legacy Ethereum
+  // style values (27+); values in 4..26 are treated as invalid.
   auto out = std::array<uint8_t, 64>{};
   if (signature[0] <= 3 || signature[0] >= 27) {
     std::copy_n(signature.data() + 1, out.size(), out.data());
@@ -80,13 +93,13 @@ bool verify_secp256k1(const charter::schema::bytes_view_t& message,
     return false;
   }
 
-  auto* key_ctx = EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr);
-  if (key_ctx == nullptr) {
+  auto key_ctx = evp_pkey_ctx_ptr{
+      EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr), EVP_PKEY_CTX_free};
+  if (!key_ctx) {
     return false;
   }
 
-  if (EVP_PKEY_fromdata_init(key_ctx) != 1) {
-    EVP_PKEY_CTX_free(key_ctx);
+  if (EVP_PKEY_fromdata_init(key_ctx.get()) != 1) {
     return false;
   }
 
@@ -100,60 +113,46 @@ bool verify_secp256k1(const charter::schema::bytes_view_t& message,
                      signer.public_key.size()),
                  OSSL_PARAM_construct_end()};
 
-  auto* pkey = static_cast<EVP_PKEY*>(nullptr);
-  if (EVP_PKEY_fromdata(key_ctx, &pkey, EVP_PKEY_PUBLIC_KEY, params.data()) !=
-      1) {
-    EVP_PKEY_CTX_free(key_ctx);
+  auto* raw_pkey = static_cast<EVP_PKEY*>(nullptr);
+  if (EVP_PKEY_fromdata(key_ctx.get(), &raw_pkey, EVP_PKEY_PUBLIC_KEY,
+                        params.data()) != 1) {
     return false;
   }
-  EVP_PKEY_CTX_free(key_ctx);
+  auto pkey = evp_pkey_ptr{raw_pkey, EVP_PKEY_free};
 
-  auto* ecdsa_sig = ECDSA_SIG_new();
-  if (ecdsa_sig == nullptr) {
-    EVP_PKEY_free(pkey);
-    return false;
-  }
-
-  auto* r = BN_bin2bn(compact_signature->data(), 32, nullptr);
-  auto* s = BN_bin2bn(compact_signature->data() + 32, 32, nullptr);
-  if (r == nullptr || s == nullptr || ECDSA_SIG_set0(ecdsa_sig, r, s) != 1) {
-    if (r != nullptr) {
-      BN_free(r);
-    }
-    if (s != nullptr) {
-      BN_free(s);
-    }
-    ECDSA_SIG_free(ecdsa_sig);
-    EVP_PKEY_free(pkey);
+  auto ecdsa_sig = ecdsa_sig_ptr{ECDSA_SIG_new(), ECDSA_SIG_free};
+  if (!ecdsa_sig) {
     return false;
   }
 
-  auto der_len = i2d_ECDSA_SIG(ecdsa_sig, nullptr);
+  auto r =
+      bignum_ptr{BN_bin2bn(compact_signature->data(), 32, nullptr), BN_free};
+  auto s = bignum_ptr{BN_bin2bn(compact_signature->data() + 32, 32, nullptr),
+                      BN_free};
+  if (!r || !s ||
+      ECDSA_SIG_set0(ecdsa_sig.get(), r.release(), s.release()) != 1) {
+    return false;
+  }
+
+  auto der_len = i2d_ECDSA_SIG(ecdsa_sig.get(), nullptr);
   if (der_len <= 0) {
-    ECDSA_SIG_free(ecdsa_sig);
-    EVP_PKEY_free(pkey);
     return false;
   }
   auto der = std::vector<uint8_t>(static_cast<size_t>(der_len));
   auto* der_ptr = der.data();
-  i2d_ECDSA_SIG(ecdsa_sig, &der_ptr);
+  i2d_ECDSA_SIG(ecdsa_sig.get(), &der_ptr);
 
-  auto* ctx = EVP_MD_CTX_new();
-  if (ctx == nullptr) {
-    EVP_PKEY_free(pkey);
-    ECDSA_SIG_free(ecdsa_sig);
+  auto ctx = evp_md_ctx_ptr{EVP_MD_CTX_new(), EVP_MD_CTX_free};
+  if (!ctx) {
     return false;
   }
 
   auto ok = false;
-  if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, pkey) == 1) {
-    ok = EVP_DigestVerify(ctx, der.data(), der.size(), message.data(),
+  if (EVP_DigestVerifyInit(ctx.get(), nullptr, EVP_sha256(), nullptr,
+                           pkey.get()) == 1) {
+    ok = EVP_DigestVerify(ctx.get(), der.data(), der.size(), message.data(),
                           message.size()) == 1;
   }
-
-  EVP_MD_CTX_free(ctx);
-  EVP_PKEY_free(pkey);
-  ECDSA_SIG_free(ecdsa_sig);
   return ok;
 }
 

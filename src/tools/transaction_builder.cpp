@@ -424,9 +424,9 @@ charter::schema::bytes_t build_query_key(const po::variables_map& vm) {
 
 void print_help(const po::options_description& options) {
   std::cout << "Usage:\n"
-            << "  tx_builder tx [options]\n"
-            << "  tx_builder query-key [options]\n"
-            << "  tx_builder chain-id\n\n";
+            << "  transaction_builder transaction [options]\n"
+            << "  transaction_builder query-key [options]\n"
+            << "  transaction_builder chain-id\n\n";
   std::cout << options << '\n';
 }
 
@@ -434,10 +434,11 @@ void print_help(const po::options_description& options) {
 
 int main(int argc, const char** argv) {
   auto command = std::string{};
-  auto options = po::options_description{"tx_builder options"};
+  auto options = po::options_description{"transaction_builder options"};
   options.add_options()("help,h", "show help")(
-      "command", po::value<std::string>(&command), "tx|query-key")(
-      "payload", po::value<std::string>(), "transaction payload type")(
+      "command", po::value<std::string>(&command),
+      "transaction|query-key|chain-id")("payload", po::value<std::string>(),
+                                        "transaction payload type")(
       "path", po::value<std::string>(), "abci query path")(
       "chain-id", po::value<std::string>(), "32-byte chain id hex")(
       "nonce", po::value<uint64_t>()->default_value(1), "transaction nonce")(
@@ -509,18 +510,18 @@ int main(int argc, const char** argv) {
     return 0;
   }
 
-  if (command == "tx") {
+  if (command == "transaction" || command == "tx") {
     if (!vm.contains("payload")) {
-      charter::common::critical("tx mode requires --payload");
+      charter::common::critical("transaction mode requires --payload");
     }
-    auto tx = charter::schema::transaction_t{
+    auto transaction = charter::schema::transaction_t{
         .version = 1,
         .chain_id = get_hash32(vm, "chain-id"),
         .nonce = vm["nonce"].as<uint64_t>(),
         .signer = make_named_signer(vm, "signer"),
         .payload = build_payload(vm),
         .signature = make_signature(vm)};
-    auto encoded = encoder_t{}.encode(tx);
+    auto encoded = encoder_t{}.encode(transaction);
     std::cout << encode_base64(encoded) << '\n';
     return 0;
   }
@@ -543,5 +544,5 @@ int main(int argc, const char** argv) {
     return 0;
   }
 
-  charter::common::critical("command must be tx|query-key|chain-id");
+  charter::common::critical("command must be transaction|query-key|chain-id");
 }
