@@ -262,6 +262,20 @@ log "simdjson v4.2.4"
 git_clone_if_missing simdjson --depth 1 --branch v4.2.4 https://github.com/simdjson/simdjson.git
 cmake_configure_build_install simdjson simdjson/build
 
+# ------------------------------------------------------------------------------
+# OpenSSL
+# ------------------------------------------------------------------------------
+log "OpenSSL openssl-3.5.5"
+git_clone_if_missing openssl --depth 1 --branch openssl-3.5.5 https://github.com/openssl/openssl.git
+pushd openssl >/dev/null
+./Configure linux-x86_64 \
+  --prefix="$INSTALL_PREFIX" \
+  --openssldir="$INSTALL_PREFIX/ssl" \
+  shared
+make -j"$JOBS"
+make install_sw
+popd >/dev/null
+
 log "All done."
 echo "Installed into: $INSTALL_PREFIX"
 echo "CMAKE_PREFIX_PATH used: $PREFIX_PATH"
