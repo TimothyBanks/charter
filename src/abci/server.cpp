@@ -58,22 +58,23 @@ tendermint::abci::ResponseApplySnapshotChunk_Result map_apply_result(
   }
 }
 
-void populate_exec_tx_result(const charter::execution::tx_result& source,
+void populate_exec_tx_result(charter::execution::tx_result& source,
                              tendermint::abci::ExecTxResult* destination) {
   destination->set_code(source.code);
   destination->set_data(make_string(source.data));
-  destination->set_log(source.log);
-  destination->set_info(source.info);
+  destination->set_log(std::move(source.log));
+  destination->set_info(std::move(source.info));
   destination->set_gas_wanted(source.gas_wanted);
   destination->set_gas_used(source.gas_used);
-  destination->set_codespace(source.codespace);
+  destination->set_codespace(std::string(source.codespace));
+
   for (const auto& event : source.events) {
     auto* out_event = destination->add_events();
-    out_event->set_type(event.type);
+    out_event->set_type(std::move(event.type));
     for (const auto& attribute : event.attributes) {
       auto* out_attribute = out_event->add_attributes();
-      out_attribute->set_key(attribute.key);
-      out_attribute->set_value(attribute.value);
+      out_attribute->set_key(std::move(attribute.key));
+      out_attribute->set_value(std::move(attribute.value));
       out_attribute->set_index(attribute.index);
     }
   }
@@ -108,8 +109,8 @@ grpc::ServerUnaryReactor* listener::Info(
     const tendermint::abci::RequestInfo* /*request*/,
     tendermint::abci::ResponseInfo* response) {
   auto info = execution_engine_.info();
-  response->set_data(info.data);
-  response->set_version(info.version);
+  response->set_data(std:::move(info.data));
+  response->set_version(std::move(info.version));
   response->set_app_version(info.app_version);
   response->set_last_block_height(info.last_block_height);
   response->set_last_block_app_hash(make_string(info.last_block_state_root));
@@ -127,11 +128,11 @@ grpc::ServerUnaryReactor* listener::CheckTx(
   auto check = execution_engine_.check_tx(tx_view);
   response->set_code(check.code);
   response->set_data(make_string(check.data));
-  response->set_log(check.log);
-  response->set_info(check.info);
+  response->set_log(std::move(check.log));
+  response->set_info(std::move(check.info));
   response->set_gas_wanted(check.gas_wanted);
   response->set_gas_used(check.gas_used);
-  response->set_codespace(check.codespace);
+  response->set_codespace(std::move(check.codespace));
   return finish_ok(context);
 }
 
@@ -143,12 +144,12 @@ grpc::ServerUnaryReactor* listener::Query(
   auto query = execution_engine_.query(
       request->path(), charter::schema::bytes_view_t{data.data(), data.size()});
   response->set_code(query.code);
-  response->set_log(query.log);
-  response->set_info(query.info);
+  response->set_log(std::move(query.log));
+  response->set_info(std::move(query.info));
   response->set_key(make_string(query.key));
   response->set_value(make_string(query.value));
   response->set_height(query.height);
-  response->set_codespace(query.codespace);
+  response->set_codespace(std::move(query.codespace));
   return finish_ok(context);
 }
 
@@ -252,7 +253,7 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
   // not be mutated before that.
   auto total_size = int64_t{};
   auto max_bytes = request->max_tx_bytes();
-  for (const auto& tx : request->txs()) {
+  for (auto& tx : request->txs()) {
     auto tx_bytes = make_bytes(tx);
     auto check = execution_engine_.check_tx(
         charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
@@ -264,7 +265,7 @@ grpc::ServerUnaryReactor* listener::PrepareProposal(
       break;
     }
     total_size = next_size;
-    *response->add_txs() = tx;
+    *response->add_txs() = std::move(tx);
   }
   return finish_ok(context);
 }
@@ -323,11 +324,11 @@ grpc::ServerUnaryReactor* listener::FinalizeBlock(
   auto txs = std::vector<charter::schema::bytes_t>{};
   txs.reserve(request->txs_size());
   for (const auto& tx : request->txs()) {
-    txs.push_back(make_bytes(tx));
+    txs.emplace_back(make_bytes(tx));
   }
 
   auto execution = execution_engine_.finalize_block(request->height(), txs);
-  for (const auto& tx_result : execution.tx_results) {
+  for (auto& tx_result : execution.tx_results) {
     populate_exec_tx_result(tx_result, response->add_tx_results());
   }
 
