@@ -51,14 +51,16 @@ TEST(storage_types, defaults_are_stable) {
 TEST(storage_types, committed_state_round_trips) {
   auto db = make_db_path("charter_storage_committed");
   {
+    auto encoder = charter::schema::encoding::encoder<
+        charter::schema::encoding::scale_encoder_tag>{};
     auto storage =
         charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
             db);
     auto state = charter::storage::committed_state{.height = 42,
                                                    .state_root = make_hash(10)};
-    storage.save_committed_state(state);
+    storage.save_committed_state(encoder, state);
 
-    auto loaded = storage.load_committed_state();
+    auto loaded = storage.load_committed_state(encoder);
     ASSERT_TRUE(loaded.has_value());
     EXPECT_EQ(loaded->height, state.height);
     EXPECT_EQ(loaded->state_root, state.state_root);
@@ -70,6 +72,8 @@ TEST(storage_types, committed_state_round_trips) {
 TEST(storage_types, snapshot_lifecycle_round_trips) {
   auto db = make_db_path("charter_storage_snapshot");
   {
+    auto encoder = charter::schema::encoding::encoder<
+        charter::schema::encoding::scale_encoder_tag>{};
     auto storage =
         charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
             db);
@@ -80,9 +84,9 @@ TEST(storage_types, snapshot_lifecycle_round_trips) {
         .hash = make_hash(22),
         .metadata = charter::schema::bytes_t{0xAA, 0xBB}};
     auto chunk = charter::schema::bytes_t{0x01, 0x02, 0x03, 0x04};
-    storage.save_snapshot(snapshot, chunk);
+    storage.save_snapshot(encoder, snapshot, chunk);
 
-    auto snapshots = storage.list_snapshots();
+    auto snapshots = storage.list_snapshots(encoder);
     ASSERT_EQ(snapshots.size(), 1u);
     EXPECT_EQ(snapshots[0].height, snapshot.height);
     EXPECT_EQ(snapshots[0].format, snapshot.format);
@@ -90,13 +94,13 @@ TEST(storage_types, snapshot_lifecycle_round_trips) {
     EXPECT_EQ(snapshots[0].hash, snapshot.hash);
     EXPECT_EQ(snapshots[0].metadata, snapshot.metadata);
 
-    auto loaded_chunk =
-        storage.load_snapshot_chunk(snapshot.height, snapshot.format, 0);
+    auto loaded_chunk = storage.load_snapshot_chunk(encoder, snapshot.height,
+                                                    snapshot.format, 0);
     ASSERT_TRUE(loaded_chunk.has_value());
     EXPECT_EQ(*loaded_chunk, chunk);
 
-    auto missing_chunk =
-        storage.load_snapshot_chunk(snapshot.height, snapshot.format, 1);
+    auto missing_chunk = storage.load_snapshot_chunk(encoder, snapshot.height,
+                                                     snapshot.format, 1);
     EXPECT_FALSE(missing_chunk.has_value());
   }
   std::error_code ec;

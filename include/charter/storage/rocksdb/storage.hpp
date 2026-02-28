@@ -26,16 +26,18 @@ inline constexpr auto kSnapshotMetaPrefix = std::string_view{"SYS|SNAP|META|"};
 inline constexpr auto kSnapshotChunkPrefix =
     std::string_view{"SYS|SNAP|CHUNK|"};
 
+template <typename Encoder>
 inline std::optional<std::pair<uint64_t, uint32_t>> parse_snapshot_meta_key(
+    Encoder& encoder,
     std::string_view key) {
   if (!key.starts_with(kSnapshotMetaPrefix)) {
     return std::nullopt;
   }
-  auto encoder = encoder_t{};
   auto bytes = charter::schema::bytes_view_t{
       reinterpret_cast<const uint8_t*>(key.data() + kSnapshotMetaPrefix.size()),
       key.size() - kSnapshotMetaPrefix.size()};
-  auto decoded = encoder.try_decode<std::tuple<uint64_t, uint32_t>>(bytes);
+  auto decoded =
+      encoder.template try_decode<std::tuple<uint64_t, uint32_t>>(bytes);
   if (!decoded.has_value()) {
     return std::nullopt;
   }
@@ -43,18 +45,21 @@ inline std::optional<std::pair<uint64_t, uint32_t>> parse_snapshot_meta_key(
                                        std::get<1>(decoded.value())};
 }
 
-inline std::string make_snapshot_meta_key(uint64_t height, uint32_t format) {
-  auto encoder = encoder_t{};
+template <typename Encoder>
+inline std::string make_snapshot_meta_key(Encoder& encoder,
+                                          uint64_t height,
+                                          uint32_t format) {
   auto encoded = encoder.encode(std::tuple{height, format});
   auto key = std::string{kSnapshotMetaPrefix};
   key.append(reinterpret_cast<char*>(encoded.data()), encoded.size());
   return key;
 }
 
-inline std::string make_snapshot_chunk_key(uint64_t height,
+template <typename Encoder>
+inline std::string make_snapshot_chunk_key(Encoder& encoder,
+                                           uint64_t height,
                                            uint32_t format,
                                            uint32_t chunk) {
-  auto encoder = encoder_t{};
   auto encoded = encoder.encode(std::tuple{height, format, chunk});
   auto key = std::string{kSnapshotChunkPrefix};
   key.append(reinterpret_cast<const char*>(encoded.data()), encoded.size());
@@ -84,13 +89,28 @@ struct storage<rocksdb_storage_tag> final {
            const charter::schema::bytes_view_t& key,
            const T& value);
 
-  std::optional<committed_state> load_committed_state() const;
-  void save_committed_state(const committed_state& state) const;
-  std::vector<snapshot_descriptor> list_snapshots() const;
-  void save_snapshot(const snapshot_descriptor& snapshot,
+  template <typename Encoder>
+  std::optional<committed_state> load_committed_state(Encoder& encoder) const;
+
+  template <typename Encoder>
+  void save_committed_state(Encoder& encoder,
+                            const committed_state& state) const;
+
+  template <typename Encoder>
+  std::vector<snapshot_descriptor> list_snapshots(Encoder& encoder) const;
+
+  template <typename Encoder>
+  void save_snapshot(Encoder& encoder,
+                     const snapshot_descriptor& snapshot,
                      const charter::schema::bytes_t& chunk) const;
-  std::optional<charter::schema::bytes_t>
-  load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
+
+  template <typename Encoder>
+  std::optional<charter::schema::bytes_t> load_snapshot_chunk(
+      Encoder& encoder,
+      uint64_t height,
+      uint32_t format,
+      uint32_t chunk) const;
+
   std::vector<key_value_entry_t> list_by_prefix(
       const charter::schema::bytes_view_t& prefix) const;
   void replace_by_prefix(const charter::schema::bytes_view_t& prefix,
@@ -146,8 +166,9 @@ void storage<rocksdb_storage_tag>::put(Encoder& encoder,
   }
 }
 
+template <typename Encoder>
 inline std::optional<committed_state>
-storage<rocksdb_storage_tag>::load_committed_state() const {
+storage<rocksdb_storage_tag>::load_committed_state(Encoder& encoder) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
@@ -164,12 +185,12 @@ storage<rocksdb_storage_tag>::load_committed_state() const {
     charter::common::critical("failed to load committed state");
   }
 
-  auto encoder = detail::encoder_t{};
   auto decoded =
-      encoder.try_decode<std::tuple<int64_t, charter::schema::hash32_t>>(
-          charter::schema::bytes_view_t{
-              reinterpret_cast<const uint8_t*>(committed_raw.data()),
-              committed_raw.size()});
+      encoder
+          .template try_decode<std::tuple<int64_t, charter::schema::hash32_t>>(
+              charter::schema::bytes_view_t{
+                  reinterpret_cast<const uint8_t*>(committed_raw.data()),
+                  committed_raw.size()});
   if (!decoded.has_value()) {
     charter::common::critical("failed to decode committed state");
   }
@@ -179,12 +200,13 @@ storage<rocksdb_storage_tag>::load_committed_state() const {
   return state;
 }
 
+template <typename Encoder>
 inline void storage<rocksdb_storage_tag>::save_committed_state(
+    Encoder& encoder,
     const committed_state& state) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
-  auto encoder = detail::encoder_t{};
   auto encoded = encoder.encode(std::tuple{state.height, state.state_root});
   auto write_options = ROCKSDB_NAMESPACE::WriteOptions{};
   auto state_status =
@@ -196,8 +218,9 @@ inline void storage<rocksdb_storage_tag>::save_committed_state(
   }
 }
 
+template <typename Encoder>
 inline std::vector<snapshot_descriptor>
-storage<rocksdb_storage_tag>::list_snapshots() const {
+storage<rocksdb_storage_tag>::list_snapshots(Encoder& encoder) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
@@ -215,18 +238,16 @@ storage<rocksdb_storage_tag>::list_snapshots() const {
       break;
     }
 
-    auto parsed = detail::parse_snapshot_meta_key(key_view);
+    auto parsed = detail::parse_snapshot_meta_key(encoder, key_view);
     if (!parsed) {
       iterator->Next();
       continue;
     }
 
     auto value = detail::to_bytes(iterator->value());
-    auto encoder = detail::encoder_t{};
-    auto decoded =
-        encoder.try_decode<std::tuple<uint32_t, charter::schema::hash32_t,
-                                      charter::schema::bytes_t>>(
-            charter::schema::bytes_view_t{value.data(), value.size()});
+    auto decoded = encoder.template try_decode<std::tuple<
+        uint32_t, charter::schema::hash32_t, charter::schema::bytes_t>>(
+        charter::schema::bytes_view_t{value.data(), value.size()});
     if (!decoded.has_value()) {
       spdlog::warn("Failed decoding snapshot metadata for key '{}'",
                    std::string{key_view});
@@ -247,18 +268,18 @@ storage<rocksdb_storage_tag>::list_snapshots() const {
   return snapshots;
 }
 
+template <typename Encoder>
 inline void storage<rocksdb_storage_tag>::save_snapshot(
+    Encoder& encoder,
     const snapshot_descriptor& snapshot,
     const charter::schema::bytes_t& chunk) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
   auto meta_key =
-      detail::make_snapshot_meta_key(snapshot.height, snapshot.format);
-  auto chunk_key =
-      detail::make_snapshot_chunk_key(snapshot.height, snapshot.format, 0);
-
-  auto encoder = detail::encoder_t{};
+      detail::make_snapshot_meta_key(encoder, snapshot.height, snapshot.format);
+  auto chunk_key = detail::make_snapshot_chunk_key(encoder, snapshot.height,
+                                                   snapshot.format, 0);
   auto encoded_meta = encoder.encode(
       std::tuple{snapshot.chunks, snapshot.hash, snapshot.metadata});
 
@@ -279,15 +300,18 @@ inline void storage<rocksdb_storage_tag>::save_snapshot(
   }
 }
 
+template <typename Encoder>
 inline std::optional<charter::schema::bytes_t>
-storage<rocksdb_storage_tag>::load_snapshot_chunk(uint64_t height,
+storage<rocksdb_storage_tag>::load_snapshot_chunk(Encoder& encoder,
+                                                  uint64_t height,
                                                   uint32_t format,
                                                   uint32_t chunk) const {
   if (!database) {
     charter::common::critical("RocksDB database is not initialized");
   }
   auto raw_value = std::string{};
-  auto chunk_key = detail::make_snapshot_chunk_key(height, format, chunk);
+  auto chunk_key =
+      detail::make_snapshot_chunk_key(encoder, height, format, chunk);
   auto status =
       database->Get(ROCKSDB_NAMESPACE::ReadOptions{}, chunk_key, &raw_value);
   if (!status.ok()) {

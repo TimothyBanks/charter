@@ -32,13 +32,28 @@ struct storage {
            const charter::schema::bytes_view_t& key,
            const T& value);
 
-  std::optional<committed_state> load_committed_state() const;
-  void save_committed_state(const committed_state& state) const;
-  std::vector<snapshot_descriptor> list_snapshots() const;
-  void save_snapshot(const snapshot_descriptor& snapshot,
+  template <typename Encoder>
+  std::optional<committed_state> load_committed_state(Encoder& encoder) const;
+
+  template <typename Encoder>
+  void save_committed_state(Encoder& encoder,
+                            const committed_state& state) const;
+
+  template <typename Encoder>
+  std::vector<snapshot_descriptor> list_snapshots(Encoder& encoder) const;
+
+  template <typename Encoder>
+  void save_snapshot(Encoder& encoder,
+                     const snapshot_descriptor& snapshot,
                      const charter::schema::bytes_t& chunk) const;
-  std::optional<charter::schema::bytes_t>
-  load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
+
+  template <typename Encoder>
+  std::optional<charter::schema::bytes_t> load_snapshot_chunk(
+      Encoder& encoder,
+      uint64_t height,
+      uint32_t format,
+      uint32_t chunk) const;
+
   std::vector<key_value_entry_t> list_by_prefix(
       const charter::schema::bytes_view_t& prefix) const;
   void replace_by_prefix(const charter::schema::bytes_view_t& prefix,

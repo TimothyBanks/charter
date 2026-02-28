@@ -1200,9 +1200,10 @@ engine::engine(
   if (last_committed_state_root_.empty()) {
     last_committed_state_root_ = make_zero_hash();
     pending_state_root_ = last_committed_state_root_;
-    storage_.save_committed_state(charter::storage::committed_state{
-        .height = last_committed_height_,
-        .state_root = last_committed_state_root_});
+    storage_.save_committed_state(
+        encoder_, charter::storage::committed_state{
+                      .height = last_committed_height_,
+                      .state_root = last_committed_state_root_});
   }
   if (snapshot_interval_ == 0) {
     spdlog::warn("Snapshot interval is 0; snapshots disabled");
@@ -2254,9 +2255,10 @@ commit_result_t engine::commit() {
   }
 
   create_snapshot_if_due(last_committed_height_);
-  storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_,
-      .state_root = last_committed_state_root_});
+  storage_.save_committed_state(encoder_,
+                                charter::storage::committed_state{
+                                    .height = last_committed_height_,
+                                    .state_root = last_committed_state_root_});
 
   auto result = commit_result_t{};
   result.retain_height = 0;
@@ -2575,7 +2577,7 @@ query_result_t engine::query(std::string_view path,
         history_prefix.data(), history_prefix.size()});
     auto snapshots = storage_.list_by_prefix(charter::schema::bytes_view_t{
         snapshot_prefix.data(), snapshot_prefix.size()});
-    auto committed = storage_.load_committed_state();
+    auto committed = storage_.load_committed_state(encoder_);
     result.value = encoder_.encode(std::tuple{
         uint16_t{1}, committed, state, history_rows, snapshots, chain_id_});
     return result;
@@ -2684,7 +2686,7 @@ charter::schema::bytes_t engine::export_backup() const {
       history_prefix.data(), history_prefix.size()});
   auto snapshots = storage_.list_by_prefix(charter::schema::bytes_view_t{
       snapshot_prefix.data(), snapshot_prefix.size()});
-  auto committed = storage_.load_committed_state();
+  auto committed = storage_.load_committed_state(encoder_);
 
   return encoder_.encode(std::tuple{uint16_t{1}, committed, state, history_rows,
                                     snapshots, chain_id_});
@@ -2777,7 +2779,8 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
       std::get<4>(decoded.value()));
 
   if (std::get<1>(decoded.value()).has_value()) {
-    storage_.save_committed_state(std::get<1>(decoded.value()).value());
+    storage_.save_committed_state(encoder_,
+                                  std::get<1>(decoded.value()).value());
   }
   load_persisted_state();
   return true;
@@ -2786,7 +2789,7 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
 replay_result_t engine::replay_history() {
   auto lock = std::scoped_lock{mutex_};
   auto result = replay_result_t{};
-  auto expected_committed = storage_.load_committed_state();
+  auto expected_committed = storage_.load_committed_state(encoder_);
   auto state_prefixes = make_state_prefixes(encoder_);
 
   auto history_prefix = make_prefix_key(encoder_, kHistoryPrefix);
@@ -2865,9 +2868,10 @@ replay_result_t engine::replay_history() {
   last_committed_height_ = static_cast<int64_t>(max_height);
   last_committed_state_root_ = rolling_hash;
   pending_state_root_ = rolling_hash;
-  storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_,
-      .state_root = last_committed_state_root_});
+  storage_.save_committed_state(encoder_,
+                                charter::storage::committed_state{
+                                    .height = last_committed_height_,
+                                    .state_root = last_committed_state_root_});
   load_persisted_state();
 
   if (expected_committed.has_value() &&
@@ -2907,7 +2911,7 @@ std::optional<charter::schema::bytes_t> engine::load_snapshot_chunk(
     uint32_t format,
     uint32_t chunk) const {
   auto lock = std::scoped_lock{mutex_};
-  auto loaded = storage_.load_snapshot_chunk(height, format, chunk);
+  auto loaded = storage_.load_snapshot_chunk(encoder_, height, format, chunk);
   if (!loaded) {
     spdlog::warn("Snapshot chunk not found: h={}, f={}, c={}", height, format,
                  chunk);
@@ -3000,9 +3004,10 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
       static_cast<int64_t>(pending_snapshot_offer_->height);
   last_committed_state_root_ = pending_snapshot_offer_->hash;
   pending_state_root_ = last_committed_state_root_;
-  storage_.save_committed_state(charter::storage::committed_state{
-      .height = last_committed_height_,
-      .state_root = last_committed_state_root_});
+  storage_.save_committed_state(encoder_,
+                                charter::storage::committed_state{
+                                    .height = last_committed_height_,
+                                    .state_root = last_committed_state_root_});
   auto existing =
       std::ranges::find_if(snapshots_, [&](const snapshot_descriptor_t& value) {
         return value.height == pending_snapshot_offer_->height &&
@@ -3034,6 +3039,7 @@ void engine::create_snapshot_if_due(int64_t height) {
   auto snapshot =
       make_snapshot_descriptor(static_cast<uint64_t>(height), chunk);
   storage_.save_snapshot(
+      encoder_,
       charter::storage::snapshot_descriptor{.height = snapshot.height,
                                             .format = snapshot.format,
                                             .chunks = snapshot.chunks,
@@ -3057,13 +3063,13 @@ void engine::create_snapshot_if_due(int64_t height) {
 
 void engine::load_persisted_state() {
   spdlog::debug("Loading persisted engine state");
-  if (auto committed = storage_.load_committed_state()) {
+  if (auto committed = storage_.load_committed_state(encoder_)) {
     last_committed_height_ = committed->height;
     last_committed_state_root_ = committed->state_root;
     pending_state_root_ = committed->state_root;
   }
 
-  auto stored_snapshots = storage_.list_snapshots();
+  auto stored_snapshots = storage_.list_snapshots(encoder_);
   snapshots_.clear();
   snapshots_.reserve(stored_snapshots.size());
   for (const auto& snapshot : stored_snapshots) {

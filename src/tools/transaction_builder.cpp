@@ -368,8 +368,9 @@ charter::schema::transaction_payload_t build_payload(
   charter::common::critical("unsupported payload type");
 }
 
-charter::schema::bytes_t build_query_key(const po::variables_map& vm) {
-  auto encoder = encoder_t{};
+template <typename Encoder>
+charter::schema::bytes_t build_query_key(Encoder& encoder,
+                                         const po::variables_map& vm) {
   auto path = vm["path"].as<std::string>();
   if (path == "/engine/info" || path == "/engine/keyspaces" ||
       path == "/history/export") {
@@ -530,7 +531,8 @@ int main(int argc, const char** argv) {
     if (!vm.contains("path")) {
       charter::common::critical("query-key mode requires --path");
     }
-    auto key = build_query_key(vm);
+    auto encoder = encoder_t{};
+    auto key = build_query_key(encoder, vm);
     std::cout << encode_base64(key) << '\n';
     return 0;
   }
