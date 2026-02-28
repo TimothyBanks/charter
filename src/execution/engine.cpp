@@ -30,12 +30,12 @@
 #include <utility>
 
 using namespace charter::schema;
+using namespace charter::schema::key;
 
 namespace {
 
 using encoder_t = charter::schema::encoding::encoder<
     charter::schema::encoding::scale_encoder_tag>;
-using namespace charter::schema::key;
 
 inline constexpr auto kQueryCodespace = std::string_view{"charter.query"};
 inline constexpr auto kExecuteCodespace = std::string_view{"charter.execute"};
@@ -44,17 +44,6 @@ inline constexpr auto kProposalCodespace = std::string_view{"charter.proposal"};
 
 charter::schema::hash32_t make_chain_id() {
   return charter::blake3::hash(std::string_view{"charter-poc-chain"});
-}
-
-std::string to_hex(const charter::schema::bytes_view_t& bytes) {
-  static constexpr auto kHex = std::string_view{"0123456789abcdef"};
-  auto out = std::string{};
-  out.resize(bytes.size() * 2);
-  for (std::size_t i = 0; i < bytes.size(); ++i) {
-    out[(2 * i)] = kHex[(bytes[i] >> 4u) & 0x0Fu];
-    out[(2 * i) + 1] = kHex[bytes[i] & 0x0Fu];
-  }
-  return out;
 }
 
 std::string payload_type_name(
@@ -121,54 +110,60 @@ void append_transaction_result_event(
     const std::optional<charter::schema::transaction_t>& maybe_tx) {
   auto event = charter::schema::transaction_event_t{};
   event.type = "charter.tx_result";
+
   auto codespace = result.codespace.empty() ? std::string{kExecuteCodespace}
                                             : result.codespace;
-  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+
+  event.attributes.emplace_back(charter::schema::transaction_event_attribute_t{
       .key = "code", .value = std::to_string(result.code), .index = true});
-  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+  event.attributes.emplace_back(charter::schema::transaction_event_attribute_t{
       .key = "success",
       .value = result.code == 0 ? "true" : "false",
       .index = true});
-  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+  event.attributes.emplace_back(charter::schema::transaction_event_attribute_t{
       .key = "codespace", .value = codespace, .index = true});
-  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+  event.attributes.emplace_back(charter::schema::transaction_event_attribute_t{
       .key = "height", .value = std::to_string(height), .index = true});
-  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+  event.attributes.emplace_back(charter::schema::transaction_event_attribute_t{
       .key = "tx_index", .value = std::to_string(index), .index = true});
+
   if (!result.log.empty()) {
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "log", .value = result.log, .index = false});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "log", .value = result.log, .index = false});
   }
+
   if (!result.info.empty()) {
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "info", .value = result.info, .index = false});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "info", .value = result.info, .index = false});
   }
+
   if (maybe_tx.has_value()) {
     auto encoded_signer = encoder_t{}.encode(maybe_tx->signer);
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "signer",
-        .value = to_hex(charter::schema::bytes_view_t{encoded_signer.data(),
-                                                      encoded_signer.size()}),
-        .index = true});
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "nonce",
-        .value = std::to_string(maybe_tx->nonce),
-        .index = true});
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "payload_type",
-        .value = payload_type_name(maybe_tx->payload),
-        .index = true});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "signer",
+            .value = to_hex(charter::schema::bytes_view_t{
+                encoded_signer.data(), encoded_signer.size()}),
+            .index = true});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "nonce",
+            .value = std::to_string(maybe_tx->nonce),
+            .index = true});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "payload_type",
+            .value = payload_type_name(maybe_tx->payload),
+            .index = true});
   } else {
-    event.attributes.push_back(charter::schema::transaction_event_attribute_t{
-        .key = "payload_type", .value = "decode_failed", .index = true});
+    event.attributes.emplace_back(
+        charter::schema::transaction_event_attribute_t{
+            .key = "payload_type", .value = "decode_failed", .index = true});
   }
-  result.events.push_back(std::move(event));
-}
 
-std::string make_signer_cache_key(const charter::schema::signer_id_t& signer) {
-  auto encoded = encoder_t{}.encode(signer);
-  return std::string{reinterpret_cast<const char*>(encoded.data()),
-                     encoded.size()};
+  result.events.emplace_back(std::move(event));
 }
 
 bool signer_ids_equal(const charter::schema::signer_id_t& lhs,
@@ -332,7 +327,7 @@ bool workspace_exists(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     encoder_t& encoder,
     const charter::schema::hash32_t& workspace_id) {
-  auto key = make_workspace_key(workspace_id);
+  auto key = make_workspace_key(encoder, workspace_id);
   auto workspace = storage.get<encoder_t, charter::schema::workspace_state_t>(
       encoder, charter::schema::bytes_view_t{key.data(), key.size()});
   return workspace.has_value();
@@ -343,7 +338,7 @@ bool vault_exists(
     encoder_t& encoder,
     const charter::schema::hash32_t& workspace_id,
     const charter::schema::hash32_t& vault_id) {
-  auto key = make_vault_key(workspace_id, vault_id);
+  auto key = make_vault_key(encoder, workspace_id, vault_id);
   auto vault = storage.get<encoder_t, charter::schema::vault_state_t>(
       encoder, charter::schema::bytes_view_t{key.data(), key.size()});
   return vault.has_value();
@@ -354,7 +349,7 @@ bool destination_enabled(
     encoder_t& encoder,
     const charter::schema::hash32_t& workspace_id,
     const charter::schema::hash32_t& destination_id) {
-  auto key = make_destination_key(workspace_id, destination_id);
+  auto key = make_destination_key(encoder, workspace_id, destination_id);
   auto destination =
       storage.get<encoder_t, charter::schema::destination_state_t>(
           encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -364,7 +359,7 @@ bool destination_enabled(
 std::optional<charter::schema::degraded_mode_state_t> load_degraded_mode_state(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     encoder_t& encoder) {
-  auto key = make_degraded_mode_key();
+  auto key = make_degraded_mode_key(encoder);
   return storage.get<encoder_t, charter::schema::degraded_mode_state_t>(
       encoder, charter::schema::bytes_view_t{key.data(), key.size()});
 }
@@ -384,7 +379,7 @@ bool signer_quarantined(
     encoder_t& encoder,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms) {
-  auto key = make_signer_quarantine_key(signer);
+  auto key = make_signer_quarantine_key(encoder, signer);
   auto state =
       storage.get<encoder_t, charter::schema::signer_quarantine_state_t>(
           encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -409,13 +404,13 @@ void append_security_event(
     const std::optional<charter::schema::hash32_t>& vault_id,
     const uint64_t now_ms,
     const uint64_t block_height) {
-  auto seq_key = make_event_sequence_key();
+  auto seq_key = make_event_sequence_key(encoder);
   auto next_id = storage
                      .get<encoder_t, uint64_t>(
                          encoder, charter::schema::bytes_view_t{seq_key.data(),
                                                                 seq_key.size()})
                      .value_or(1);
-  auto event_key = make_event_key(next_id);
+  auto event_key = make_event_key(encoder, next_id);
   storage.put(encoder,
               charter::schema::bytes_view_t{event_key.data(), event_key.size()},
               charter::schema::security_event_record_t{
@@ -459,7 +454,7 @@ bool active_policy_exists(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     encoder_t& encoder,
     const charter::schema::policy_scope_t& scope) {
-  auto key = make_active_policy_key(scope);
+  auto key = make_active_policy_key(encoder, scope);
   auto pointer =
       storage.get<encoder_t, charter::schema::active_policy_pointer_t>(
           encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -494,7 +489,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
     encoder_t& encoder,
     const charter::schema::policy_scope_t& scope,
     const charter::schema::operation_type_t operation_type) {
-  auto active_key = make_active_policy_key(scope);
+  auto active_key = make_active_policy_key(encoder, scope);
   auto pointer =
       storage.get<encoder_t, charter::schema::active_policy_pointer_t>(
           encoder,
@@ -502,8 +497,8 @@ std::optional<policy_requirements> resolve_policy_requirements(
   if (!pointer) {
     return std::nullopt;
   }
-  auto policy_key =
-      make_policy_set_key(pointer->policy_set_id, pointer->policy_set_version);
+  auto policy_key = make_policy_set_key(encoder, pointer->policy_set_id,
+                                        pointer->policy_set_version);
   auto policy = storage.get<encoder_t, charter::schema::policy_set_state_t>(
       encoder,
       charter::schema::bytes_view_t{policy_key.data(), policy_key.size()});
@@ -576,7 +571,7 @@ std::optional<charter::schema::policy_set_state_t> load_policy_set(
     encoder_t& encoder,
     const charter::schema::hash32_t& policy_set_id,
     const uint32_t policy_version) {
-  auto key = make_policy_set_key(policy_set_id, policy_version);
+  auto key = make_policy_set_key(encoder, policy_set_id, policy_version);
   return storage.get<encoder_t, charter::schema::policy_set_state_t>(
       encoder, charter::schema::bytes_view_t{key.data(), key.size()});
 }
@@ -586,7 +581,7 @@ load_active_policy_set_for_scope(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     encoder_t& encoder,
     const charter::schema::policy_scope_t& scope) {
-  auto active_key = make_active_policy_key(scope);
+  auto active_key = make_active_policy_key(encoder, scope);
   auto pointer =
       storage.get<encoder_t, charter::schema::active_policy_pointer_t>(
           encoder,
@@ -624,7 +619,7 @@ bool role_granted_by_override(
     const charter::schema::role_id_t role,
     const uint64_t now_ms,
     std::optional<bool>& has_override) {
-  auto key = make_role_assignment_key(scope, signer, role);
+  auto key = make_role_assignment_key(encoder, scope, signer, role);
   auto assignment =
       storage.get<encoder_t, charter::schema::role_assignment_state_t>(
           encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -709,7 +704,7 @@ bool signer_has_required_global_role(
     const charter::schema::signer_id_t& signer,
     const std::vector<charter::schema::role_id_t>& required_roles,
     const uint64_t now_ms) {
-  auto prefix = charter::schema::make_bytes(kRoleAssignmentKeyPrefix);
+  auto prefix = make_prefix_key(encoder, kRoleAssignmentKeyPrefix);
   auto rows = storage.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   for (const auto& [unused_key, value] : rows) {
@@ -842,8 +837,9 @@ bool enforce_velocity_limits(
       continue;
     }
     auto window_start = velocity_window_start_ms(now_ms, limit.window);
-    auto key = make_velocity_counter_key(workspace_id, vault_id, limit.asset_id,
-                                         limit.window, window_start);
+    auto key =
+        make_velocity_counter_key(encoder, workspace_id, vault_id,
+                                  limit.asset_id, limit.window, window_start);
     auto counter =
         storage.get<encoder_t, charter::schema::velocity_counter_state_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -879,8 +875,9 @@ void apply_velocity_limits(
       continue;
     }
     auto window_start = velocity_window_start_ms(now_ms, limit.window);
-    auto key = make_velocity_counter_key(workspace_id, vault_id, limit.asset_id,
-                                         limit.window, window_start);
+    auto key =
+        make_velocity_counter_key(encoder, workspace_id, vault_id,
+                                  limit.asset_id, limit.window, window_start);
     auto counter =
         storage.get<encoder_t, charter::schema::velocity_counter_state_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -921,8 +918,8 @@ bool attestation_satisfies_requirement(
 
   if (requirement.trusted_issuers.has_value()) {
     for (const auto& issuer : *requirement.trusted_issuers) {
-      auto key = make_attestation_key(workspace_id, subject, requirement.claim,
-                                      issuer);
+      auto key = make_attestation_key(encoder, workspace_id, subject,
+                                      requirement.claim, issuer);
       auto record =
           storage.get<encoder_t, charter::schema::attestation_record_t>(
               encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -933,8 +930,8 @@ bool attestation_satisfies_requirement(
     return false;
   }
 
-  auto prefix =
-      make_attestation_prefix_key(workspace_id, subject, requirement.claim);
+  auto prefix = make_attestation_prefix_key(encoder, workspace_id, subject,
+                                            requirement.claim);
   auto rows = storage.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   for (const auto& [unused_key, value] : rows) {
@@ -1067,17 +1064,61 @@ charter::schema::snapshot_descriptor_t make_snapshot_descriptor(
   return snapshot;
 }
 
-charter::schema::bytes_t make_state_prefix_bytes() {
-  return charter::schema::make_bytes(kStatePrefix);
+bool key_starts_with_prefix(const charter::schema::bytes_t& key,
+                            const charter::schema::bytes_t& prefix) {
+  return key.size() >= prefix.size() &&
+         std::equal(std::begin(prefix), std::end(prefix), std::begin(key));
+}
+
+std::vector<charter::schema::bytes_t> make_state_prefixes(encoder_t& encoder) {
+  auto prefixes = std::vector<charter::schema::bytes_t>{};
+  for (const auto& keyspace : kEngineKeyspaces) {
+    if (keyspace.starts_with(kStatePrefix)) {
+      prefixes.push_back(make_prefix_key(encoder, keyspace));
+    }
+  }
+  return prefixes;
+}
+
+std::vector<charter::storage::key_value_entry_t> list_state_entries(
+    const charter::storage::storage<charter::storage::rocksdb_storage_tag>&
+        storage,
+    const std::vector<charter::schema::bytes_t>& state_prefixes) {
+  auto state_entries = std::vector<charter::storage::key_value_entry_t>{};
+  for (const auto& prefix : state_prefixes) {
+    auto rows = storage.list_by_prefix(
+        charter::schema::bytes_view_t{prefix.data(), prefix.size()});
+    state_entries.insert(std::end(state_entries), std::begin(rows),
+                         std::end(rows));
+  }
+  return state_entries;
+}
+
+void replace_state_entries(
+    const charter::storage::storage<charter::storage::rocksdb_storage_tag>&
+        storage,
+    const std::vector<charter::schema::bytes_t>& state_prefixes,
+    const std::vector<charter::storage::key_value_entry_t>& state_entries) {
+  for (const auto& prefix : state_prefixes) {
+    auto entries_for_prefix =
+        std::vector<charter::storage::key_value_entry_t>{};
+    for (const auto& entry : state_entries) {
+      if (key_starts_with_prefix(entry.first, prefix)) {
+        entries_for_prefix.push_back(entry);
+      }
+    }
+    storage.replace_by_prefix(
+        charter::schema::bytes_view_t{prefix.data(), prefix.size()},
+        entries_for_prefix);
+  }
 }
 
 charter::schema::bytes_t make_state_snapshot_chunk(
     const charter::storage::storage<charter::storage::rocksdb_storage_tag>&
         storage) {
-  auto prefix = make_state_prefix_bytes();
-  auto state_entries = storage.list_by_prefix(
-      charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   auto encoder = encoder_t{};
+  auto state_prefixes = make_state_prefixes(encoder);
+  auto state_entries = list_state_entries(storage, state_prefixes);
   auto chunk = encoder.encode(std::tuple{uint16_t{1}, state_entries});
   spdlog::debug("Built snapshot chunk with {} state records",
                 state_entries.size());
@@ -1102,10 +1143,8 @@ bool restore_state_snapshot_chunk(
     error = "unsupported snapshot chunk version";
     return false;
   }
-  auto prefix = make_state_prefix_bytes();
-  storage.replace_by_prefix(
-      charter::schema::bytes_view_t{prefix.data(), prefix.size()},
-      std::get<1>(decoded.value()));
+  auto state_prefixes = make_state_prefixes(encoder);
+  replace_state_entries(storage, state_prefixes, std::get<1>(decoded.value()));
   return true;
 }
 
@@ -1208,7 +1247,8 @@ transaction_result_t engine::execute_operation(
   std::visit(
       overloaded{
           [&](const charter::schema::create_workspace_t& operation) {
-            auto workspace_key = make_workspace_key(operation.workspace_id);
+            auto workspace_key =
+                make_workspace_key(encoder, operation.workspace_id);
             if (workspace_exists(storage_, encoder, operation.workspace_id)) {
               result = make_error_transaction_result(
                   charter::schema::transaction_error_code::workspace_exists,
@@ -1225,7 +1265,7 @@ transaction_result_t engine::execute_operation(
                                                        operation.workspace_id}};
             for (const auto& admin : operation.admin_set) {
               auto role_key = make_role_assignment_key(
-                  scope, admin, charter::schema::role_id_t::admin);
+                  encoder, scope, admin, charter::schema::role_id_t::admin);
               storage_.put(encoder,
                            charter::schema::bytes_view_t{role_key.data(),
                                                          role_key.size()},
@@ -1248,8 +1288,8 @@ transaction_result_t engine::execute_operation(
                   std::string{kExecuteCodespace});
               return;
             }
-            auto vault_key =
-                make_vault_key(operation.workspace_id, operation.vault_id);
+            auto vault_key = make_vault_key(encoder, operation.workspace_id,
+                                            operation.vault_id);
             if (vault_exists(storage_, encoder, operation.workspace_id,
                              operation.vault_id)) {
               result = make_error_transaction_result(
@@ -1273,7 +1313,7 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto destination_key = make_destination_key(
-                operation.workspace_id, operation.destination_id);
+                encoder, operation.workspace_id, operation.destination_id);
             storage_.put(encoder,
                          charter::schema::bytes_view_t{destination_key.data(),
                                                        destination_key.size()},
@@ -1289,7 +1329,7 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto policy_key = make_policy_set_key(
-                operation.policy_set_id,
+                encoder, operation.policy_set_id,
                 static_cast<uint32_t>(operation.policy_version));
             auto existing =
                 storage_.get<encoder_t, charter::schema::policy_set_state_t>(
@@ -1317,8 +1357,8 @@ transaction_result_t engine::execute_operation(
                   std::string{kExecuteCodespace});
               return;
             }
-            auto policy_key = make_policy_set_key(operation.policy_set_id,
-                                                  operation.policy_set_version);
+            auto policy_key = make_policy_set_key(
+                encoder, operation.policy_set_id, operation.policy_set_version);
             auto policy =
                 storage_.get<encoder_t, charter::schema::policy_set_state_t>(
                     encoder, charter::schema::bytes_view_t{policy_key.data(),
@@ -1330,7 +1370,7 @@ transaction_result_t engine::execute_operation(
                   std::string{kExecuteCodespace});
               return;
             }
-            auto active_key = make_active_policy_key(operation.scope);
+            auto active_key = make_active_policy_key(encoder, operation.scope);
             storage_.put(
                 encoder,
                 charter::schema::bytes_view_t{active_key.data(),
@@ -1362,8 +1402,8 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto intent_key =
-                make_intent_key(operation.workspace_id, operation.vault_id,
-                                operation.intent_id);
+                make_intent_key(encoder, operation.workspace_id,
+                                operation.vault_id, operation.intent_id);
             auto existing =
                 storage_.get<encoder_t, charter::schema::intent_state_t>(
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
@@ -1462,8 +1502,8 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto intent_key =
-                make_intent_key(operation.workspace_id, operation.vault_id,
-                                operation.intent_id);
+                make_intent_key(encoder, operation.workspace_id,
+                                operation.vault_id, operation.intent_id);
             auto intent =
                 storage_.get<encoder_t, charter::schema::intent_state_t>(
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
@@ -1500,7 +1540,7 @@ transaction_result_t engine::execute_operation(
             }
 
             auto approval_key =
-                make_approval_key(operation.intent_id, tx.signer);
+                make_approval_key(encoder, operation.intent_id, tx.signer);
             auto approval_existing =
                 storage_.get<encoder_t, charter::schema::approval_state_t>(
                     encoder, charter::schema::bytes_view_t{
@@ -1570,8 +1610,8 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto intent_key =
-                make_intent_key(operation.workspace_id, operation.vault_id,
-                                operation.intent_id);
+                make_intent_key(encoder, operation.workspace_id,
+                                operation.vault_id, operation.intent_id);
             auto intent =
                 storage_.get<encoder_t, charter::schema::intent_state_t>(
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
@@ -1610,8 +1650,8 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto intent_key =
-                make_intent_key(operation.workspace_id, operation.vault_id,
-                                operation.intent_id);
+                make_intent_key(encoder, operation.workspace_id,
+                                operation.vault_id, operation.intent_id);
             auto intent =
                 storage_.get<encoder_t, charter::schema::intent_state_t>(
                     encoder, charter::schema::bytes_view_t{intent_key.data(),
@@ -1661,7 +1701,7 @@ transaction_result_t engine::execute_operation(
             }
             if (requirements->require_distinct_from_executor) {
               auto executor_approval_key =
-                  make_approval_key(operation.intent_id, tx.signer);
+                  make_approval_key(encoder, operation.intent_id, tx.signer);
               auto approval_by_executor =
                   storage_.get<encoder_t, charter::schema::approval_state_t>(
                       encoder, charter::schema::bytes_view_t{
@@ -1714,9 +1754,9 @@ transaction_result_t engine::execute_operation(
                   std::string{kExecuteCodespace});
               return;
             }
-            auto attestation_key =
-                make_attestation_key(operation.workspace_id, operation.subject,
-                                     operation.claim, operation.issuer);
+            auto attestation_key = make_attestation_key(
+                encoder, operation.workspace_id, operation.subject,
+                operation.claim, operation.issuer);
             auto now_ms = current_block_time_ms_;
             storage_.put(
                 encoder,
@@ -1742,9 +1782,9 @@ transaction_result_t engine::execute_operation(
                   std::string{kExecuteCodespace});
               return;
             }
-            auto attestation_key =
-                make_attestation_key(operation.workspace_id, operation.subject,
-                                     operation.claim, operation.issuer);
+            auto attestation_key = make_attestation_key(
+                encoder, operation.workspace_id, operation.subject,
+                operation.claim, operation.issuer);
             auto record =
                 storage_.get<encoder_t, charter::schema::attestation_record_t>(
                     encoder,
@@ -1773,7 +1813,7 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto update_key = make_destination_update_key(
-                operation.workspace_id, operation.destination_id,
+                encoder, operation.workspace_id, operation.destination_id,
                 operation.update_id);
             auto existing =
                 storage_.get<encoder_t,
@@ -1815,7 +1855,7 @@ transaction_result_t engine::execute_operation(
           },
           [&](const charter::schema::approve_destination_update_t& operation) {
             auto update_key = make_destination_update_key(
-                operation.workspace_id, operation.destination_id,
+                encoder, operation.workspace_id, operation.destination_id,
                 operation.update_id);
             auto update =
                 storage_.get<encoder_t,
@@ -1842,7 +1882,7 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto approval_key =
-                make_approval_key(operation.update_id, tx.signer);
+                make_approval_key(encoder, operation.update_id, tx.signer);
             auto approval_existing =
                 storage_.get<encoder_t, charter::schema::approval_state_t>(
                     encoder, charter::schema::bytes_view_t{
@@ -1876,7 +1916,7 @@ transaction_result_t engine::execute_operation(
           },
           [&](const charter::schema::apply_destination_update_t& operation) {
             auto update_key = make_destination_update_key(
-                operation.workspace_id, operation.destination_id,
+                encoder, operation.workspace_id, operation.destination_id,
                 operation.update_id);
             auto update =
                 storage_.get<encoder_t,
@@ -1903,7 +1943,7 @@ transaction_result_t engine::execute_operation(
               return;
             }
             auto destination_key = make_destination_key(
-                operation.workspace_id, operation.destination_id);
+                encoder, operation.workspace_id, operation.destination_id);
             storage_.put(encoder,
                          charter::schema::bytes_view_t{destination_key.data(),
                                                        destination_key.size()},
@@ -1925,7 +1965,7 @@ transaction_result_t engine::execute_operation(
           },
           [&](const charter::schema::upsert_role_assignment_t& operation) {
             auto role_assignment_key = make_role_assignment_key(
-                operation.scope, operation.subject, operation.role);
+                encoder, operation.scope, operation.subject, operation.role);
             storage_.put(
                 encoder,
                 charter::schema::bytes_view_t{role_assignment_key.data(),
@@ -1940,7 +1980,8 @@ transaction_result_t engine::execute_operation(
             result.info = "upsert_role_assignment persisted";
           },
           [&](const charter::schema::upsert_signer_quarantine_t& operation) {
-            auto quarantine_key = make_signer_quarantine_key(operation.signer);
+            auto quarantine_key =
+                make_signer_quarantine_key(encoder, operation.signer);
             storage_.put(encoder,
                          charter::schema::bytes_view_t{quarantine_key.data(),
                                                        quarantine_key.size()},
@@ -1955,7 +1996,7 @@ transaction_result_t engine::execute_operation(
             result.info = "upsert_signer_quarantine persisted";
           },
           [&](const charter::schema::set_degraded_mode_t& operation) {
-            auto mode_key = make_degraded_mode_key();
+            auto mode_key = make_degraded_mode_key(encoder);
             storage_.put(
                 encoder,
                 charter::schema::bytes_view_t{mode_key.data(), mode_key.size()},
@@ -2080,7 +2121,7 @@ transaction_result_t engine::validate_transaction(
   if (expected_nonce.has_value()) {
     nonce_to_match = expected_nonce.value();
   } else {
-    auto nonce_key = make_nonce_key(tx.signer);
+    auto nonce_key = make_nonce_key(encoder, tx.signer);
     auto stored_nonce = storage_.get<encoder_t, uint64_t>(
         encoder,
         charter::schema::bytes_view_t{nonce_key.data(), nonce_key.size()});
@@ -2101,13 +2142,14 @@ block_result_t engine::finalize_block(
     uint64_t height,
     const std::vector<charter::schema::bytes_t>& txs) {
   auto lock = std::scoped_lock{mutex_};
+  auto encoder = encoder_t{};
   auto result = block_result_t{};
   result.tx_results.reserve(txs.size());
   current_block_time_ms_ = height * 1000;
   current_block_height_ = height;
 
   auto rolling_hash = last_committed_state_root_;
-  auto expected_nonces = std::map<std::string, uint64_t>{};
+  auto expected_nonces = std::map<charter::schema::bytes_t, uint64_t>{};
   for (size_t i = 0; i < txs.size(); ++i) {
     auto decode_error = std::string{};
     auto maybe_tx = decode_transaction(
@@ -2117,7 +2159,8 @@ block_result_t engine::finalize_block(
       auto tx_result = make_error_transaction_result(
           charter::schema::transaction_error_code::invalid_transaction,
           "invalid transaction", decode_error, "charter.finalize");
-      auto history_key = make_history_key(height, static_cast<uint32_t>(i));
+      auto history_key =
+          make_history_key(encoder, height, static_cast<uint32_t>(i));
       auto encoder = encoder_t{};
       storage_.put(
           encoder,
@@ -2134,7 +2177,7 @@ block_result_t engine::finalize_block(
       result.tx_results.push_back(std::move(tx_result));
       continue;
     }
-    auto signer_key = make_signer_cache_key(maybe_tx->signer);
+    auto signer_key = make_signer_cache_key(encoder, maybe_tx->signer);
     auto expected_nonce = std::optional<uint64_t>{};
     if (auto it = expected_nonces.find(signer_key);
         it != std::end(expected_nonces)) {
@@ -2143,7 +2186,8 @@ block_result_t engine::finalize_block(
     auto validation =
         validate_transaction(*maybe_tx, "charter.finalize", expected_nonce);
     if (validation.code != 0) {
-      auto history_key = make_history_key(height, static_cast<uint32_t>(i));
+      auto history_key =
+          make_history_key(encoder, height, static_cast<uint32_t>(i));
       auto encoder = encoder_t{};
       storage_.put(
           encoder,
@@ -2162,7 +2206,8 @@ block_result_t engine::finalize_block(
     }
 
     auto tx_result = execute_operation(*maybe_tx);
-    auto history_key = make_history_key(height, static_cast<uint32_t>(i));
+    auto history_key =
+        make_history_key(encoder, height, static_cast<uint32_t>(i));
     auto encoder = encoder_t{};
     storage_.put(
         encoder,
@@ -2172,7 +2217,7 @@ block_result_t engine::finalize_block(
                                     maybe_tx);
     result.tx_results.push_back(std::move(tx_result));
     if (tx_result.code == 0) {
-      auto nonce_key = make_nonce_key(maybe_tx->signer);
+      auto nonce_key = make_nonce_key(encoder, maybe_tx->signer);
       storage_.put(
           encoder,
           charter::schema::bytes_view_t{nonce_key.data(), nonce_key.size()},
@@ -2254,7 +2299,7 @@ query_result_t engine::query(std::string_view path,
     auto workspace_id = charter::schema::hash32_t{};
     std::copy_n(std::begin(data), workspace_id.size(),
                 std::begin(workspace_id));
-    auto key = make_workspace_key(workspace_id);
+    auto key = make_workspace_key(encoder, workspace_id);
     auto workspace =
         storage_.get<encoder_t, charter::schema::workspace_state_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2275,7 +2320,7 @@ query_result_t engine::query(std::string_view path,
     }
     auto workspace_id = std::get<0>(decoded.value());
     auto vault_id = std::get<1>(decoded.value());
-    auto key = make_vault_key(workspace_id, vault_id);
+    auto key = make_vault_key(encoder, workspace_id, vault_id);
     auto vault = storage_.get<encoder_t, charter::schema::vault_state_t>(
         encoder, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!vault) {
@@ -2293,7 +2338,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "destination query key must decode to (workspace_id,destination_id)");
     }
-    auto key = make_destination_key(std::get<0>(decoded.value()),
+    auto key = make_destination_key(encoder, std::get<0>(decoded.value()),
                                     std::get<1>(decoded.value()));
     auto destination =
         storage_.get<encoder_t, charter::schema::destination_state_t>(
@@ -2314,7 +2359,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "policy_set query key must decode to (policy_set_id,policy_version)");
     }
-    auto key = make_policy_set_key(std::get<0>(decoded.value()),
+    auto key = make_policy_set_key(encoder, std::get<0>(decoded.value()),
                                    std::get<1>(decoded.value()));
     auto policy = storage_.get<encoder_t, charter::schema::policy_set_state_t>(
         encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2331,7 +2376,7 @@ query_result_t engine::query(std::string_view path,
       return query_error(1, "invalid key encoding",
                          "active_policy query key must decode to policy_scope");
     }
-    auto key = make_active_policy_key(decoded.value());
+    auto key = make_active_policy_key(encoder, decoded.value());
     auto active =
         storage_.get<encoder_t, charter::schema::active_policy_pointer_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2351,7 +2396,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "intent query key must decode to (workspace_id,vault_id,intent_id)");
     }
-    auto key = make_intent_key(std::get<0>(decoded.value()),
+    auto key = make_intent_key(encoder, std::get<0>(decoded.value()),
                                std::get<1>(decoded.value()),
                                std::get<2>(decoded.value()));
     auto intent = storage_.get<encoder_t, charter::schema::intent_state_t>(
@@ -2372,7 +2417,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "approval query key must decode to (intent_id,signer)");
     }
-    auto key = make_approval_key(std::get<0>(decoded.value()),
+    auto key = make_approval_key(encoder, std::get<0>(decoded.value()),
                                  std::get<1>(decoded.value()));
     auto approval = storage_.get<encoder_t, charter::schema::approval_state_t>(
         encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2393,7 +2438,7 @@ query_result_t engine::query(std::string_view path,
                          "(workspace_id,subject,claim,issuer)");
     }
     auto key = make_attestation_key(
-        std::get<0>(decoded.value()), std::get<1>(decoded.value()),
+        encoder, std::get<0>(decoded.value()), std::get<1>(decoded.value()),
         std::get<2>(decoded.value()), std::get<3>(decoded.value()));
     auto record =
         storage_.get<encoder_t, charter::schema::attestation_record_t>(
@@ -2415,7 +2460,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "role_assignment query key must decode to (scope,subject,role)");
     }
-    auto key = make_role_assignment_key(std::get<0>(decoded.value()),
+    auto key = make_role_assignment_key(encoder, std::get<0>(decoded.value()),
                                         std::get<1>(decoded.value()),
                                         std::get<2>(decoded.value()));
     auto role_assignment =
@@ -2435,7 +2480,7 @@ query_result_t engine::query(std::string_view path,
           1, "invalid key encoding",
           "signer_quarantine query key must decode to signer_id_t");
     }
-    auto key = make_signer_quarantine_key(decoded.value());
+    auto key = make_signer_quarantine_key(encoder, decoded.value());
     auto quarantine =
         storage_.get<encoder_t, charter::schema::signer_quarantine_state_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2465,9 +2510,9 @@ query_result_t engine::query(std::string_view path,
                          "destination_update key must decode to "
                          "(workspace_id,destination_id,update_id)");
     }
-    auto key = make_destination_update_key(std::get<0>(decoded.value()),
-                                           std::get<1>(decoded.value()),
-                                           std::get<2>(decoded.value()));
+    auto key = make_destination_update_key(
+        encoder, std::get<0>(decoded.value()), std::get<1>(decoded.value()),
+        std::get<2>(decoded.value()));
     auto update =
         storage_.get<encoder_t, charter::schema::destination_update_state_t>(
             encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -2487,14 +2532,14 @@ query_result_t engine::query(std::string_view path,
     }
     auto from_height = std::get<0>(decoded.value());
     auto to_height = std::get<1>(decoded.value());
-    auto prefix = charter::schema::make_bytes(kHistoryPrefix);
+    auto prefix = make_prefix_key(encoder, kHistoryPrefix);
     auto history_rows = storage_.list_by_prefix(
         charter::schema::bytes_view_t{prefix.data(), prefix.size()});
     auto encoded_rows = std::vector<
         std::tuple<uint64_t, uint32_t, uint32_t, charter::schema::bytes_t>>{};
     for (const auto& [key, value] : history_rows) {
       auto parsed = parse_history_key(
-          charter::schema::bytes_view_t{key.data(), key.size()});
+          encoder, charter::schema::bytes_view_t{key.data(), key.size()});
       if (!parsed) {
         continue;
       }
@@ -2517,11 +2562,10 @@ query_result_t engine::query(std::string_view path,
   }
 
   if (path == "/history/export") {
-    auto state_prefix = charter::schema::make_bytes(kStatePrefix);
-    auto history_prefix = charter::schema::make_bytes(kHistoryPrefix);
+    auto state_prefixes = make_state_prefixes(encoder);
+    auto history_prefix = make_prefix_key(encoder, kHistoryPrefix);
     auto snapshot_prefix = charter::schema::make_bytes(kSnapshotPrefix);
-    auto state = storage_.list_by_prefix(charter::schema::bytes_view_t{
-        state_prefix.data(), state_prefix.size()});
+    auto state = list_state_entries(storage_, state_prefixes);
     auto history_rows = storage_.list_by_prefix(charter::schema::bytes_view_t{
         history_prefix.data(), history_prefix.size()});
     auto snapshots = storage_.list_by_prefix(charter::schema::bytes_view_t{
@@ -2541,13 +2585,13 @@ query_result_t engine::query(std::string_view path,
     }
     auto from_id = std::get<0>(decoded.value());
     auto to_id = std::get<1>(decoded.value());
-    auto prefix = charter::schema::make_bytes(kEventPrefix);
+    auto prefix = make_prefix_key(encoder, kEventPrefix);
     auto rows = storage_.list_by_prefix(
         charter::schema::bytes_view_t{prefix.data(), prefix.size()});
     auto events = std::vector<charter::schema::security_event_record_t>{};
     for (const auto& [key, value] : rows) {
       auto parsed = parse_event_key(
-          charter::schema::bytes_view_t{key.data(), key.size()});
+          encoder, charter::schema::bytes_view_t{key.data(), key.size()});
       if (!parsed.has_value() || parsed.value() < from_id ||
           parsed.value() > to_id) {
         continue;
@@ -2576,14 +2620,14 @@ query_result_t engine::query(std::string_view path,
 std::vector<history_entry_t> engine::history(uint64_t from_height,
                                              uint64_t to_height) const {
   auto lock = std::scoped_lock{mutex_};
-  auto prefix = charter::schema::make_bytes(kHistoryPrefix);
+  auto encoder = encoder_t{};
+  auto prefix = make_prefix_key(encoder, kHistoryPrefix);
   auto rows = storage_.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   auto output = std::vector<history_entry_t>{};
-  auto encoder = encoder_t{};
   for (const auto& [key, value] : rows) {
     auto parsed = parse_history_key(
-        charter::schema::bytes_view_t{key.data(), key.size()});
+        encoder, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!parsed) {
       continue;
     }
@@ -2627,18 +2671,17 @@ bool engine::export_backup(std::string_view backup_path) const {
 
 charter::schema::bytes_t engine::export_backup() const {
   auto lock = std::scoped_lock{mutex_};
-  auto state_prefix = charter::schema::make_bytes(kStatePrefix);
-  auto history_prefix = charter::schema::make_bytes(kHistoryPrefix);
+  auto encoder = encoder_t{};
+  auto state_prefixes = make_state_prefixes(encoder);
+  auto history_prefix = make_prefix_key(encoder, kHistoryPrefix);
   auto snapshot_prefix = charter::schema::make_bytes(kSnapshotPrefix);
-  auto state = storage_.list_by_prefix(
-      charter::schema::bytes_view_t{state_prefix.data(), state_prefix.size()});
+  auto state = list_state_entries(storage_, state_prefixes);
   auto history_rows = storage_.list_by_prefix(charter::schema::bytes_view_t{
       history_prefix.data(), history_prefix.size()});
   auto snapshots = storage_.list_by_prefix(charter::schema::bytes_view_t{
       snapshot_prefix.data(), snapshot_prefix.size()});
   auto committed = storage_.load_committed_state();
 
-  auto encoder = encoder_t{};
   return encoder.encode(std::tuple{uint16_t{1}, committed, state, history_rows,
                                    snapshots, chain_id_});
 }
@@ -2716,13 +2759,11 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
     return false;
   }
 
-  auto state_prefix = charter::schema::make_bytes(kStatePrefix);
-  auto history_prefix = charter::schema::make_bytes(kHistoryPrefix);
+  auto state_prefixes = make_state_prefixes(encoder);
+  auto history_prefix = make_prefix_key(encoder, kHistoryPrefix);
   auto snapshot_prefix = charter::schema::make_bytes(kSnapshotPrefix);
 
-  storage_.replace_by_prefix(
-      charter::schema::bytes_view_t{state_prefix.data(), state_prefix.size()},
-      std::get<2>(decoded.value()));
+  replace_state_entries(storage_, state_prefixes, std::get<2>(decoded.value()));
   storage_.replace_by_prefix(
       charter::schema::bytes_view_t{history_prefix.data(),
                                     history_prefix.size()},
@@ -2743,22 +2784,20 @@ replay_result_t engine::replay_history() {
   auto lock = std::scoped_lock{mutex_};
   auto result = replay_result_t{};
   auto expected_committed = storage_.load_committed_state();
+  auto encoder = encoder_t{};
+  auto state_prefixes = make_state_prefixes(encoder);
 
-  auto history_prefix = charter::schema::make_bytes(kHistoryPrefix);
+  auto history_prefix = make_prefix_key(encoder, kHistoryPrefix);
   auto history_rows = storage_.list_by_prefix(charter::schema::bytes_view_t{
       history_prefix.data(), history_prefix.size()});
-  auto state_prefix = charter::schema::make_bytes(kStatePrefix);
-  storage_.replace_by_prefix(
-      charter::schema::bytes_view_t{state_prefix.data(), state_prefix.size()},
-      {});
+  replace_state_entries(storage_, state_prefixes, {});
 
-  auto encoder = encoder_t{};
-  auto expected_nonces = std::map<std::string, uint64_t>{};
+  auto expected_nonces = std::map<charter::schema::bytes_t, uint64_t>{};
   auto rolling_hash = charter::schema::make_zero_hash();
   auto max_height = uint64_t{};
   for (const auto& [key, value] : history_rows) {
     auto parsed = parse_history_key(
-        charter::schema::bytes_view_t{key.data(), key.size()});
+        encoder, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!parsed) {
       continue;
     }
@@ -2789,7 +2828,7 @@ replay_result_t engine::replay_history() {
       spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
-    auto signer_key = make_signer_cache_key(maybe_tx->signer);
+    auto signer_key = make_signer_cache_key(encoder, maybe_tx->signer);
     auto expected_nonce = std::optional<uint64_t>{};
     if (auto it = expected_nonces.find(signer_key);
         it != std::end(expected_nonces)) {
@@ -2811,7 +2850,7 @@ replay_result_t engine::replay_history() {
       spdlog::warn("History replay failed: {}", result.error);
       return result;
     }
-    auto nonce_key = make_nonce_key(maybe_tx->signer);
+    auto nonce_key = make_nonce_key(encoder, maybe_tx->signer);
     storage_.put(
         encoder,
         charter::schema::bytes_view_t{nonce_key.data(), nonce_key.size()},

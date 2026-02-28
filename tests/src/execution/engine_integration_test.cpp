@@ -138,7 +138,8 @@ charter::schema::bytes_t make_state_backup(
 
 charter::schema::bytes_t prefixed_key(
     const std::string_view prefix, const charter::schema::bytes_t& suffix) {
-  auto out = charter::schema::make_bytes(prefix);
+  auto codec = encoder_t{};
+  auto out = codec.encode(prefix);
   out.insert(std::end(out), std::begin(suffix), std::end(suffix));
   return out;
 }
@@ -1791,7 +1792,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     auto ws_scope = charter::schema::policy_scope_t{
         charter::schema::workspace_scope_t{.workspace_id = ws}};
     auto workspace_key = prefixed_key("SYS|STATE|WORKSPACE|",
-                                      charter::schema::bytes_t{std::begin(ws), std::end(ws)});
+                                      encoder.encode(charter::schema::bytes_t{
+                                          std::begin(ws), std::end(ws)}));
     auto vault_key = prefixed_key("SYS|STATE|VAULT|", encoder.encode(std::tuple{ws, vault}));
     auto active_key = prefixed_key("SYS|STATE|ACTIVE_POLICY|", encoder.encode(scope));
     auto role_key = prefixed_key(
@@ -1898,7 +1900,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(check31.code, 31u);
 
     auto degraded_key = prefixed_key(
-        "SYS|STATE|DEGRADED_MODE|", charter::schema::make_bytes(std::string_view{"CURRENT"}));
+        "SYS|STATE|DEGRADED_MODE|",
+        encoder.encode(std::string_view{"CURRENT"}));
     auto degraded_value = encoder.encode(charter::schema::degraded_mode_state_t{
         .mode = charter::schema::degraded_mode_t::read_only,
         .effective_at = std::nullopt,

@@ -1,6 +1,7 @@
 #include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/schema/create_workspace.hpp>
 #include <charter/schema/destination_update_state.hpp>
+#include <charter/schema/key/engine_keys.hpp>
 #include <charter/schema/query_result.hpp>
 #include <charter/schema/replay_result.hpp>
 #include <charter/schema/snapshot_descriptor.hpp>
@@ -257,6 +258,42 @@ TEST(schema_encoding_types, security_event_record_round_trips) {
             std::get<charter::schema::ed25519_signer_id>(input.signer.value())
                 .public_key);
   EXPECT_EQ(decoded.recorded_at, input.recorded_at);
+}
+
+TEST(schema_encoding_types, engine_keys_decode_with_prefix_envelope) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto codec = encoder<scale_encoder_tag>{};
+
+  auto history_key = charter::schema::key::make_history_key(codec, 42, 7);
+  auto history_decoded = codec.try_decode<
+      std::tuple<std::string, std::tuple<uint64_t, uint32_t>>>(
+      charter::schema::make_bytes_view(history_key));
+  ASSERT_TRUE(history_decoded.has_value());
+  EXPECT_EQ(std::get<0>(history_decoded.value()),
+            charter::schema::key::kHistoryPrefix);
+  EXPECT_EQ(std::get<0>(std::get<1>(history_decoded.value())), 42u);
+  EXPECT_EQ(std::get<1>(std::get<1>(history_decoded.value())), 7u);
+
+  auto parsed_history = charter::schema::key::parse_history_key(
+      codec, charter::schema::make_bytes_view(history_key));
+  ASSERT_TRUE(parsed_history.has_value());
+  EXPECT_EQ(parsed_history->first, 42u);
+  EXPECT_EQ(parsed_history->second, 7u);
+
+  auto event_key = charter::schema::key::make_event_key(codec, 9001);
+  auto event_decoded = codec.try_decode<std::tuple<std::string, uint64_t>>(
+      charter::schema::make_bytes_view(event_key));
+  ASSERT_TRUE(event_decoded.has_value());
+  EXPECT_EQ(std::get<0>(event_decoded.value()),
+            charter::schema::key::kEventPrefix);
+  EXPECT_EQ(std::get<1>(event_decoded.value()), 9001u);
+
+  auto parsed_event = charter::schema::key::parse_event_key(
+      codec, charter::schema::make_bytes_view(event_key));
+  ASSERT_TRUE(parsed_event.has_value());
+  EXPECT_EQ(parsed_event.value(), 9001u);
 }
 
 TEST(schema_encoding_types, policy_rule_round_trips_velocity_limits) {

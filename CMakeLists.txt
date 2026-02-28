@@ -239,7 +239,6 @@ message(STATUS ${ABCI_PROTO_FILES})
 generate_proto(abci_proto ${ABCI_PROTO_FILES})
 
 set(CHARTER_SCHEMA_SOURCES
-  src/schema/keys/engine_keys.cpp
   src/schema/primitives.cpp
   src/schema/encoding/scale/activate_policy_set.cpp
   src/schema/encoding/scale/active_policy_pointer.cpp

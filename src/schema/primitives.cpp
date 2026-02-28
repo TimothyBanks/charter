@@ -127,6 +127,17 @@ std::optional<hash32_t> try_make_hash32(const std::string_view& bytes) {
   return try_make_hash32_internal(bytes);
 }
 
+std::string to_hex(const charter::schema::bytes_view_t& bytes) {
+  static constexpr auto kHex = std::string_view{"0123456789abcdef"};
+  auto out = std::string{};
+  out.resize(bytes.size() * 2);
+  for (std::size_t i = 0; i < bytes.size(); ++i) {
+    out[(2 * i)] = kHex[(bytes[i] >> 4u) & 0x0Fu];
+    out[(2 * i) + 1] = kHex[bytes[i] & 0x0Fu];
+  }
+  return out;
+}
+
 hash32_t make_zero_hash() {
   return {};
 }
