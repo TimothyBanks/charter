@@ -42,6 +42,7 @@
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/propose_destination_update.hpp>
 #include <charter/schema/propose_intent.hpp>
+#include <charter/schema/query_error_code.hpp>
 #include <charter/schema/query_result.hpp>
 #include <charter/schema/replay_result.hpp>
 #include <charter/schema/revoke_attestation.hpp>

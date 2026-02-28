@@ -3,7 +3,8 @@
 This is an operator/developer playbook view of custody workflows implemented in the current PoC.
 
 Reference matrix:
-- For per-transaction failure and state-write details, see `doc/transaction_workflow_matrix.md`.
+- For canonical per-operation happy/failure behavior and state mutations, see `doc/operation_happy_failure_paths.md`.
+- For a compact checklist view, see `doc/transaction_workflow_matrix.md`.
 - For the frozen demo contract (expected tx codes + report format), see `doc/golden_workflow_contract.md`.
 
 ## 1) Bootstrap A New Tenant

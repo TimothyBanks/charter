@@ -16,6 +16,7 @@
 #include <charter/schema/intent_state.hpp>
 #include <charter/schema/key/engine_keys.hpp>
 #include <charter/schema/propose_destination_update.hpp>
+#include <charter/schema/query_error_code.hpp>
 #include <charter/schema/security_event_record.hpp>
 #include <charter/schema/set_degraded_mode.hpp>
 #include <charter/schema/upsert_role_assignment.hpp>
@@ -1010,6 +1011,18 @@ charter::schema::query_result_t make_error_query_result(
   return result;
 }
 
+charter::schema::query_result_t make_error_query_result(
+    charter::schema::query_error_code code,
+    std::string log,
+    std::string info,
+    std::string codespace,
+    int64_t height,
+    const charter::schema::bytes_view_t& key) {
+  return make_error_query_result(static_cast<uint32_t>(code), std::move(log),
+                                 std::move(info), std::move(codespace), height,
+                                 key);
+}
+
 bool signer_signature_compatible(
     const charter::schema::signer_id_t& signer,
     const charter::schema::signature_t& signature) {
@@ -1309,7 +1322,8 @@ transaction_result_t engine::execute_operation(
           [&](const charter::schema::create_vault_t& operation) {
             if (!workspace_exists(storage_, encoder_, operation.workspace_id)) {
               result = make_error_transaction_result(
-                  11, "workspace missing",
+                  charter::schema::transaction_error_code::workspace_missing,
+                  "workspace missing",
                   "workspace must exist before vault creation",
                   std::string{kExecuteCodespace});
               return;
@@ -1333,7 +1347,8 @@ transaction_result_t engine::execute_operation(
           [&](const charter::schema::upsert_destination_t& operation) {
             if (!workspace_exists(storage_, encoder_, operation.workspace_id)) {
               result = make_error_transaction_result(
-                  11, "workspace missing",
+                  charter::schema::transaction_error_code::workspace_missing,
+                  "workspace missing",
                   "workspace must exist before destination upsert",
                   std::string{kExecuteCodespace});
               return;
@@ -1452,29 +1467,32 @@ transaction_result_t engine::execute_operation(
               return;
             }
             std::visit(
-                overloaded{
-                    [&](const charter::schema::transfer_parameters_t& action) {
-                      if (requirements->per_transaction_limit.has_value() &&
-                          charter::schema::amount_t{action.amount} >
-                              requirements->per_transaction_limit.value()) {
-                        result = make_error_transaction_result(
-                            28, "limit exceeded",
-                            "transfer amount exceeds per-transaction policy "
-                            "limit",
-                            std::string{kExecuteCodespace});
-                        return;
-                      }
-                      if (requirements->require_whitelisted_destination &&
-                          !destination_enabled(storage_, encoder_,
-                                               operation.workspace_id,
-                                               action.destination_id)) {
-                        result = make_error_transaction_result(
-                            29, "destination not whitelisted",
-                            "destination must be enabled in whitelist",
-                            std::string{kExecuteCodespace});
-                        return;
-                      }
-                    }},
+                overloaded{[&](const charter::schema::transfer_parameters_t&
+                                   action) {
+                  if (requirements->per_transaction_limit.has_value() &&
+                      charter::schema::amount_t{action.amount} >
+                          requirements->per_transaction_limit.value()) {
+                    result = make_error_transaction_result(
+                        charter::schema::transaction_error_code::limit_exceeded,
+                        "limit exceeded",
+                        "transfer amount exceeds per-transaction policy "
+                        "limit",
+                        std::string{kExecuteCodespace});
+                    return;
+                  }
+                  if (requirements->require_whitelisted_destination &&
+                      !destination_enabled(storage_, encoder_,
+                                           operation.workspace_id,
+                                           action.destination_id)) {
+                    result = make_error_transaction_result(
+                        charter::schema::transaction_error_code::
+                            destination_not_whitelisted,
+                        "destination not whitelisted",
+                        "destination must be enabled in whitelist",
+                        std::string{kExecuteCodespace});
+                    return;
+                  }
+                }},
                 operation.action);
             if (result.code != 0) {
               return;
@@ -1679,7 +1697,8 @@ transaction_result_t engine::execute_operation(
                                                         intent_key.size()});
             if (!intent) {
               result = make_error_transaction_result(
-                  21, "intent missing", "intent must exist before execution",
+                  charter::schema::transaction_error_code::intent_missing,
+                  "intent missing", "intent must exist before execution",
                   std::string{kExecuteCodespace});
               return;
             }
@@ -1700,7 +1719,9 @@ transaction_result_t engine::execute_operation(
             if (intent->approvals_count < intent->required_threshold ||
                 now_ms < intent->not_before) {
               result = make_error_transaction_result(
-                  26, "intent not executable",
+                  charter::schema::transaction_error_code::
+                      intent_not_executable,
+                  "intent not executable",
                   "threshold/timelock requirements not met",
                   std::string{kExecuteCodespace});
               return;
@@ -1750,7 +1771,9 @@ transaction_result_t engine::execute_operation(
                       storage_, encoder_, intent->workspace_id,
                       intent->workspace_id, requirement, now_ms)) {
                 result = make_error_transaction_result(
-                    30, "claim requirement unsatisfied",
+                    charter::schema::transaction_error_code::
+                        claim_requirement_unsatisfied,
+                    "claim requirement unsatisfied",
                     "required attestation claim is missing or expired",
                     std::string{kExecuteCodespace});
                 return;
@@ -1826,7 +1849,8 @@ transaction_result_t engine::execute_operation(
           [&](const charter::schema::propose_destination_update_t& operation) {
             if (!workspace_exists(storage_, encoder_, operation.workspace_id)) {
               result = make_error_transaction_result(
-                  11, "workspace missing",
+                  charter::schema::transaction_error_code::workspace_missing,
+                  "workspace missing",
                   "workspace must exist before destination update",
                   std::string{kExecuteCodespace});
               return;
@@ -2282,7 +2306,8 @@ query_result_t engine::query(std::string_view path,
   result.height = last_committed_height_;
   result.codespace = std::string{kQueryCodespace};
   result.key = charter::schema::make_bytes(data);
-  auto query_error = [&](uint32_t code, std::string log, std::string info) {
+  auto query_error = [&](charter::schema::query_error_code code,
+                         std::string log, std::string info) {
     return make_error_query_result(code, std::move(log), std::move(info),
                                    std::string{kQueryCodespace},
                                    last_committed_height_, data);
@@ -2306,7 +2331,8 @@ query_result_t engine::query(std::string_view path,
 
   if (path == "/state/workspace") {
     if (data.size() != 32) {
-      return query_error(1, "invalid key size",
+      return query_error(charter::schema::query_error_code::invalid_key,
+                         "invalid key size",
                          "workspace query key must be 32 bytes");
     }
     auto workspace_id = charter::schema::hash32_t{};
@@ -2316,7 +2342,8 @@ query_result_t engine::query(std::string_view path,
     auto workspace = storage_.get<charter::schema::workspace_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!workspace) {
-      return query_error(2, "not found", "workspace not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "workspace not found");
     }
     result.value = encoder_.encode(*workspace);
     return result;
@@ -2327,7 +2354,8 @@ query_result_t engine::query(std::string_view path,
         std::tuple<charter::schema::hash32_t, charter::schema::hash32_t>>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "vault query key must decode to (workspace_id,vault_id)");
     }
     auto workspace_id = std::get<0>(decoded.value());
@@ -2336,7 +2364,8 @@ query_result_t engine::query(std::string_view path,
     auto vault = storage_.get<charter::schema::vault_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!vault) {
-      return query_error(2, "not found", "vault not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "vault not found");
     }
     result.value = encoder_.encode(*vault);
     return result;
@@ -2347,7 +2376,8 @@ query_result_t engine::query(std::string_view path,
         std::tuple<charter::schema::hash32_t, charter::schema::hash32_t>>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "destination query key must decode to (workspace_id,destination_id)");
     }
     auto key = make_destination_key(encoder_, std::get<0>(decoded.value()),
@@ -2355,7 +2385,8 @@ query_result_t engine::query(std::string_view path,
     auto destination = storage_.get<charter::schema::destination_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!destination) {
-      return query_error(2, "not found", "destination not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "destination not found");
     }
     result.value = encoder_.encode(*destination);
     return result;
@@ -2367,7 +2398,8 @@ query_result_t engine::query(std::string_view path,
             data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "policy_set query key must decode to (policy_set_id,policy_version)");
     }
     auto key = make_policy_set_key(encoder_, std::get<0>(decoded.value()),
@@ -2375,7 +2407,8 @@ query_result_t engine::query(std::string_view path,
     auto policy = storage_.get<charter::schema::policy_set_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!policy) {
-      return query_error(2, "not found", "policy set not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "policy set not found");
     }
     result.value = encoder_.encode(*policy);
     return result;
@@ -2384,14 +2417,16 @@ query_result_t engine::query(std::string_view path,
   if (path == "/state/active_policy") {
     auto decoded = encoder_.try_decode<charter::schema::policy_scope_t>(data);
     if (!decoded) {
-      return query_error(1, "invalid key encoding",
+      return query_error(charter::schema::query_error_code::invalid_key,
+                         "invalid key encoding",
                          "active_policy query key must decode to policy_scope");
     }
     auto key = make_active_policy_key(encoder_, decoded.value());
     auto active = storage_.get<charter::schema::active_policy_pointer_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!active) {
-      return query_error(2, "not found", "active policy not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "active policy not found");
     }
     result.value = encoder_.encode(*active);
     return result;
@@ -2403,7 +2438,8 @@ query_result_t engine::query(std::string_view path,
                    charter::schema::hash32_t>>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "intent query key must decode to (workspace_id,vault_id,intent_id)");
     }
     auto key = make_intent_key(encoder_, std::get<0>(decoded.value()),
@@ -2412,7 +2448,8 @@ query_result_t engine::query(std::string_view path,
     auto intent = storage_.get<charter::schema::intent_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!intent) {
-      return query_error(2, "not found", "intent not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "intent not found");
     }
     result.value = encoder_.encode(*intent);
     return result;
@@ -2424,7 +2461,8 @@ query_result_t engine::query(std::string_view path,
         data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "approval query key must decode to (intent_id,signer)");
     }
     auto key = make_approval_key(encoder_, std::get<0>(decoded.value()),
@@ -2432,7 +2470,8 @@ query_result_t engine::query(std::string_view path,
     auto approval = storage_.get<charter::schema::approval_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!approval) {
-      return query_error(2, "not found", "approval not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "approval not found");
     }
     result.value = encoder_.encode(*approval);
     return result;
@@ -2443,7 +2482,8 @@ query_result_t engine::query(std::string_view path,
         charter::schema::hash32_t, charter::schema::hash32_t,
         charter::schema::claim_type_t, charter::schema::signer_id_t>>(data);
     if (!decoded) {
-      return query_error(1, "invalid key encoding",
+      return query_error(charter::schema::query_error_code::invalid_key,
+                         "invalid key encoding",
                          "attestation query key must decode to "
                          "(workspace_id,subject,claim,issuer)");
     }
@@ -2453,7 +2493,8 @@ query_result_t engine::query(std::string_view path,
     auto record = storage_.get<charter::schema::attestation_record_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!record) {
-      return query_error(2, "not found", "attestation not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "attestation not found");
     }
     result.value = encoder_.encode(*record);
     return result;
@@ -2466,7 +2507,8 @@ query_result_t engine::query(std::string_view path,
         data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "role_assignment query key must decode to (scope,subject,role)");
     }
     auto key = make_role_assignment_key(encoder_, std::get<0>(decoded.value()),
@@ -2476,7 +2518,8 @@ query_result_t engine::query(std::string_view path,
         storage_.get<charter::schema::role_assignment_state_t>(
             encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!role_assignment) {
-      return query_error(2, "not found", "role assignment not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "role assignment not found");
     }
     result.value = encoder_.encode(*role_assignment);
     return result;
@@ -2486,14 +2529,16 @@ query_result_t engine::query(std::string_view path,
     auto decoded = encoder_.try_decode<charter::schema::signer_id_t>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "signer_quarantine query key must decode to signer_id_t");
     }
     auto key = make_signer_quarantine_key(encoder_, decoded.value());
     auto quarantine = storage_.get<charter::schema::signer_quarantine_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!quarantine) {
-      return query_error(2, "not found", "signer quarantine not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "signer quarantine not found");
     }
     result.value = encoder_.encode(*quarantine);
     return result;
@@ -2514,7 +2559,8 @@ query_result_t engine::query(std::string_view path,
         std::tuple<charter::schema::hash32_t, charter::schema::hash32_t,
                    charter::schema::hash32_t>>(data);
     if (!decoded) {
-      return query_error(1, "invalid key encoding",
+      return query_error(charter::schema::query_error_code::invalid_key,
+                         "invalid key encoding",
                          "destination_update key must decode to "
                          "(workspace_id,destination_id,update_id)");
     }
@@ -2524,7 +2570,8 @@ query_result_t engine::query(std::string_view path,
     auto update = storage_.get<charter::schema::destination_update_state_t>(
         encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
     if (!update) {
-      return query_error(2, "not found", "destination update not found");
+      return query_error(charter::schema::query_error_code::not_found,
+                         "not found", "destination update not found");
     }
     result.value = encoder_.encode(*update);
     return result;
@@ -2534,7 +2581,8 @@ query_result_t engine::query(std::string_view path,
     auto decoded = encoder_.try_decode<std::tuple<uint64_t, uint64_t>>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "history range query requires SCALE tuple(from_height,to_height)");
     }
     auto from_height = std::get<0>(decoded.value());
@@ -2587,7 +2635,8 @@ query_result_t engine::query(std::string_view path,
     auto decoded = encoder_.try_decode<std::tuple<uint64_t, uint64_t>>(data);
     if (!decoded) {
       return query_error(
-          1, "invalid key encoding",
+          charter::schema::query_error_code::invalid_key,
+          "invalid key encoding",
           "events range query requires SCALE tuple(from_id,to_id)");
     }
     auto from_id = std::get<0>(decoded.value());
@@ -2615,7 +2664,7 @@ query_result_t engine::query(std::string_view path,
   }
 
   return query_error(
-      3, "unsupported path",
+      charter::schema::query_error_code::unsupported_path, "unsupported path",
       "supported paths: /engine/info, /state/workspace, /state/vault, "
       "/state/destination, /state/policy_set, /state/active_policy, "
       "/state/intent, /state/approval, /state/attestation, "
