@@ -5,6 +5,7 @@
 #include <charter/schema/apply_snapshot_chunk_result.hpp>
 #include <charter/schema/block_result.hpp>
 #include <charter/schema/commit_result.hpp>
+#include <charter/schema/encoding/encoder.hpp>
 #include <charter/schema/history_entry.hpp>
 #include <charter/schema/offer_snapshot_result.hpp>
 #include <charter/schema/primitives.hpp>
@@ -28,9 +29,12 @@ namespace charter::execution {
 
 class engine final {
  public:
-  explicit engine(uint64_t snapshot_interval = 100,
-                  std::string db_path = "charter.db",
-                  bool require_strict_crypto = true);
+  explicit engine(
+      charter::schema::encoding::encoder<
+          charter::schema::encoding::scale_encoder_tag>& encoder,
+      charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
+      uint64_t snapshot_interval = 100,
+      bool require_strict_crypto = true);
 
   charter::schema::transaction_result_t check_transaction(
       const charter::schema::bytes_view_t& raw_tx);
@@ -80,8 +84,9 @@ class engine final {
   void load_persisted_state();
 
   mutable std::mutex mutex_;
-  charter::storage::storage<charter::storage::rocksdb_storage_tag> storage_;
-  std::string db_path_;
+  charter::schema::encoding::encoder<
+      charter::schema::encoding::scale_encoder_tag>& encoder_;
+  charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage_;
   int64_t last_committed_height_{};
   charter::schema::hash32_t last_committed_state_root_;
   int64_t pending_height_{};

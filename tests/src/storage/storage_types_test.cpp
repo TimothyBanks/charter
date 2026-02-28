@@ -1,7 +1,7 @@
-#include <charter/storage/storage.hpp>
-#include <charter/storage/rocksdb/storage.hpp>
-#include <charter/schema/encoding/scale/encoder.hpp>
 #include <gtest/gtest.h>
+#include <charter/schema/encoding/scale/encoder.hpp>
+#include <charter/storage/rocksdb/storage.hpp>
+#include <charter/storage/storage.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -10,9 +10,10 @@
 
 namespace {
 
-using storage_t = charter::storage::storage<charter::storage::rocksdb_storage_tag>;
-using encoder_t =
-    charter::schema::encoding::encoder<charter::schema::encoding::scale_encoder_tag>;
+using storage_t =
+    charter::storage::storage<charter::storage::rocksdb_storage_tag>;
+using encoder_t = charter::schema::encoding::encoder<
+    charter::schema::encoding::scale_encoder_tag>;
 
 charter::schema::hash32_t make_hash(const uint8_t seed) {
   auto out = charter::schema::hash32_t{};
@@ -23,9 +24,11 @@ charter::schema::hash32_t make_hash(const uint8_t seed) {
 }
 
 std::string make_db_path(const std::string& prefix) {
-  auto now = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-  auto path = std::filesystem::temp_directory_path() /
-              (prefix + "_" + std::to_string(static_cast<unsigned long long>(now)));
+  auto now =
+      std::chrono::high_resolution_clock::now().time_since_epoch().count();
+  auto path =
+      std::filesystem::temp_directory_path() /
+      (prefix + "_" + std::to_string(static_cast<unsigned long long>(now)));
   return path.string();
 }
 
@@ -48,9 +51,11 @@ TEST(storage_types, defaults_are_stable) {
 TEST(storage_types, committed_state_round_trips) {
   auto db = make_db_path("charter_storage_committed");
   {
-    auto storage = charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(db);
-    auto state = charter::storage::committed_state{
-        .height = 42, .state_root = make_hash(10)};
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
+    auto state = charter::storage::committed_state{.height = 42,
+                                                   .state_root = make_hash(10)};
     storage.save_committed_state(state);
 
     auto loaded = storage.load_committed_state();
@@ -65,7 +70,9 @@ TEST(storage_types, committed_state_round_trips) {
 TEST(storage_types, snapshot_lifecycle_round_trips) {
   auto db = make_db_path("charter_storage_snapshot");
   {
-    auto storage = charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(db);
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
     auto snapshot = charter::storage::snapshot_descriptor{
         .height = 7,
         .format = 1,
@@ -83,11 +90,13 @@ TEST(storage_types, snapshot_lifecycle_round_trips) {
     EXPECT_EQ(snapshots[0].hash, snapshot.hash);
     EXPECT_EQ(snapshots[0].metadata, snapshot.metadata);
 
-    auto loaded_chunk = storage.load_snapshot_chunk(snapshot.height, snapshot.format, 0);
+    auto loaded_chunk =
+        storage.load_snapshot_chunk(snapshot.height, snapshot.format, 0);
     ASSERT_TRUE(loaded_chunk.has_value());
     EXPECT_EQ(*loaded_chunk, chunk);
 
-    auto missing_chunk = storage.load_snapshot_chunk(snapshot.height, snapshot.format, 1);
+    auto missing_chunk =
+        storage.load_snapshot_chunk(snapshot.height, snapshot.format, 1);
     EXPECT_FALSE(missing_chunk.has_value());
   }
   std::error_code ec;
@@ -97,7 +106,9 @@ TEST(storage_types, snapshot_lifecycle_round_trips) {
 TEST(storage_types, replace_by_prefix_rewrites_selected_keyspace_only) {
   auto db = make_db_path("charter_storage_prefix");
   {
-    auto storage = charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(db);
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
     auto encoder = encoder_t{};
     auto a_prefix = charter::schema::make_bytes(std::string_view{"A|"});
     auto b_prefix = charter::schema::make_bytes(std::string_view{"B|"});
@@ -105,22 +116,26 @@ TEST(storage_types, replace_by_prefix_rewrites_selected_keyspace_only) {
     auto a1 = charter::schema::make_bytes(std::string_view{"A|one"});
     auto a2 = charter::schema::make_bytes(std::string_view{"A|two"});
     auto b1 = charter::schema::make_bytes(std::string_view{"B|one"});
-    storage.put(encoder, charter::schema::bytes_view_t{a1.data(), a1.size()}, uint64_t{1});
-    storage.put(encoder, charter::schema::bytes_view_t{a2.data(), a2.size()}, uint64_t{2});
-    storage.put(encoder, charter::schema::bytes_view_t{b1.data(), b1.size()}, uint64_t{9});
+    storage.put(encoder, charter::schema::bytes_view_t{a1.data(), a1.size()},
+                uint64_t{1});
+    storage.put(encoder, charter::schema::bytes_view_t{a2.data(), a2.size()},
+                uint64_t{2});
+    storage.put(encoder, charter::schema::bytes_view_t{b1.data(), b1.size()},
+                uint64_t{9});
 
     auto replacement = std::vector<charter::storage::key_value_entry_t>{};
     auto a3 = charter::schema::make_bytes(std::string_view{"A|three"});
     replacement.push_back({a3, encoder.encode(uint64_t{3})});
     storage.replace_by_prefix(
-        charter::schema::bytes_view_t{a_prefix.data(), a_prefix.size()}, replacement);
+        charter::schema::bytes_view_t{a_prefix.data(), a_prefix.size()},
+        replacement);
 
     auto a_rows = storage.list_by_prefix(
         charter::schema::bytes_view_t{a_prefix.data(), a_prefix.size()});
     ASSERT_EQ(a_rows.size(), 1u);
     EXPECT_EQ(a_rows[0].first, a3);
-    auto a_value = encoder.try_decode<uint64_t>(
-        charter::schema::bytes_view_t{a_rows[0].second.data(), a_rows[0].second.size()});
+    auto a_value = encoder.try_decode<uint64_t>(charter::schema::bytes_view_t{
+        a_rows[0].second.data(), a_rows[0].second.size()});
     ASSERT_TRUE(a_value.has_value());
     EXPECT_EQ(a_value.value(), 3u);
 
@@ -128,8 +143,8 @@ TEST(storage_types, replace_by_prefix_rewrites_selected_keyspace_only) {
         charter::schema::bytes_view_t{b_prefix.data(), b_prefix.size()});
     ASSERT_EQ(b_rows.size(), 1u);
     EXPECT_EQ(b_rows[0].first, b1);
-    auto b_value = encoder.try_decode<uint64_t>(
-        charter::schema::bytes_view_t{b_rows[0].second.data(), b_rows[0].second.size()});
+    auto b_value = encoder.try_decode<uint64_t>(charter::schema::bytes_view_t{
+        b_rows[0].second.data(), b_rows[0].second.size()});
     ASSERT_TRUE(b_value.has_value());
     EXPECT_EQ(b_value.value(), 9u);
   }

@@ -1,5 +1,5 @@
-#include <charter/schema/primitives.hpp>
 #include <gtest/gtest.h>
+#include <charter/schema/primitives.hpp>
 
 TEST(primitives, make_hash32_from_bytes_round_trips) {
   auto input = charter::schema::bytes_t(32, 0xAB);

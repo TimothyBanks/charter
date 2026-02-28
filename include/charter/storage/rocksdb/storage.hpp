@@ -75,11 +75,11 @@ template <>
 struct storage<rocksdb_storage_tag> final {
   std::unique_ptr<ROCKSDB_NAMESPACE::DB> database;
 
-  template <typename Encoder, typename T>
+  template <typename T, typename Encoder>
   std::optional<T> get(Encoder& encoder,
                        const charter::schema::bytes_view_t& key);
 
-  template <typename Encoder, typename T>
+  template <typename T, typename Encoder>
   void put(Encoder& encoder,
            const charter::schema::bytes_view_t& key,
            const T& value);
@@ -101,7 +101,7 @@ template <>
 storage<rocksdb_storage_tag> make_storage<rocksdb_storage_tag>(
     const std::string_view& path);
 
-template <typename Encoder, typename T>
+template <typename T, typename Encoder>
 std::optional<T> storage<rocksdb_storage_tag>::get(
     Encoder& encoder,
     const charter::schema::bytes_view_t& key) {
@@ -125,7 +125,7 @@ std::optional<T> storage<rocksdb_storage_tag>::get(
       reinterpret_cast<const uint8_t*>(value.data()), value.size()})};
 }
 
-template <typename Encoder, typename T>
+template <typename T, typename Encoder>
 void storage<rocksdb_storage_tag>::put(Encoder& encoder,
                                        const charter::schema::bytes_view_t& key,
                                        const T& value) {

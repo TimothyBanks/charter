@@ -1,21 +1,21 @@
-#include <charter/schema/encoding/scale/encoder.hpp>
+#include <gtest/gtest.h>
+#include <algorithm>
 #include <charter/schema/create_workspace.hpp>
 #include <charter/schema/destination_update_state.hpp>
+#include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/schema/key/engine_keys.hpp>
+#include <charter/schema/policy_rule.hpp>
 #include <charter/schema/query_result.hpp>
 #include <charter/schema/replay_result.hpp>
-#include <charter/schema/snapshot_descriptor.hpp>
-#include <charter/schema/policy_rule.hpp>
 #include <charter/schema/security_event_record.hpp>
 #include <charter/schema/set_degraded_mode.hpp>
+#include <charter/schema/snapshot_descriptor.hpp>
 #include <charter/schema/transaction.hpp>
 #include <charter/schema/transaction_event.hpp>
 #include <charter/schema/transaction_result.hpp>
 #include <charter/schema/upsert_role_assignment.hpp>
 #include <charter/schema/upsert_signer_quarantine.hpp>
 #include <charter/schema/velocity_counter_state.hpp>
-#include <gtest/gtest.h>
-#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -78,137 +78,158 @@ build_payload_vector_transactions() {
       .required_claims = {},
       .velocity_limits = {}};
 
-  auto build_transaction = [&](const uint64_t nonce,
-                      const charter::schema::transaction_payload_t& payload) {
-    return charter::schema::transaction_t{
-        .version = 1,
-        .chain_id = chain,
-        .nonce = nonce,
-        .signer = signer,
-        .payload = payload,
-        .signature = charter::schema::ed25519_signature_t{}};
-  };
+  auto build_transaction =
+      [&](const uint64_t nonce,
+          const charter::schema::transaction_payload_t& payload) {
+        return charter::schema::transaction_t{
+            .version = 1,
+            .chain_id = chain,
+            .nonce = nonce,
+            .signer = signer,
+            .payload = payload,
+            .signature = charter::schema::ed25519_signature_t{}};
+      };
 
-  auto txs = std::vector<std::pair<std::string, charter::schema::transaction_t>>{};
+  auto txs =
+      std::vector<std::pair<std::string, charter::schema::transaction_t>>{};
   txs.push_back({"create_workspace",
                  build_transaction(1, charter::schema::create_workspace_t{
-                                 .workspace_id = workspace,
-                                 .admin_set = {signer},
-                                 .quorum_size = 1,
-                                 .metadata_ref = std::nullopt})});
+                                          .workspace_id = workspace,
+                                          .admin_set = {signer},
+                                          .quorum_size = 1,
+                                          .metadata_ref = std::nullopt})});
   txs.push_back({"create_vault",
-                 build_transaction(2, charter::schema::create_vault_t{
-                                 .workspace_id = workspace,
-                                 .vault_id = vault,
-                                 .model = charter::schema::vault_model_t::segregated,
-                                 .label = std::nullopt})});
-  txs.push_back({"upsert_destination",
-                 build_transaction(3, charter::schema::upsert_destination_t{
-                                 .workspace_id = workspace,
-                                 .destination_id = destination,
-                                 .type = charter::schema::destination_type_t::address,
-                                 .chain_type = charter::schema::chain_type_t{
-                                     charter::schema::chain_type::ethereum},
-                                 .address_or_contract = charter::schema::bytes_t{0x01, 0x02},
-                                 .enabled = true,
-                                 .label = std::nullopt})});
-  txs.push_back({"create_policy_set",
-                 build_transaction(4, charter::schema::create_policy_set_t{
-                                 .policy_set_id = policy,
-                                 .scope = scope,
-                                 .policy_version = 1,
-                                 .roles = {{charter::schema::role_id_t::approver, {signer}}},
-                                 .rules = {rule}})});
+                 build_transaction(
+                     2, charter::schema::create_vault_t{
+                            .workspace_id = workspace,
+                            .vault_id = vault,
+                            .model = charter::schema::vault_model_t::segregated,
+                            .label = std::nullopt})});
+  txs.push_back(
+      {"upsert_destination",
+       build_transaction(
+           3, charter::schema::upsert_destination_t{
+                  .workspace_id = workspace,
+                  .destination_id = destination,
+                  .type = charter::schema::destination_type_t::address,
+                  .chain_type =
+                      charter::schema::chain_type_t{
+                          charter::schema::chain_type::ethereum},
+                  .address_or_contract = charter::schema::bytes_t{0x01, 0x02},
+                  .enabled = true,
+                  .label = std::nullopt})});
+  txs.push_back(
+      {"create_policy_set",
+       build_transaction(
+           4, charter::schema::create_policy_set_t{
+                  .policy_set_id = policy,
+                  .scope = scope,
+                  .policy_version = 1,
+                  .roles = {{charter::schema::role_id_t::approver, {signer}}},
+                  .rules = {rule}})});
   txs.push_back({"activate_policy_set",
                  build_transaction(5, charter::schema::activate_policy_set_t{
-                                 .scope = scope,
-                                 .policy_set_id = policy,
-                                 .policy_set_version = 1})});
+                                          .scope = scope,
+                                          .policy_set_id = policy,
+                                          .policy_set_version = 1})});
   txs.push_back({"propose_intent",
                  build_transaction(6, charter::schema::propose_intent_t{
-                                 .workspace_id = workspace,
-                                 .vault_id = vault,
-                                 .intent_id = intent,
-                                 .action = transfer,
-                                 .expires_at = std::nullopt})});
-  txs.push_back({"approve_intent",
-                 build_transaction(7, charter::schema::approve_intent_t{
-                                 .workspace_id = workspace,
-                                 .vault_id = vault,
-                                 .intent_id = intent})});
-  txs.push_back({"execute_intent",
-                 build_transaction(8, charter::schema::execute_intent_t{
-                                 .workspace_id = workspace,
-                                 .vault_id = vault,
-                                 .intent_id = intent})});
-  txs.push_back({"cancel_intent",
-                 build_transaction(9, charter::schema::cancel_intent_t{
-                                 .workspace_id = workspace,
-                                 .vault_id = vault,
-                                 .intent_id = intent})});
+                                          .workspace_id = workspace,
+                                          .vault_id = vault,
+                                          .intent_id = intent,
+                                          .action = transfer,
+                                          .expires_at = std::nullopt})});
+  txs.push_back(
+      {"approve_intent", build_transaction(7, charter::schema::approve_intent_t{
+                                                  .workspace_id = workspace,
+                                                  .vault_id = vault,
+                                                  .intent_id = intent})});
+  txs.push_back(
+      {"execute_intent", build_transaction(8, charter::schema::execute_intent_t{
+                                                  .workspace_id = workspace,
+                                                  .vault_id = vault,
+                                                  .intent_id = intent})});
+  txs.push_back(
+      {"cancel_intent", build_transaction(9, charter::schema::cancel_intent_t{
+                                                 .workspace_id = workspace,
+                                                 .vault_id = vault,
+                                                 .intent_id = intent})});
   txs.push_back({"upsert_attestation",
-                 build_transaction(10, charter::schema::upsert_attestation_t{
-                                  .workspace_id = workspace,
-                                  .subject = workspace,
-                                  .claim = charter::schema::claim_type_t{
-                                      charter::schema::claim_type::kyb_verified},
-                                  .issuer = signer,
-                                  .expires_at = 1700000000000ULL,
-                                  .reference_hash = make_hash(149)})});
+                 build_transaction(
+                     10, charter::schema::upsert_attestation_t{
+                             .workspace_id = workspace,
+                             .subject = workspace,
+                             .claim =
+                                 charter::schema::claim_type_t{
+                                     charter::schema::claim_type::kyb_verified},
+                             .issuer = signer,
+                             .expires_at = 1700000000000ULL,
+                             .reference_hash = make_hash(149)})});
   txs.push_back({"revoke_attestation",
-                 build_transaction(11, charter::schema::revoke_attestation_t{
-                                  .workspace_id = workspace,
-                                  .subject = workspace,
-                                  .claim = charter::schema::claim_type_t{
-                                      charter::schema::claim_type::kyb_verified},
-                                  .issuer = signer})});
-  txs.push_back({"set_degraded_mode",
-                 build_transaction(12, charter::schema::set_degraded_mode_t{
-                                  .mode = charter::schema::degraded_mode_t::read_only,
-                                  .effective_at = 1700000000001ULL,
-                                  .reason = charter::schema::make_bytes(
-                                      std::string_view{"incident"})})});
-  txs.push_back({"upsert_role_assignment",
-                 build_transaction(13, charter::schema::upsert_role_assignment_t{
-                                  .scope = scope,
-                                  .subject = signer,
-                                  .role = charter::schema::role_id_t::approver,
-                                  .enabled = true,
-                                  .not_before = std::nullopt,
-                                  .expires_at = std::nullopt,
-                                  .note = charter::schema::make_bytes(
-                                      std::string_view{"grant"})})});
-  txs.push_back({"upsert_signer_quarantine",
-                 build_transaction(14, charter::schema::upsert_signer_quarantine_t{
-                                  .signer = signer,
-                                  .quarantined = true,
-                                  .until = 1700000000002ULL,
-                                  .reason = charter::schema::make_bytes(
-                                      std::string_view{"alert"})})});
-  txs.push_back({"propose_destination_update",
-                 build_transaction(15, charter::schema::propose_destination_update_t{
-                                  .workspace_id = workspace,
-                                  .destination_id = destination,
-                                  .update_id = update,
-                                  .type = charter::schema::destination_type_t::address,
-                                  .chain_type = charter::schema::chain_type_t{
-                                      charter::schema::chain_type::ethereum},
-                                  .address_or_contract = charter::schema::bytes_t{0xAA},
-                                  .enabled = true,
-                                  .label = charter::schema::make_bytes(
-                                      std::string_view{"new-dst"}),
-                                  .required_approvals = 1,
-                                  .delay_ms = 0})});
-  txs.push_back({"approve_destination_update",
-                 build_transaction(16, charter::schema::approve_destination_update_t{
-                                  .workspace_id = workspace,
-                                  .destination_id = destination,
-                                  .update_id = update})});
-  txs.push_back({"apply_destination_update",
-                 build_transaction(17, charter::schema::apply_destination_update_t{
-                                  .workspace_id = workspace,
-                                  .destination_id = destination,
-                                  .update_id = update})});
+                 build_transaction(
+                     11, charter::schema::revoke_attestation_t{
+                             .workspace_id = workspace,
+                             .subject = workspace,
+                             .claim =
+                                 charter::schema::claim_type_t{
+                                     charter::schema::claim_type::kyb_verified},
+                             .issuer = signer})});
+  txs.push_back(
+      {"set_degraded_mode",
+       build_transaction(
+           12, charter::schema::set_degraded_mode_t{
+                   .mode = charter::schema::degraded_mode_t::read_only,
+                   .effective_at = 1700000000001ULL,
+                   .reason = charter::schema::make_bytes(
+                       std::string_view{"incident"})})});
+  txs.push_back(
+      {"upsert_role_assignment",
+       build_transaction(13, charter::schema::upsert_role_assignment_t{
+                                 .scope = scope,
+                                 .subject = signer,
+                                 .role = charter::schema::role_id_t::approver,
+                                 .enabled = true,
+                                 .not_before = std::nullopt,
+                                 .expires_at = std::nullopt,
+                                 .note = charter::schema::make_bytes(
+                                     std::string_view{"grant"})})});
+  txs.push_back(
+      {"upsert_signer_quarantine",
+       build_transaction(14, charter::schema::upsert_signer_quarantine_t{
+                                 .signer = signer,
+                                 .quarantined = true,
+                                 .until = 1700000000002ULL,
+                                 .reason = charter::schema::make_bytes(
+                                     std::string_view{"alert"})})});
+  txs.push_back(
+      {"propose_destination_update",
+       build_transaction(
+           15, charter::schema::propose_destination_update_t{
+                   .workspace_id = workspace,
+                   .destination_id = destination,
+                   .update_id = update,
+                   .type = charter::schema::destination_type_t::address,
+                   .chain_type =
+                       charter::schema::chain_type_t{
+                           charter::schema::chain_type::ethereum},
+                   .address_or_contract = charter::schema::bytes_t{0xAA},
+                   .enabled = true,
+                   .label =
+                       charter::schema::make_bytes(std::string_view{"new-dst"}),
+                   .required_approvals = 1,
+                   .delay_ms = 0})});
+  txs.push_back(
+      {"approve_destination_update",
+       build_transaction(16, charter::schema::approve_destination_update_t{
+                                 .workspace_id = workspace,
+                                 .destination_id = destination,
+                                 .update_id = update})});
+  txs.push_back(
+      {"apply_destination_update",
+       build_transaction(17, charter::schema::apply_destination_update_t{
+                                 .workspace_id = workspace,
+                                 .destination_id = destination,
+                                 .update_id = update})});
   return txs;
 }
 
@@ -267,9 +288,9 @@ TEST(schema_encoding_types, engine_keys_decode_with_prefix_envelope) {
   auto codec = encoder<scale_encoder_tag>{};
 
   auto history_key = charter::schema::key::make_history_key(codec, 42, 7);
-  auto history_decoded = codec.try_decode<
-      std::tuple<std::string, std::tuple<uint64_t, uint32_t>>>(
-      charter::schema::make_bytes_view(history_key));
+  auto history_decoded =
+      codec.try_decode<std::tuple<std::string, std::tuple<uint64_t, uint32_t>>>(
+          charter::schema::make_bytes_view(history_key));
   ASSERT_TRUE(history_decoded.has_value());
   EXPECT_EQ(std::get<0>(history_decoded.value()),
             charter::schema::key::kHistoryPrefix);
@@ -312,9 +333,8 @@ TEST(schema_encoding_types, policy_rule_round_trips_velocity_limits) {
 
   auto codec = encoder<scale_encoder_tag>{};
   const auto encoded = codec.encode(policy);
-  const auto decoded =
-      codec.decode<charter::schema::policy_rule_t>(
-          charter::schema::make_bytes_view(encoded));
+  const auto decoded = codec.decode<charter::schema::policy_rule_t>(
+      charter::schema::make_bytes_view(encoded));
 
   EXPECT_EQ(decoded.operation, charter::schema::operation_type_t::transfer);
   ASSERT_EQ(decoded.velocity_limits.size(), 1u);
@@ -323,7 +343,8 @@ TEST(schema_encoding_types, policy_rule_round_trips_velocity_limits) {
   EXPECT_EQ(decoded.velocity_limits.front().asset_id.value(),
             velocity.asset_id.value());
   EXPECT_EQ(decoded.velocity_limits.front().window, velocity.window);
-  EXPECT_EQ(decoded.velocity_limits.front().maximum_amount, velocity.maximum_amount);
+  EXPECT_EQ(decoded.velocity_limits.front().maximum_amount,
+            velocity.maximum_amount);
 }
 
 TEST(schema_encoding_types, engine_wire_types_round_trip) {
@@ -332,10 +353,8 @@ TEST(schema_encoding_types, engine_wire_types_round_trip) {
 
   auto event = charter::schema::transaction_event_t{};
   event.type = "charter.tx_result";
-  event.attributes.push_back(
-      charter::schema::transaction_event_attribute_t{.key = "code",
-                                            .value = "33",
-                                            .index = true});
+  event.attributes.push_back(charter::schema::transaction_event_attribute_t{
+      .key = "code", .value = "33", .index = true});
   auto tx = charter::schema::transaction_result_t{};
   tx.code = 33;
   tx.log = "authorization denied";
@@ -385,8 +404,8 @@ TEST(schema_encoding_types, transaction_payload_supports_new_admin_operations) {
   auto tx = charter::schema::transaction_t{};
 
   tx.payload = charter::schema::set_degraded_mode_t{};
-  EXPECT_TRUE(std::holds_alternative<charter::schema::set_degraded_mode_t>(
-      tx.payload));
+  EXPECT_TRUE(
+      std::holds_alternative<charter::schema::set_degraded_mode_t>(tx.payload));
 
   tx.payload = charter::schema::upsert_role_assignment_t{};
   EXPECT_TRUE(std::holds_alternative<charter::schema::upsert_role_assignment_t>(
@@ -417,12 +436,12 @@ TEST(schema_encoding_types, transaction_golden_vector_create_workspace_v1) {
   using charter::schema::encoding::encoder;
   using charter::schema::encoding::scale_encoder_tag;
 
-  auto chain_id = charter::schema::make_hash32(
-      std::string_view{"f049f55aa11129a9aa953b3c7ae03e106043eb600cb5cfa35b80da0615d08ae9"});
-  auto signer_hash = charter::schema::make_hash32(
-      std::string_view{"1111111111111111111111111111111111111111111111111111111111111111"});
-  auto workspace_id = charter::schema::make_hash32(
-      std::string_view{"2222222222222222222222222222222222222222222222222222222222222222"});
+  auto chain_id = charter::schema::make_hash32(std::string_view{
+      "f049f55aa11129a9aa953b3c7ae03e106043eb600cb5cfa35b80da0615d08ae9"});
+  auto signer_hash = charter::schema::make_hash32(std::string_view{
+      "1111111111111111111111111111111111111111111111111111111111111111"});
+  auto workspace_id = charter::schema::make_hash32(std::string_view{
+      "2222222222222222222222222222222222222222222222222222222222222222"});
 
   auto tx = charter::schema::transaction_t{};
   tx.chain_id = chain_id;
@@ -440,7 +459,8 @@ TEST(schema_encoding_types, transaction_golden_vector_create_workspace_v1) {
   auto hex = to_hex(encoded);
   auto prefix = std::string{
       "0100f049f55aa11129a9aa953b3c7ae03e106043eb600cb5cfa35b80da0615d08ae9"
-      "0700000000000000021111111111111111111111111111111111111111111111111111111111111111"
+      "070000000000000002111111111111111111111111111111111111111111111111111111"
+      "1111111111"
       "0601002222222222222222222222222222222222222222222222222222222222222222"
       "04021111111111111111111111111111111111111111111111111111111111111111"
       "01"};
@@ -499,14 +519,16 @@ TEST(schema_encoding_types, admin_state_types_round_trip) {
   auto signer = make_ed25519_signer(80);
 
   auto role_assignment = charter::schema::role_assignment_state_t{};
-  role_assignment.scope = charter::schema::policy_scope_t{
-      charter::schema::vault_t{.workspace_id = make_hash(81), .vault_id = make_hash(82)}};
+  role_assignment.scope =
+      charter::schema::policy_scope_t{charter::schema::vault_t{
+          .workspace_id = make_hash(81), .vault_id = make_hash(82)}};
   role_assignment.subject = signer;
   role_assignment.role = charter::schema::role_id_t::approver;
   role_assignment.enabled = true;
   role_assignment.not_before = 1700000100000ULL;
   role_assignment.expires_at = 1700000200000ULL;
-  role_assignment.note = charter::schema::make_bytes(std::string_view{"temp grant"});
+  role_assignment.note =
+      charter::schema::make_bytes(std::string_view{"temp grant"});
   auto encoded_role = codec.encode(role_assignment);
   auto decoded_role = codec.decode<charter::schema::role_assignment_state_t>(
       charter::schema::make_bytes_view(encoded_role));
@@ -532,7 +554,8 @@ TEST(schema_encoding_types, admin_state_types_round_trip) {
   auto degraded = charter::schema::degraded_mode_state_t{};
   degraded.mode = charter::schema::degraded_mode_t::read_only;
   degraded.effective_at = 1700000400000ULL;
-  degraded.reason = charter::schema::make_bytes(std::string_view{"maintenance"});
+  degraded.reason =
+      charter::schema::make_bytes(std::string_view{"maintenance"});
   auto encoded_degraded = codec.encode(degraded);
   auto decoded_degraded = codec.decode<charter::schema::degraded_mode_state_t>(
       charter::schema::make_bytes_view(encoded_degraded));
@@ -592,8 +615,8 @@ TEST(schema_encoding_types, encode_overload_appends_exact_payload_bytes) {
   EXPECT_EQ(out[1], 0xAD);
   EXPECT_EQ(out[2], 0xBE);
   EXPECT_EQ(out[3], 0xEF);
-  EXPECT_TRUE(std::equal(std::begin(encoded), std::end(encoded),
-                         std::begin(out) + 4));
+  EXPECT_TRUE(
+      std::equal(std::begin(encoded), std::end(encoded), std::begin(out) + 4));
 }
 
 TEST(schema_encoding_types, encoding_is_deterministic_for_identical_inputs) {

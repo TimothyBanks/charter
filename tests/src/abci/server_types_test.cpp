@@ -1,5 +1,5 @@
-#include <charter/abci/server.hpp>
 #include <gtest/gtest.h>
+#include <charter/abci/server.hpp>
 
 #include <type_traits>
 

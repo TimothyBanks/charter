@@ -1,5 +1,5 @@
-#include <charter/execution/engine.hpp>
 #include <gtest/gtest.h>
+#include <charter/execution/engine.hpp>
 
 TEST(engine_types, defaults_are_stable) {
   auto tx = charter::schema::transaction_result_t{};

@@ -23,11 +23,11 @@ struct snapshot_descriptor final {
 
 template <typename Library>
 struct storage {
-  template <typename Encoder, typename T>
+  template <typename T, typename Encoder>
   std::optional<T> get(Encoder& encoder,
                        const charter::schema::bytes_view_t& key);
 
-  template <typename Encoder, typename T>
+  template <typename T, typename Encoder>
   void put(Encoder& encoder,
            const charter::schema::bytes_view_t& key,
            const T& value);

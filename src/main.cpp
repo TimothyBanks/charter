@@ -9,6 +9,8 @@
 #include <boost/program_options.hpp>
 #include <charter/abci/server.hpp>
 #include <charter/crypto/verify.hpp>
+#include <charter/schema/encoding/scale/encoder.hpp>
+#include <charter/storage/rocksdb/storage.hpp>
 #include <csignal>
 #include <string>
 
@@ -85,8 +87,14 @@ int main(int argc, char* argv[]) {
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
+  std::string db_path = "charter.db";
+  auto encoder = charter::schema::encoding::encoder<
+      charter::schema::encoding::scale_encoder_tag>{};
+  auto storage =
+      charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+          db_path);
   auto execution_engine =
-      charter::execution::engine{100, "charter.db", !allow_insecure_crypto};
+      charter::execution::engine{encoder, storage, 100, !allow_insecure_crypto};
   auto loaded_backup = execution_engine.load_backup(backup_path);
   if (loaded_backup) {
     auto replay = execution_engine.replay_history();
