@@ -12,6 +12,13 @@ S3
 ## Problem
 Policy has claim gates but no jurisdiction-specific control bundles.
 
+Current baseline already implemented:
+- optional jurisdiction context on `create_workspace_t` / `create_vault_t`
+- vault inherits workspace jurisdiction when omitted
+- mismatched workspace/vault jurisdiction is rejected (`code=42`)
+
+This issue tracks the next step: policy/profile bundles keyed by jurisdiction.
+
 ## Scope
 - define profile object:
   - required claims
@@ -31,4 +38,3 @@ Policy has claim gates but no jurisdiction-specific control bundles.
 - engine merge/enforcement logic
 - tests
 - documentation with examples
-

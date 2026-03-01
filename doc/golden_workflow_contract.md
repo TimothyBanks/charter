@@ -44,6 +44,11 @@ Treasury transfer request with policy controls:
 The default executable reference is:
 - `tests/run_proof_first_demo.sh`
 
+Jurisdiction behavior note:
+- `create_workspace` and `create_vault` may include optional jurisdiction context.
+- If workspace jurisdiction is set and vault omits jurisdiction, vault inherits it.
+- If both are set and differ, `create_vault` fails with code `42`.
+
 ## Expected Result Codes (Canonical)
 
 - Step 1: `0`
@@ -119,3 +124,4 @@ must update this file and mention reason + date in the changelog section below.
 
 - 2026-02-27: initial `v1-poc-freeze-draft`.
 - 2026-03-01: added mandatory `upsert_asset` onboarding step and `/state/asset` query assertion.
+- 2026-03-01: documented jurisdiction inheritance/mismatch behavior for workspace/vault bootstrap.

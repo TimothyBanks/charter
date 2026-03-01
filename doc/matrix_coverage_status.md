@@ -10,7 +10,7 @@ Covered by `tests/src/execution/engine_integration_test.cpp`:
 
 - `engine_integration.tx_error_code_matrix_coverage`
   - Asserts coverage of all current tx denial/validation codes:
-  - `1,2,3,4,5,6,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39`
+  - `1,2,3,4,5,6,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42`
 
 Additional focused integration tests (behavior-specific):
 
@@ -45,5 +45,5 @@ Covered by:
 These cover backup import/export, replay behavior, and snapshot offer/apply surfaces.
 
 ## Current Gaps
-- No additional gap in current tx code matrix (`1..39` where defined) from test perspective.
+- No additional gap in current tx code matrix (`1..42` where defined) from test perspective.
 - Event-stream semantics still rely on implemented event IDs and should be revalidated if enum contract changes.

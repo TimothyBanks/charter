@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <iterator>
@@ -37,6 +38,28 @@ std::optional<charter::schema::hash32_t> get_optional_hash32(
     return std::nullopt;
   }
   return charter::schema::make_hash32(vm[name].as<std::string>());
+}
+
+std::optional<charter::schema::jurisdiction_t> get_optional_jurisdiction(
+    const po::variables_map& vm) {
+  if (vm.contains("jurisdiction-id")) {
+    return charter::schema::jurisdiction_t{
+        .jurisdiction_id = charter::schema::make_hash32(
+            vm["jurisdiction-id"].as<std::string>())};
+  }
+  if (vm.contains("jurisdiction-code")) {
+    auto jurisdiction_code = vm["jurisdiction-code"].as<std::string>();
+    if (jurisdiction_code.empty()) {
+      charter::common::critical("jurisdiction-code must not be empty");
+    }
+    std::ranges::transform(jurisdiction_code, std::begin(jurisdiction_code),
+                           [](const unsigned char value) {
+                             return static_cast<char>(std::toupper(value));
+                           });
+    return charter::schema::jurisdiction_t{
+        .jurisdiction_id = charter::blake3::hash(jurisdiction_code)};
+  }
+  return std::nullopt;
 }
 
 std::optional<charter::schema::bytes_t> get_optional_hex_bytes(
@@ -251,7 +274,8 @@ charter::schema::create_workspace_t make_create_workspace_payload(
       .workspace_id = get_hash32(vm, "workspace-id"),
       .admin_set = make_signer_set(vm, "admin", "signer"),
       .quorum_size = vm["quorum"].as<uint32_t>(),
-      .metadata_ref = get_optional_hash32(vm, "metadata-ref")};
+      .metadata_ref = get_optional_hash32(vm, "metadata-ref"),
+      .jurisdiction = get_optional_jurisdiction(vm)};
 }
 
 charter::schema::create_vault_t make_create_vault_payload(
@@ -260,7 +284,8 @@ charter::schema::create_vault_t make_create_vault_payload(
       .workspace_id = get_hash32(vm, "workspace-id"),
       .vault_id = get_hash32(vm, "vault-id"),
       .model = parse_vault_model(vm["vault-model"].as<std::string>()),
-      .label = std::nullopt};
+      .label = std::nullopt,
+      .jurisdiction = get_optional_jurisdiction(vm)};
 }
 
 charter::schema::upsert_asset_t make_upsert_asset_payload(
@@ -798,6 +823,10 @@ int main(int argc, const char** argv) {
       "admin", po::value<std::vector<std::string>>()->multitoken(),
       "workspace admin signer hash32 values")(
       "metadata-ref", po::value<std::string>(), "workspace metadata hash32")(
+      "jurisdiction-id", po::value<std::string>(),
+      "jurisdiction profile hash32 identifier")(
+      "jurisdiction-code", po::value<std::string>(),
+      "jurisdiction code string (hashed to jurisdiction-id)")(
       "vault-model", po::value<std::string>()->default_value("segregated"),
       "segregated|omnibus")("destination-type",
                             po::value<std::string>()->default_value("address"),

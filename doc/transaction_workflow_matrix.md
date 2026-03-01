@@ -43,11 +43,15 @@ Applied in validation paths (`check_tx`, proposal, finalize):
 - Preconditions:
   - workspace exists
   - vault id unique under workspace
+  - if workspace jurisdiction is set:
+    - vault may omit jurisdiction (inherits workspace jurisdiction), or
+    - vault jurisdiction must match workspace jurisdiction
 - Writes:
-  - `vault_state_t`
+  - `vault_state_t` (including inherited jurisdiction when omitted on payload)
 - Failures:
   - `11` workspace missing
   - `12` vault already exists
+  - `42` jurisdiction mismatch
 - Events:
   - failure -> execution denial event
 

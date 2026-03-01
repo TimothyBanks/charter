@@ -34,6 +34,7 @@
 #include <charter/schema/intent_action.hpp>
 #include <charter/schema/intent_state.hpp>
 #include <charter/schema/intent_status.hpp>
+#include <charter/schema/jurisdiction.hpp>
 #include <charter/schema/limit_rule.hpp>
 #include <charter/schema/offer_snapshot_result.hpp>
 #include <charter/schema/operation_type.hpp>

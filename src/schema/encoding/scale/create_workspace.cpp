@@ -1,4 +1,5 @@
 #include <charter/schema/encoding/scale/create_workspace.hpp>
+#include <charter/schema/encoding/scale/jurisdiction.hpp>
 
 using namespace charter::schema;
 
@@ -10,6 +11,7 @@ void encode(create_workspace<1>&& o, ::scale::Encoder& encoder) {
   encode(o.admin_set, encoder);
   encode(o.quorum_size, encoder);
   encode(o.metadata_ref, encoder);
+  encode(o.jurisdiction, encoder);
 }
 
 void decode(create_workspace<1>&& o, ::scale::Decoder& decoder) {
@@ -18,6 +20,7 @@ void decode(create_workspace<1>&& o, ::scale::Decoder& decoder) {
   decode(o.admin_set, decoder);
   decode(o.quorum_size, decoder);
   decode(o.metadata_ref, decoder);
+  decode(o.jurisdiction, decoder);
 }
 
 }  // namespace charter::schema::encoding::scale

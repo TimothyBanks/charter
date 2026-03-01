@@ -96,7 +96,7 @@ struct transaction<1> final {
 - Types: `create_workspace_t`, `workspace_state_t`
 - File: `include/charter/schema/create_workspace.hpp`
 - Purpose: top-level tenant/admin boundary.
-- Controls: admin set + quorum for workspace governance operations.
+- Controls: admin set + quorum for workspace governance operations, plus optional jurisdiction context.
 - Storage: `SYS|STATE|WORKSPACE|<workspace_id>`
 - Workflow: bootstrap before vaults/policies/destinations.
 
@@ -104,9 +104,12 @@ struct transaction<1> final {
 - Types: `create_vault_t`, `vault_state_t`, `vault_model_t`
 - File: `include/charter/schema/create_vault.hpp`, `vault_model.hpp`
 - Purpose: custody partition under workspace.
-- Controls: policy scoping and intent execution context.
+- Controls: policy scoping, intent execution context, and optional jurisdiction context.
 - Storage: `SYS|STATE|VAULT|<workspace_id,vault_id>`
 - Workflow: required before vault-scoped policies/intents.
+- Jurisdiction rule:
+  - If workspace jurisdiction is set and vault omits jurisdiction, it is inherited.
+  - If vault specifies a different jurisdiction than workspace, creation fails with tx code `42`.
 
 ### 4.3 Destination
 - Types: `upsert_destination_t`, `destination_state_t`, `destination_type_t`, `chain_type_t`

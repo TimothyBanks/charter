@@ -1,4 +1,5 @@
 #pragma once
+#include <charter/schema/jurisdiction.hpp>
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/vault_model.hpp>
 #include <optional>
@@ -15,6 +16,7 @@ struct create_vault<1> final {
   hash32_t vault_id;
   vault_model_t model{};
   std::optional<bytes_t> label;
+  std::optional<jurisdiction_t> jurisdiction{std::nullopt};
 };
 
 using create_vault_t = create_vault<1>;

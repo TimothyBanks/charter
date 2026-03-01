@@ -61,6 +61,7 @@ Code definitions:
 - `39` destination update not executable
 - `40` asset missing
 - `41` asset disabled
+- `42` jurisdiction mismatch
 
 ## 2) Query Result Code Contract
 

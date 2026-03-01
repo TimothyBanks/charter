@@ -363,6 +363,16 @@ bool workspace_exists(
 }
 
 template <typename Encoder>
+std::optional<charter::schema::workspace_state_t> load_workspace_state(
+    charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
+    Encoder& encoder,
+    const charter::schema::hash32_t& workspace_id) {
+  auto key = make_workspace_key(encoder, workspace_id);
+  return storage.get<charter::schema::workspace_state_t>(
+      encoder, charter::schema::bytes_view_t{key.data(), key.size()});
+}
+
+template <typename Encoder>
 bool vault_exists(
     charter::storage::storage<charter::storage::rocksdb_storage_tag>& storage,
     Encoder& encoder,
@@ -1630,7 +1640,9 @@ charter::schema::transaction_result_t execute_create_vault_operation(
     rocksdb_storage_t& storage,
     Encoder& encoder,
     const charter::schema::create_vault_t& operation) {
-  if (!workspace_exists(storage, encoder, operation.workspace_id)) {
+  auto workspace =
+      load_workspace_state(storage, encoder, operation.workspace_id);
+  if (!workspace.has_value()) {
     return make_execute_error(
         charter::schema::transaction_error_code::workspace_missing,
         "workspace missing", "workspace must exist before vault creation");
@@ -1645,9 +1657,24 @@ charter::schema::transaction_result_t execute_create_vault_operation(
         "vault already exists", "vault_id already present");
   }
 
+  auto vault_state = charter::schema::vault_state_t{operation};
+  if (workspace->jurisdiction.has_value()) {
+    if (vault_state.jurisdiction.has_value() &&
+        vault_state.jurisdiction->jurisdiction_id !=
+            workspace->jurisdiction->jurisdiction_id) {
+      return make_execute_error(
+          charter::schema::transaction_error_code::jurisdiction_mismatch,
+          "jurisdiction mismatch",
+          "vault jurisdiction must match workspace jurisdiction");
+    }
+    if (!vault_state.jurisdiction.has_value()) {
+      vault_state.jurisdiction = workspace->jurisdiction;
+    }
+  }
+
   storage.put(encoder,
               charter::schema::bytes_view_t{vault_key.data(), vault_key.size()},
-              charter::schema::vault_state_t{operation});
+              vault_state);
   return make_execute_success("create_vault persisted");
 }
 

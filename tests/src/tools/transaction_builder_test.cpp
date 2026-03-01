@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <charter/blake3/hash.hpp>
 #include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/schema/intent_state.hpp>
 #include <charter/schema/primitives.hpp>
@@ -314,6 +315,62 @@ TEST(transaction_builder,
   ASSERT_EQ(workspace.admin_set.size(), 1u);
   EXPECT_EQ(encoder.encode(workspace.admin_set.front()),
             encoder.encode(tx.signer));
+}
+
+TEST(transaction_builder,
+     create_workspace_and_vault_parse_jurisdiction_fields) {
+  auto builder = std::string{CHARTER_TRANSACTION_BUILDER_PATH};
+  if (builder.empty() || !std::filesystem::exists(builder)) {
+    GTEST_SKIP() << "transaction_builder binary not available: " << builder;
+  }
+
+  constexpr auto kChainId =
+      "1111111111111111111111111111111111111111111111111111111111111111";
+  constexpr auto kSigner =
+      "2222222222222222222222222222222222222222222222222222222222222222";
+  constexpr auto kWorkspaceId =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  constexpr auto kVaultId =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  constexpr auto kJurisdictionId =
+      "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
+
+  auto workspace_tx_b64 = run_transaction_command(
+      builder, "--payload create_workspace --chain-id " +
+                   std::string{kChainId} + " --nonce 1 --signer " +
+                   std::string{kSigner} + " --workspace-id " +
+                   std::string{kWorkspaceId} + " --jurisdiction-id " +
+                   std::string{kJurisdictionId});
+  auto workspace_tx_bytes = charter::schema::from_base64(workspace_tx_b64);
+  auto encoder = encoder_t{};
+  auto workspace_tx = encoder.decode<charter::schema::transaction_t>(
+      charter::schema::bytes_view_t{workspace_tx_bytes.data(),
+                                    workspace_tx_bytes.size()});
+  ASSERT_TRUE(std::holds_alternative<charter::schema::create_workspace_t>(
+      workspace_tx.payload));
+  auto workspace_payload =
+      std::get<charter::schema::create_workspace_t>(workspace_tx.payload);
+  ASSERT_TRUE(workspace_payload.jurisdiction.has_value());
+  EXPECT_EQ(workspace_payload.jurisdiction->jurisdiction_id,
+            charter::schema::make_hash32(std::string{kJurisdictionId}));
+
+  auto vault_tx_b64 = run_transaction_command(
+      builder, "--payload create_vault --chain-id " + std::string{kChainId} +
+                   " --nonce 2 --signer " + std::string{kSigner} +
+                   " --workspace-id " + std::string{kWorkspaceId} +
+                   " --vault-id " + std::string{kVaultId} +
+                   " --jurisdiction-code us");
+  auto vault_tx_bytes = charter::schema::from_base64(vault_tx_b64);
+  auto vault_tx = encoder.decode<charter::schema::transaction_t>(
+      charter::schema::bytes_view_t{vault_tx_bytes.data(),
+                                    vault_tx_bytes.size()});
+  ASSERT_TRUE(std::holds_alternative<charter::schema::create_vault_t>(
+      vault_tx.payload));
+  auto vault_payload =
+      std::get<charter::schema::create_vault_t>(vault_tx.payload);
+  ASSERT_TRUE(vault_payload.jurisdiction.has_value());
+  EXPECT_EQ(vault_payload.jurisdiction->jurisdiction_id,
+            charter::blake3::hash(std::string_view{"US"}));
 }
 
 TEST(transaction_builder, decode_intent_state_reports_executed_status) {

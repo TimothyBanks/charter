@@ -104,6 +104,11 @@ Use one signer identity and monotonic nonce per tx.
 10. `upsert_attestation` for required claim
 11. `execute_intent` again (expected success once requirements satisfied)
 
+Jurisdiction note:
+- `create_workspace` and `create_vault` can include a jurisdiction profile id.
+- If workspace jurisdiction is set, vault creation will inherit it by default.
+- Vault creation with a different jurisdiction returns tx code `42`.
+
 ## Example Result Checks
 
 Use `block_results` to inspect tx codes by height:
@@ -175,7 +180,21 @@ Example tx build:
   --chain-id <CHAIN_ID_HEX32> \
   --nonce 1 \
   --signer <SIGNER_HEX32> \
-  --workspace-id <WORKSPACE_HEX32>
+  --workspace-id <WORKSPACE_HEX32> \
+  --jurisdiction-code us
+```
+
+To set it explicitly by id:
+
+```bash
+./build.debug/transaction_builder transaction \
+  --payload create_vault \
+  --chain-id <CHAIN_ID_HEX32> \
+  --nonce 2 \
+  --signer <SIGNER_HEX32> \
+  --workspace-id <WORKSPACE_HEX32> \
+  --vault-id <VAULT_HEX32> \
+  --jurisdiction-id <JURISDICTION_HEX32>
 ```
 
 Example query key build:

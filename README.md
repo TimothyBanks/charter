@@ -16,6 +16,7 @@ Core principles
 - Deterministic policy execution (thresholds, timelocks, limits)
 - Destination whitelisting
 - Compliance attestation gating
+- Explicit workspace/vault jurisdiction context
 - Immutable audit artifacts (approvals + attestations)
 - Canonical binary encoding (SCALE)
 - Deterministic RocksDB-backed state
@@ -98,6 +99,10 @@ Note: asset onboarding (`upsert_asset`) is required before transfer intents; mis
 Note: strict crypto mode requires real public-key signers and valid signatures.
 The current PoC script uses placeholder signatures, so strict mode will fail at
 `CheckTx` with code `6` (`signature_verification_failed`).
+Note: jurisdiction can be supplied on `create_workspace` / `create_vault` as either
+`--jurisdiction-id <hex32>` or `--jurisdiction-code <string>` in `transaction_builder`.
+If workspace jurisdiction is set and vault jurisdiction is omitted, vault creation
+inherits it. If both are set and differ, tx fails with code `42`.
 
 ## Chat Recovery Log
 

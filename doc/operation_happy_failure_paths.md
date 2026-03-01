@@ -61,7 +61,7 @@ Notes:
 
 ### `create_workspace_t`
 
-Input attributes: `workspace_id`, `admin_set`, `quorum_size`, `metadata_ref`.
+Input attributes: `workspace_id`, `admin_set`, `quorum_size`, `metadata_ref`, `jurisdiction`.
 
 Happy path:
 
@@ -82,18 +82,20 @@ Operation-specific failures:
 
 ### `create_vault_t`
 
-Input attributes: `workspace_id`, `vault_id`, `model`, `label`.
+Input attributes: `workspace_id`, `vault_id`, `model`, `label`, `jurisdiction`.
 
 Happy path:
 
 - Reads workspace existence.
 - Reads vault uniqueness under workspace.
+- If workspace has jurisdiction and vault omits it, inherits workspace jurisdiction.
 - Writes `vault_state_t` as the full operation payload via `make_vault_key(...)`.
 
 Operation-specific failures:
 
 - `workspace_missing` (11): workspace does not exist.
 - `vault_exists` (12): vault key already present.
+- `jurisdiction_mismatch` (42): vault jurisdiction differs from workspace jurisdiction.
 
 ### `upsert_destination_t`
 

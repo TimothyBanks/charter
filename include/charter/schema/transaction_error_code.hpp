@@ -43,6 +43,7 @@ enum class transaction_error_code : uint32_t {
   destination_update_not_executable = 39,
   asset_missing = 40,
   asset_disabled = 41,
+  jurisdiction_mismatch = 42,
 };
 
 }  // namespace charter::schema

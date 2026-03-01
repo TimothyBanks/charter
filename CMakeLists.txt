@@ -264,6 +264,7 @@ set(CHARTER_SCHEMA_SOURCES
   src/schema/encoding/scale/execute_intent.cpp
   src/schema/encoding/scale/history_entry.cpp
   src/schema/encoding/scale/intent_state.cpp
+  src/schema/encoding/scale/jurisdiction.cpp
   src/schema/encoding/scale/limit_rule.cpp
   src/schema/encoding/scale/policy_rule.cpp
   src/schema/encoding/scale/policy_set.cpp

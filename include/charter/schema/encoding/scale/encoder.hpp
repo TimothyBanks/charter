@@ -32,6 +32,7 @@
 #include <charter/schema/encoding/scale/history_entry.hpp>
 #include <charter/schema/encoding/scale/intent_state.hpp>
 #include <charter/schema/encoding/scale/intent_status.hpp>
+#include <charter/schema/encoding/scale/jurisdiction.hpp>
 #include <charter/schema/encoding/scale/limit_rule.hpp>
 #include <charter/schema/encoding/scale/offer_snapshot_result.hpp>
 #include <charter/schema/encoding/scale/operation_type.hpp>

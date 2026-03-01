@@ -417,6 +417,82 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
   std::filesystem::remove_all(db2, ec);
 }
 
+TEST(engine_integration, vault_jurisdiction_inherits_and_mismatch_is_rejected) {
+  auto db = make_db_path("charter_engine_jurisdiction");
+  {
+    auto encoder = charter::schema::encoding::encoder<
+        charter::schema::encoding::scale_encoder_tag>{};
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
+    auto engine = charter::execution::engine{encoder, storage, 1, false};
+    engine.set_signature_verifier(
+        [](const charter::schema::bytes_view_t&,
+           const charter::schema::signer_id_t&,
+           const charter::schema::signature_t&) { return true; });
+
+    auto chain = chain_id_from_engine(engine);
+    auto signer = make_named_signer(22);
+    auto workspace_id = make_hash(101);
+    auto inherited_vault_id = make_hash(102);
+    auto mismatch_vault_id = make_hash(103);
+    auto workspace_jurisdiction =
+        charter::schema::jurisdiction_t{.jurisdiction_id = make_hash(104)};
+    auto mismatched_jurisdiction =
+        charter::schema::jurisdiction_t{.jurisdiction_id = make_hash(105)};
+
+    auto create_workspace = finalize_single(
+        engine, 1,
+        make_transaction(chain, 1, signer,
+                         charter::schema::create_workspace_t{
+                             .workspace_id = workspace_id,
+                             .admin_set = {signer},
+                             .quorum_size = 1,
+                             .metadata_ref = std::nullopt,
+                             .jurisdiction = workspace_jurisdiction}));
+    EXPECT_EQ(create_workspace.code, 0u);
+
+    auto create_vault_inherit = finalize_single(
+        engine, 2,
+        make_transaction(
+            chain, 2, signer,
+            charter::schema::create_vault_t{
+                .workspace_id = workspace_id,
+                .vault_id = inherited_vault_id,
+                .model = charter::schema::vault_model_t::segregated,
+                .label = std::nullopt,
+                .jurisdiction = std::nullopt}));
+    EXPECT_EQ(create_vault_inherit.code, 0u);
+
+    auto vault_query_key =
+        encoder.encode(std::tuple{workspace_id, inherited_vault_id});
+    auto vault_query = engine.query(
+        "/state/vault", charter::schema::bytes_view_t{vault_query_key.data(),
+                                                      vault_query_key.size()});
+    ASSERT_EQ(vault_query.code, 0u);
+    auto vault_state = encoder.decode<charter::schema::vault_state_t>(
+        charter::schema::bytes_view_t{vault_query.value.data(),
+                                      vault_query.value.size()});
+    ASSERT_TRUE(vault_state.jurisdiction.has_value());
+    EXPECT_EQ(vault_state.jurisdiction->jurisdiction_id,
+              workspace_jurisdiction.jurisdiction_id);
+
+    auto create_vault_mismatch = finalize_single(
+        engine, 3,
+        make_transaction(
+            chain, 3, signer,
+            charter::schema::create_vault_t{
+                .workspace_id = workspace_id,
+                .vault_id = mismatch_vault_id,
+                .model = charter::schema::vault_model_t::segregated,
+                .label = std::nullopt,
+                .jurisdiction = mismatched_jurisdiction}));
+    EXPECT_EQ(create_vault_mismatch.code, 42u);
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
 TEST(engine_integration, timelock_blocks_then_allows_execute) {
   auto db = make_db_path("charter_engine_timelock");
 
@@ -1515,7 +1591,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_update.code, 37u);
   });
 
-  run("11_13_15_16_17_18_21_27_36_38_39", [](auto& engine, auto& seen) {
+  run("11_13_15_16_17_18_21_27_36_38_39_42", [](auto& engine, auto& seen) {
     auto encoder = encoder_t{};
     auto chain = chain_id_from_engine(engine);
     auto signer = make_named_signer(20);
@@ -1592,20 +1668,38 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_scope_policy.code, 13u);
 
     EXPECT_EQ(
-        finalize_single(engine, 3,
-                        make_transaction(chain, 3, signer,
-                                         charter::schema::create_workspace_t{
-                                             .workspace_id = ws,
-                                             .admin_set = {signer},
-                                             .quorum_size = 1,
-                                             .metadata_ref = std::nullopt}))
+        finalize_single(
+            engine, 3,
+            make_transaction(chain, 3, signer,
+                             charter::schema::create_workspace_t{
+                                 .workspace_id = ws,
+                                 .admin_set = {signer},
+                                 .quorum_size = 1,
+                                 .metadata_ref = std::nullopt,
+                                 .jurisdiction =
+                                     charter::schema::jurisdiction_t{
+                                         .jurisdiction_id = make_hash(120)}}))
             .code,
         0u);
 
-    auto missing_policy = finalize_single(
+    auto jurisdiction_mismatch = finalize_single(
         engine, 4,
         make_transaction(
             chain, 4, signer,
+            charter::schema::create_vault_t{
+                .workspace_id = ws,
+                .vault_id = make_hash(121),
+                .model = charter::schema::vault_model_t::segregated,
+                .label = std::nullopt,
+                .jurisdiction = charter::schema::jurisdiction_t{
+                    .jurisdiction_id = make_hash(122)}}));
+    seen.insert(jurisdiction_mismatch.code);
+    EXPECT_EQ(jurisdiction_mismatch.code, 42u);
+
+    auto missing_policy = finalize_single(
+        engine, 5,
+        make_transaction(
+            chain, 5, signer,
             charter::schema::activate_policy_set_t{
                 .scope =
                     charter::schema::policy_scope_t{
@@ -1616,7 +1710,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_policy.code, 15u);
 
     auto missing_vault_scope = finalize_single(
-        engine, 5,
+        engine, 6,
         make_transaction(chain, 5, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = ws,
@@ -1632,7 +1726,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_vault_scope.code, 16u);
 
     EXPECT_EQ(finalize_single(
-                  engine, 6,
+                  engine, 7,
                   make_transaction(
                       chain, 6, signer,
                       charter::schema::create_vault_t{
@@ -1643,7 +1737,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                   .code,
               0u);
     auto no_active = finalize_single(
-        engine, 7,
+        engine, 8,
         make_transaction(chain, 7, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = ws,
@@ -1659,7 +1753,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(no_active.code, 17u);
 
     auto missing_ws_attestation = finalize_single(
-        engine, 8,
+        engine, 9,
         make_transaction(chain, 8, signer,
                          charter::schema::upsert_attestation_t{
                              .workspace_id = missing_ws,
@@ -1674,7 +1768,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_ws_attestation.code, 18u);
 
     auto missing_intent = finalize_single(
-        engine, 9,
+        engine, 10,
         make_transaction(
             chain, 9, signer,
             charter::schema::approve_intent_t{.workspace_id = ws,
@@ -1684,7 +1778,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_intent.code, 21u);
 
     auto missing_attestation = finalize_single(
-        engine, 10,
+        engine, 11,
         make_transaction(chain, 10, signer,
                          charter::schema::revoke_attestation_t{
                              .workspace_id = ws,
@@ -1697,7 +1791,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(missing_attestation.code, 27u);
 
     auto first_update = finalize_single(
-        engine, 11,
+        engine, 12,
         make_transaction(
             chain, 11, signer,
             charter::schema::propose_destination_update_t{
@@ -1715,7 +1809,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                 .delay_ms = 0}));
     EXPECT_EQ(first_update.code, 0u);
     auto dup_update = finalize_single(
-        engine, 12,
+        engine, 13,
         make_transaction(
             chain, 12, signer,
             charter::schema::propose_destination_update_t{
@@ -1734,7 +1828,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     seen.insert(dup_update.code);
     EXPECT_EQ(dup_update.code, 36u);
 
-    EXPECT_EQ(finalize_single(engine, 13,
+    EXPECT_EQ(finalize_single(engine, 14,
                               make_transaction(
                                   chain, 13, signer,
                                   charter::schema::approve_destination_update_t{
@@ -1744,7 +1838,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                   .code,
               0u);
     EXPECT_EQ(finalize_single(
-                  engine, 14,
+                  engine, 15,
                   make_transaction(chain, 14, signer,
                                    charter::schema::apply_destination_update_t{
                                        .workspace_id = ws,
@@ -1753,7 +1847,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                   .code,
               0u);
     auto finalized_update = finalize_single(
-        engine, 15,
+        engine, 16,
         make_transaction(chain, 15, signer,
                          charter::schema::approve_destination_update_t{
                              .workspace_id = ws,
@@ -1764,7 +1858,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
 
     auto update2 = make_hash(39);
     EXPECT_EQ(finalize_single(
-                  engine, 16,
+                  engine, 17,
                   make_transaction(
                       chain, 16, signer,
                       charter::schema::propose_destination_update_t{
@@ -1783,7 +1877,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                   .code,
               0u);
     auto not_exec = finalize_single(
-        engine, 17,
+        engine, 18,
         make_transaction(
             chain, 17, signer,
             charter::schema::apply_destination_update_t{.workspace_id = ws,
@@ -2612,7 +2706,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
   auto expected =
       std::set<uint32_t>{1,  2,  3,  4,  5,  6,  10, 11, 12, 13, 14, 15, 16,
                          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-                         30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41};
+                         30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42};
   EXPECT_EQ(observed, expected);
 }
 

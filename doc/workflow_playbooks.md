@@ -12,6 +12,7 @@ Reference matrix:
 Inputs:
 - workspace id
 - admin signer set
+- jurisdiction profile id (optional, but recommended for regulated deployments)
 
 Transactions:
 1. `create_workspace`
@@ -24,6 +25,7 @@ Transactions:
 Success criteria:
 - workspace/vault/asset/policy queries return `code=0`
 - active policy pointer is present for target scope
+- if workspace jurisdiction is set, vault jurisdiction is either inherited or explicitly matched
 
 ## 2) Execute A Transfer
 
