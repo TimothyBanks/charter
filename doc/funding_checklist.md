@@ -6,6 +6,9 @@ Prepare Charter for:
 - design-partner pilots
 - early regulator-facing diligence
 
+Companion execution tracker:
+- `doc/pre_pilot_gap_checklist.md`
+
 ## Principles
 - Sell evidence, not promises.
 - Keep scope tight around one beachhead market.

@@ -54,6 +54,32 @@ In this view, domain-specific protocols complement general L1s by:
 - Permissioned operations with public-read transparency.
 - Consensus abstraction: application semantics are not tied to one BFT implementation.
 
+## 3.1 Consensus and Validator Operating Model (Intentional BFT Choice)
+
+Charter intentionally uses a BFT model with a small, permissioned validator set.
+The target is not a permissionless, high-throughput general-compute network. The
+target is regulated custody coordination with strong finality and clear operator
+accountability.
+
+Design intent:
+- Validator set remains curated and operationally vetted.
+- Validator organizations are expected to operate under appropriate licensing
+  posture for the jurisdictions they serve.
+- Public-read access remains open, while write/finality participation is
+  permissioned.
+
+Economic intent:
+- Protocol revenue is transaction-fee-based, not subscription-based.
+- No mandatory monthly/yearly protocol license fee for customers is intended.
+- Fees are targeted to remain as low as possible while funding validator
+  operations, compliance overhead, and security posture.
+
+Performance posture:
+- Charter prioritizes control correctness, auditability, and deterministic
+  governance over maximum TPS and minimum latency.
+- Lower throughput targets reduce validator infrastructure pressure relative to
+  high-performance generic L1 networks.
+
 ## 4. System Model
 
 Charter models custody as scoped state:
@@ -174,6 +200,7 @@ Next milestones:
 - explorer/indexer service for external evaluators
 - formal governance and compliance evidence packs
 - consensus abstraction toward production target
+- close pre-pilot ownership gaps tracked in `doc/pre_pilot_gap_checklist.md`
 
 ## 13. Why This Can Matter
 
