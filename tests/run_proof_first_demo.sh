@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT_VERSION="2026-03-01-demo-hardening-v1"
+SCRIPT_VERSION="2026-03-01-demo-hardening-v2"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build.debug}"
 TX_BUILDER="${TX_BUILDER:-$BUILD_DIR/transaction_builder}"
 CHARTER_BIN="${CHARTER_BIN:-$BUILD_DIR/charter}"
@@ -246,6 +246,45 @@ print(sep.join([str(r.get("code", 0)), str(value)]))
 PY
 }
 
+parse_jsonrpc_error_message() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+raw = sys.argv[1] if len(sys.argv) > 1 else ""
+try:
+    obj = json.loads(raw)
+except Exception:
+    print("")
+    raise SystemExit(0)
+err = obj.get("error")
+if not isinstance(err, dict):
+    print("")
+    raise SystemExit(0)
+msg = str(err.get("message", "") or "")
+data = str(err.get("data", "") or "")
+combined = (msg + " " + data).strip().replace("\n", " ").replace("\t", " ")
+print(combined)
+PY
+}
+
+base64_to_hex() {
+  python3 - "$1" <<'PY'
+import base64
+import binascii
+import sys
+value = sys.argv[1] if len(sys.argv) > 1 else ""
+if value == "":
+    print("")
+    raise SystemExit(0)
+try:
+    decoded = base64.b64decode(value, validate=True)
+except Exception:
+    print("")
+    raise SystemExit(1)
+print(binascii.hexlify(decoded).decode("ascii"))
+PY
+}
+
 wait_for_rpc_ready() {
   local attempts=80
   local payload='{"jsonrpc":"2.0","id":1,"method":"status","params":{}}'
@@ -324,6 +363,7 @@ declare -a query_rows
 history_range_value_len="0"
 history_export_value_len="0"
 last_query_value_b64=""
+last_query_value_len="0"
 NONCE_DELTA=0
 
 finalize_report() {
@@ -600,33 +640,83 @@ query_path_expect_ok() {
   local key_b64="$2"
   local require_non_empty="$3"
 
-  local response
-  if ! response="$(rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"abci_query\",\"params\":{\"path\":\"$path\",\"data\":\"$key_b64\"}}")"; then
+  local key_hex=""
+  if ! key_hex="$(base64_to_hex "$key_b64")"; then
     record_query_result "$path" "code=0" "rpc_error" "0" "FAIL"
-    fail "query rpc failed for path=$path"
+    fail "failed to decode query key base64 for path=$path"
   fi
 
-  local parsed_query
-  parsed_query="$(parse_query_fields "$response" || true)"
-  local code value_b64
-  IFS=$'\x1f' read -r code value_b64 <<<"${parsed_query}" || true
-  if [[ -z "${code:-}" ]]; then
-    record_query_result "$path" "code=0" "rpc_error" "0" "FAIL"
-    log "query parse failure: path=$path parsed='${parsed_query}' response='${response}'"
-    fail "query parse failed for path=$path"
+  local -a query_data_values=()
+  local -a query_data_labels=()
+  if [[ "$key_hex" == "" ]]; then
+    query_data_values+=("")
+    query_data_labels+=("empty")
+  else
+    query_data_values+=("$key_hex")
+    query_data_labels+=("hex")
   fi
-  local value_len
-  value_len="${#value_b64}"
-  last_query_value_b64="$value_b64"
-  log "query path=$path code=$code value_len=$value_len"
+  if [[ "$key_b64" != "" ]]; then
+    query_data_values+=("$key_b64")
+    query_data_labels+=("base64")
+  fi
 
-  if [[ "$code" == "rpc_error" ]]; then
-    record_query_result "$path" "code=0" "$code" "$value_len" "FAIL"
+  local response=""
+  local parsed_query=""
+  local code=""
+  local value_b64=""
+  local query_ok="0"
+  local query_attempt=0
+  local max_query_attempts="$BROADCAST_RETRIES"
+  if [[ "$max_query_attempts" -lt 1 ]]; then
+    max_query_attempts=1
+  fi
+
+  while [[ "$query_attempt" -lt "$max_query_attempts" ]]; do
+    for i in "${!query_data_values[@]}"; do
+      local data_value="${query_data_values[$i]}"
+      local data_label="${query_data_labels[$i]}"
+      local payload
+      payload="{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"abci_query\",\"params\":{\"path\":\"$path\",\"data\":\"$data_value\"}}"
+      log "query attempt $((query_attempt + 1))/$max_query_attempts path=$path data_format=$data_label"
+      if ! response="$(rpc "$payload")"; then
+        continue
+      fi
+
+      parsed_query="$(parse_query_fields "$response" || true)"
+      IFS=$'\x1f' read -r code value_b64 <<<"${parsed_query}" || true
+      if [[ -z "${code:-}" ]]; then
+        continue
+      fi
+      if [[ "$code" == "rpc_error" ]]; then
+        local rpc_error_message
+        rpc_error_message="$(parse_jsonrpc_error_message "$response" || true)"
+        log "query path=$path data_format=$data_label returned rpc_error: ${rpc_error_message:-unknown error}"
+        log "query raw response: $response"
+        continue
+      fi
+
+      query_ok="1"
+      break 2
+    done
+    query_attempt=$((query_attempt + 1))
+    log "query retry $query_attempt/$max_query_attempts for path=$path"
+    sleep 0.5
+  done
+
+  if [[ "$query_ok" != "1" ]]; then
+    record_query_result "$path" "code=0" "rpc_error" "0" "FAIL"
     fail "query rpc returned error for path=$path"
   fi
 
+  local value_len
+  value_len="${#value_b64}"
+  last_query_value_b64="$value_b64"
+  last_query_value_len="$value_len"
+  log "query path=$path code=$code value_len=$value_len"
+
   if [[ "$code" != "0" ]]; then
     record_query_result "$path" "code=0" "$code" "$value_len" "FAIL"
+    log "query raw response: $response"
     fail "query returned non-zero code for path=$path"
   fi
 
@@ -640,8 +730,6 @@ query_path_expect_ok() {
     expected_label="code=0, non-empty value"
   fi
   record_query_result "$path" "$expected_label" "$code" "$value_len" "PASS"
-
-  echo "$value_len"
 }
 
 require_cmd curl
@@ -852,7 +940,7 @@ if is_truthy "$VERIFY_WORKSPACE_ADMIN_QUERY"; then
   log "phase: building workspace admin query key"
   workspace_admin_key="$($TX_BUILDER query-key --path /state/role_assignment --scope-type workspace --workspace-id "$WORKSPACE_ID" --subject-signer "$SIGNER" --role admin)"
   log "phase: querying workspace admin role assignment"
-  query_path_expect_ok /state/role_assignment "$workspace_admin_key" 1 >/dev/null
+  query_path_expect_ok /state/role_assignment "$workspace_admin_key" 1
   log "phase: workspace admin role assignment confirmed"
 else
   log "phase: skipping workspace admin query verification (VERIFY_WORKSPACE_ADMIN_QUERY=$VERIFY_WORKSPACE_ADMIN_QUERY)"
@@ -879,8 +967,8 @@ intent_key="$($TX_BUILDER query-key --path /state/intent --workspace-id "$WORKSP
 history_key="$($TX_BUILDER query-key --path /history/range --from-height 1 --to-height 100)"
 history_export_key="$($TX_BUILDER query-key --path /history/export)"
 
-query_path_expect_ok /state/asset "$asset_key" 0 >/dev/null
-query_path_expect_ok /state/intent "$intent_key" 1 >/dev/null
+query_path_expect_ok /state/asset "$asset_key" 0
+query_path_expect_ok /state/intent "$intent_key" 1
 intent_status="$($TX_BUILDER decode-intent-state --value-base64 "$last_query_value_b64")"
 log "intent status decoded=$intent_status"
 if [[ "$intent_status" != "executed" ]]; then
@@ -888,8 +976,10 @@ if [[ "$intent_status" != "executed" ]]; then
   fail "decoded intent status is not executed"
 fi
 record_query_result "/state/intent.status" "executed" "$intent_status" "${#intent_status}" "PASS"
-history_range_value_len="$(query_path_expect_ok /history/range "$history_key" 1)"
-history_export_value_len="$(query_path_expect_ok /history/export "$history_export_key" 1)"
+query_path_expect_ok /history/range "$history_key" 1
+history_range_value_len="$last_query_value_len"
+query_path_expect_ok /history/export "$history_export_key" 1
+history_export_value_len="$last_query_value_len"
 
 log "proof run completed successfully"
 log "report: $REPORT_PATH"

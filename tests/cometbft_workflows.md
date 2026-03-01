@@ -49,7 +49,7 @@ curl -s http://127.0.0.1:26657 \
     "method":"abci_query",
     "params":{
       "path":"<PATH>",
-      "data":"<BASE64_SCALE_QUERY_KEY_BYTES>"
+      "data":"<HEX_SCALE_QUERY_KEY_BYTES>"
     }
   }'
 ```
@@ -131,7 +131,9 @@ Expected Charter tx codes:
 
 ## Example Query Keys (SCALE Encoded)
 
-The `data` field in `abci_query` should be base64 of SCALE-encoded key payload:
+Use SCALE-encoded key payload bytes. For CometBFT JSON-RPC, pass query `data`
+as plain hex (no `0x` prefix). The proof script will attempt hex first and fall back to
+base64 when needed for compatibility.
 
 - `/state/workspace`:
   - raw 32-byte `workspace_id` (not tuple)
