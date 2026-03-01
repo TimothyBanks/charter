@@ -449,14 +449,33 @@ finalize_report() {
 }
 
 cleanup() {
-  if [[ -n "$comet_pid" ]]; then
-    kill "$comet_pid" >/dev/null 2>&1 || true
-    wait "$comet_pid" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "$charter_pid" ]]; then
-    kill "$charter_pid" >/dev/null 2>&1 || true
-    wait "$charter_pid" >/dev/null 2>&1 || true
-  fi
+  stop_process() {
+    local pid="$1"
+    local label="$2"
+    if [[ -z "$pid" ]]; then
+      return 0
+    fi
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      wait "$pid" >/dev/null 2>&1 || true
+      return 0
+    fi
+
+    kill "$pid" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do
+      if ! kill -0 "$pid" >/dev/null 2>&1; then
+        wait "$pid" >/dev/null 2>&1 || true
+        return 0
+      fi
+      sleep 0.1
+    done
+
+    log "forcing shutdown for lingering ${label} pid=$pid"
+    kill -9 "$pid" >/dev/null 2>&1 || true
+    wait "$pid" >/dev/null 2>&1 || true
+  }
+
+  stop_process "$comet_pid" "cometbft"
+  stop_process "$charter_pid" "charter"
   if [[ "$KEEP_LOCAL_STATE" != "1" ]]; then
     if [[ -n "$local_run_dir" && -d "$local_run_dir" ]]; then
       rm -rf "$local_run_dir"
@@ -476,6 +495,7 @@ on_exit() {
   finalize_report
 }
 trap on_exit EXIT
+trap 'exit 130' INT TERM HUP
 
 fail() {
   overall_verdict="FAIL"
@@ -883,13 +903,13 @@ PY
   if is_truthy "$ALLOW_INSECURE_CRYPTO"; then
     (
       cd "$local_run_dir"
-      "$CHARTER_BIN" --grpc-port "$CHARTER_GRPC_ADDR" --backup-file "$local_backup_file" --allow-insecure-crypto >"$CHARTER_LOG" 2>&1
-    ) &
+      exec "$CHARTER_BIN" --grpc-port "$CHARTER_GRPC_ADDR" --backup-file "$local_backup_file" --allow-insecure-crypto
+    ) >"$CHARTER_LOG" 2>&1 &
   else
     (
       cd "$local_run_dir"
-      "$CHARTER_BIN" --grpc-port "$CHARTER_GRPC_ADDR" --backup-file "$local_backup_file" >"$CHARTER_LOG" 2>&1
-    ) &
+      exec "$CHARTER_BIN" --grpc-port "$CHARTER_GRPC_ADDR" --backup-file "$local_backup_file"
+    ) >"$CHARTER_LOG" 2>&1 &
   fi
   charter_pid="$!"
 
