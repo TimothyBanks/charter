@@ -53,6 +53,9 @@ Prepare Charter for:
 - [ ] Draft trust model and assumptions (identity, keys, validator operations).
 - [ ] Define what is public vs confidential data.
 - [ ] Add plain-language statement: protocol reduces compliance burden, it does not replace institution-level obligations.
+- [ ] Publish US-first licensing strategy draft in `doc/licensing_strategy_us.md`.
+- [ ] Engage external regulatory counsel for activity scoping and licensing sequence review.
+- [ ] Identify interim compliance owner (fractional CCO or equivalent).
 
 ### GTM and Outreach
 - [ ] Prepare 2-3 outreach posts and direct intro message templates.
@@ -86,6 +89,8 @@ Prepare Charter for:
 - [ ] Decide legal vehicle and ownership structure for protocol operations.
 - [ ] Draft validator terms and pilot terms.
 - [ ] Draft risk disclosures for partners/investors.
+- [ ] Define target licensed-operator model (who holds which licenses).
+- [ ] Complete preliminary activity-to-license matrix validation with counsel.
 
 ## Day 61-90: Fundraise and Pilot Execution
 
@@ -117,6 +122,7 @@ Prepare Charter for:
 - [ ] validator controls
 - [ ] audit/replay evidence flow
 - [ ] incident response model
+- [ ] licensing and supervision model by operating entity
 - [ ] Run one mock regulator walkthrough.
 
 ## KPI Targets (By Day 90)
@@ -134,6 +140,7 @@ Only start broad fundraising when all are true:
 - [ ] policy controls verified with test evidence
 - [ ] architecture roadmap and migration plan documented
 - [ ] legal/governance model is coherent
+- [ ] licensing strategy is reviewed by counsel and mapped to go-to-market phase
 - [ ] one customer segment and one primary narrative are locked
 
 ## Common Failure Modes to Avoid

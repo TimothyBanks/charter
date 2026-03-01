@@ -69,6 +69,17 @@ Reviewer expectations:
 - realistic milestone-based capital use
 - clear go/no-go gates
 
+### 6) Regulatory And Licensing Plan (US-First)
+
+Use:
+- `doc/licensing_strategy_us.md`
+
+Reviewer expectations:
+- clear activity-to-license mapping
+- explicit legal/compliance ownership model
+- phased licensing sequence tied to product rollout
+- clear statement of what is implemented now vs what is counsel-dependent
+
 ## Recommended Packet Order (What To Send)
 
 1. `doc/one_pager.md`
@@ -77,7 +88,8 @@ Reviewer expectations:
 4. latest `tests/proof_report_<timestamp>.txt`
 5. `doc/error_codes_and_events_contract.md`
 6. `doc/query_and_keyspace_contract.md`
-7. `doc/funding_checklist.md`
+7. `doc/licensing_strategy_us.md`
+8. `doc/funding_checklist.md`
 
 ## Suggested Cover Email Text
 
@@ -110,6 +122,7 @@ Pilot deliverables:
 - run reports and artifacts
 - integration notes
 - recommended production hardening backlog
+- regulatory readiness memo (controls mapping + licensing path assumptions)
 
 Pilot timeline:
 - 4-8 weeks (depending on partner integration depth)
@@ -120,6 +133,8 @@ Pilot timeline:
 - How are tx failures standardized for integrators?
 - How is replay/snapshot safety validated?
 - How does jurisdiction context currently work?
+- Which legal entities hold which licenses and in what sequence?
+- Which controls are protocol-enforced vs operator policy controls?
 - What is implemented now vs roadmap only?
 - What security review plan is in place pre-production?
 
@@ -130,6 +145,7 @@ Pilot timeline:
 - [ ] referenced report file exists and is included
 - [ ] doc links and filenames are current
 - [ ] roadmap/funding ask values are updated for current quarter
+- [ ] compliance lead and external regulatory counsel identified
 
 ## Next-Step CTAs
 

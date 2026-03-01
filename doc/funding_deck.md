@@ -123,7 +123,28 @@ Phase-1 model:
 Principle:
 - no token dependency required for pilot traction.
 
-## Slide 10: Roadmap
+## Slide 10: Regulatory Strategy (US-First)
+
+Operating model:
+- keep protocol and state machine neutral
+- run the network through licensed operators and supervised service entities
+
+Why this matters commercially:
+- reduces compliance integration burden for customers
+- increases trust for institutions, auditors, and counterparties
+- creates a defensible adoption moat versus unlicensed infrastructure
+
+Initial licensing tracks (activity-dependent):
+- FinCEN MSB posture + BSA/AML controls for money transmission activity
+- state money transmission licensing strategy
+- New York authorization path (BitLicense and/or NY limited purpose trust)
+- bank/trust charter path where appropriate (state or federal)
+- securities-regulated path when assets/flows are securities-related
+
+Execution requirement:
+- add dedicated compliance leadership early (fractional CCO + regulatory counsel).
+
+## Slide 11: Roadmap
 
 Current:
 - CometBFT-backed PoC with frozen golden workflow contract.
@@ -136,7 +157,7 @@ Next:
 Longer term:
 - consensus rail migration plan (while preserving state-machine semantics).
 
-## Slide 11: Team and Execution
+## Slide 12: Team and Execution
 
 Message:
 - principal-level engineering execution with working protocol artifacts.
@@ -145,8 +166,9 @@ Show:
 - shipped milestones
 - test coverage breadth
 - operational rigor (contracts/docs/demo reproducibility)
+- regulatory execution capacity (counsel + compliance function + licensing plan)
 
-## Slide 12: Funding Ask
+## Slide 13: Funding Ask
 
 Ask template:
 - raise amount: `[target_raise_usd]`
@@ -180,6 +202,7 @@ Primary docs:
 - `doc/operation_happy_failure_paths.md`
 - `doc/error_codes_and_events_contract.md`
 - `doc/query_and_keyspace_contract.md`
+- `doc/licensing_strategy_us.md`
 
 ## Presenter Notes (Use In Every Meeting)
 
@@ -189,3 +212,4 @@ Primary docs:
 4. End with a specific next step:
    - investor: diligence package + follow-up partner meeting
    - design partner: scoped pilot statement of work
+5. Treat licensing path as an execution plan, not a one-time legal checkbox.
