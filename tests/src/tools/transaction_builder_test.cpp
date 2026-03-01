@@ -189,6 +189,27 @@ TEST(transaction_builder,
   EXPECT_EQ(destination_update_actual,
             charter::schema::to_base64(expected_destination_update_key));
 
+  auto metrics_key_actual =
+      run_query_key_command(builder, "--path /metrics/engine");
+  EXPECT_TRUE(metrics_key_actual.empty());
+
+  auto explorer_overview_key_actual =
+      run_query_key_command(builder, "--path /explorer/overview");
+  EXPECT_TRUE(explorer_overview_key_actual.empty());
+
+  auto expected_explorer_block_key = encoder.encode(uint64_t{11});
+  auto explorer_block_actual = run_query_key_command(
+      builder, "--path /explorer/block --block-height 11");
+  EXPECT_EQ(explorer_block_actual,
+            charter::schema::to_base64(expected_explorer_block_key));
+
+  auto expected_explorer_transaction_key =
+      encoder.encode(std::tuple{uint64_t{11}, uint32_t{2}});
+  auto explorer_transaction_actual = run_query_key_command(
+      builder, "--path /explorer/transaction --block-height 11 --tx-index 2");
+  EXPECT_EQ(explorer_transaction_actual,
+            charter::schema::to_base64(expected_explorer_transaction_key));
+
   auto degraded_mode_actual =
       run_query_key_command(builder, "--path /state/degraded_mode");
   EXPECT_TRUE(degraded_mode_actual.empty());

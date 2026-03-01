@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -753,11 +754,16 @@ TEST(engine_integration, query_route_matrix_valid_and_invalid_keys) {
       std::tuple<std::string, charter::schema::bytes_t, uint32_t>>{
       {"/engine/info", {}, 0u},
       {"/engine/keyspaces", {}, 0u},
+      {"/metrics/engine", {}, 0u},
+      {"/explorer/overview", {}, 0u},
       {"/history/export", {}, 0u},
       {"/history/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
        0u},
       {"/events/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
        0u},
+      {"/explorer/block", encoder.encode(uint64_t{1}), 0u},
+      {"/explorer/transaction",
+       encoder.encode(std::tuple{uint64_t{1}, uint32_t{0}}), 2u},
       {"/state/degraded_mode", {}, 0u},
       {"/state/workspace",
        charter::schema::bytes_t{std::begin(workspace_id),
@@ -794,7 +800,11 @@ TEST(engine_integration, query_route_matrix_valid_and_invalid_keys) {
   }
 
   auto invalid_cases = std::vector<std::string>{"/state/workspace",
+                                                "/metrics/engine",
+                                                "/explorer/overview",
                                                 "/state/asset",
+                                                "/explorer/block",
+                                                "/explorer/transaction",
                                                 "/state/vault",
                                                 "/state/destination",
                                                 "/state/policy_set",
@@ -820,6 +830,64 @@ TEST(engine_integration, query_route_matrix_valid_and_invalid_keys) {
   auto unsupported = engine.query("/unsupported/path", {});
   EXPECT_EQ(unsupported.code, 3u);
   EXPECT_EQ(unsupported.codespace, "charter.query");
+}
+
+TEST(engine_integration, metrics_engine_query_reflects_incremental_counters) {
+  auto fixture = execution_fixture{"charter_engine_metrics_incremental"};
+  auto& encoder = fixture.encoder();
+  auto& engine = fixture.engine();
+
+  auto read_metrics = [&]() {
+    auto result = engine.query("/metrics/engine", {});
+    EXPECT_EQ(result.code, 0u);
+    auto decoded = encoder.decode<
+        std::tuple<uint16_t, std::vector<std::tuple<std::string, uint64_t>>,
+                   std::vector<std::tuple<std::string, std::string>>>>(
+        charter::schema::bytes_view_t{result.value.data(),
+                                      result.value.size()});
+    EXPECT_EQ(std::get<0>(decoded), 1u);
+    auto numeric = std::map<std::string, uint64_t>{};
+    for (const auto& [name, value] : std::get<1>(decoded)) {
+      numeric[name] = value;
+    }
+    return numeric;
+  };
+
+  auto initial = read_metrics();
+  EXPECT_EQ(initial["transactions_total"], 0u);
+  EXPECT_EQ(initial["transactions_failed"], 0u);
+
+  auto invalid_tx = charter::schema::bytes_t{0x01, 0x02, 0x03};
+  auto block1 = engine.finalize_block(1, {invalid_tx});
+  ASSERT_EQ(block1.tx_results.size(), 1u);
+  EXPECT_EQ(block1.tx_results[0].code, 1u);
+  engine.commit();
+
+  auto after_invalid = read_metrics();
+  EXPECT_EQ(after_invalid["transactions_total"], 1u);
+  EXPECT_EQ(after_invalid["transactions_failed"], 1u);
+  EXPECT_EQ(after_invalid["transactions_code_1"], 1u);
+  EXPECT_GE(after_invalid["security_events_total"], 1u);
+
+  auto signer = make_named_signer(41);
+  auto workspace_id = make_hash(42);
+  auto chain = fixture.chain_id();
+  auto create_workspace = encode_transaction(make_transaction(
+      chain, 1, signer,
+      charter::schema::create_workspace_t{.workspace_id = workspace_id,
+                                          .admin_set = {signer},
+                                          .quorum_size = 1,
+                                          .metadata_ref = std::nullopt}));
+  auto block2 = engine.finalize_block(2, {create_workspace});
+  ASSERT_EQ(block2.tx_results.size(), 1u);
+  EXPECT_EQ(block2.tx_results[0].code, 0u);
+  engine.commit();
+
+  auto after_success = read_metrics();
+  EXPECT_EQ(after_success["transactions_total"], 2u);
+  EXPECT_EQ(after_success["transactions_failed"], 1u);
+  EXPECT_EQ(after_success["transactions_code_1"], 1u);
+  EXPECT_EQ(after_success["transactions_code_0"], 1u);
 }
 
 TEST(engine_integration, transaction_results_include_useful_events) {

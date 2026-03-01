@@ -19,6 +19,7 @@
 #include <charter/schema/transaction_result.hpp>
 #include <charter/storage/rocksdb/storage.hpp>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -142,6 +143,7 @@ class engine final {
 
   /// Create/persist a snapshot if the configured interval has elapsed.
   void create_snapshot_if_due(int64_t height);
+
   /// Load committed state and snapshots from storage at startup.
   void load_persisted_state();
 
@@ -162,6 +164,13 @@ class engine final {
   std::optional<charter::schema::snapshot_descriptor_t> pending_snapshot_offer_;
   std::vector<charter::schema::snapshot_descriptor_t> snapshots_;
   uint64_t snapshot_interval_{100};
+  uint64_t metrics_transaction_total_{};
+  uint64_t metrics_transaction_failed_{};
+  uint64_t metrics_security_event_total_{};
+  uint64_t metrics_snapshots_total_{};
+  std::map<uint32_t, uint64_t> metrics_transaction_code_counts_;
+  std::map<uint32_t, uint64_t> metrics_security_severity_counts_;
+  std::map<uint32_t, uint64_t> metrics_intent_status_counts_;
 };
 
 }  // namespace charter::execution

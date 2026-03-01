@@ -42,6 +42,53 @@ Target end state:
 - Freeze app semantics for pilot window.
 - Collect latency, failure, and operator workload metrics.
 
+### Phase 1.5: Public Devnet Preview (Pre-Funding Friendly)
+- Run a small public devnet footprint (2 validators + 1 public RPC/read node).
+- Publish explicit non-production terms:
+  - resettable chain
+  - no asset safety guarantees
+  - no availability SLA
+- Expose read-first surfaces for external evaluation:
+  - explorer endpoints (`/explorer/overview`, `/explorer/block`, `/explorer/transaction`)
+  - engine metrics endpoint (`/metrics/engine`)
+- Stand up baseline Grafana/Prometheus pipeline using:
+  - CometBFT node metrics
+  - app-level metrics exported from engine query endpoint
+
+### Phase 1.5 Owner Checklist (Infra You Need to Run)
+- Devnet operations:
+  - run at least 2 validator nodes + 1 public read/RPC node
+  - define reset/restart process for devnet epochs
+  - keep backup and restore drill for chain data
+- Observability:
+  - run Prometheus scrapes for CometBFT and `/metrics/engine`
+  - publish Grafana dashboards for chain health and policy activity
+  - add baseline alerts (node down, tx failure-rate spike, block stall)
+- Explorer/read stack:
+  - run an indexer that polls `/explorer/overview`, `/explorer/block`, and `/explorer/transaction`
+  - expose a public read API and/or minimal UI for external evaluators
+  - document reindex and data-retention behavior
+- Ops/security baseline:
+  - front public endpoints with TLS and basic rate-limiting
+  - document runbooks for incident triage and service restarts
+  - keep operator contact path for bug reports and abuse reports
+
+### Infra Cost Reality (Free Software, Paid Operations)
+- Free/open-source components:
+  - CometBFT
+  - Prometheus + Grafana OSS
+  - explorer/indexer code you write
+  - open-source DBs (SQLite/Postgres)
+- Recurring paid costs for a public devnet:
+  - compute for validator/read nodes
+  - storage and backups
+  - network egress/bandwidth
+  - domain/TLS and uptime monitoring
+  - optional managed services (hosted DB/monitoring)
+- Practical expectation:
+  - local/private demos can be near $0
+  - public devnet normally has monthly cloud spend; budget this as pre-funding credibility infrastructure
+
 ### Phase 2: Consensus Abstraction
 - Create explicit consensus adapter contract:
   - mempool check
@@ -140,6 +187,15 @@ Target end state:
   - conflict-of-interest policy
 - Keep tokenization optional until core utility and legal clarity exist.
 
+11. **Observability and Explorer UX**
+- Define a minimum app metrics contract (names, units, reset semantics).
+- Provide a reference exporter that converts `/metrics/engine` into Prometheus series.
+- Provide a lightweight explorer/indexer service that:
+  - polls `/explorer/block`
+  - stores normalized tx/event rows
+  - serves a simple public read API
+- Include dashboard and explorer links in every devnet release note.
+
 ## Recommended Deliverables Before Funding Roadshow
 
 1. Production architecture and threat model docs.
@@ -175,3 +231,4 @@ Still required before serious pilot:
 - formalized error/event contract freeze for integrators
 - regulator evidence bundle schema with independent verifier workflow
 - operator runbooks with measured RTO/RPO drill evidence
+- public metrics + explorer stack with reproducible deploy artifacts

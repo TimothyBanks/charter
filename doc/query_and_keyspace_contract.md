@@ -22,6 +22,12 @@ Error codes currently used by query paths:
 Engine metadata:
 - `/engine/info` -> `(last_height, app_hash, chain_id)`
 - `/engine/keyspaces` -> `vector<string>` of key prefixes
+- `/metrics/engine` -> `(version, vector<(metric_name, value_u64)>, vector<(label_name, label_value)>)`
+
+Explorer/read helpers:
+- `/explorer/overview` -> `(version, height, state_root, chain_id, tx_total, tx_failed, security_events_total, snapshots_total, vector<(intent_status_u8,count)>, degraded_mode_u8)`
+- `/explorer/block` key: `SCALE uint64 block_height` -> `(height, vector<(tx_index, code, tx_hash_hex, payload_type, nonce, signer_hex)>)`
+- `/explorer/transaction` key: `SCALE tuple(uint64 height, uint32 index)` -> `(version, height, index, code, tx_hash_hex, payload_type, nonce, signer_hex, raw_tx_bytes)`
 
 State queries:
 - `/state/workspace`

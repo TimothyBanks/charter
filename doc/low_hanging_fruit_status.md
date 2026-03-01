@@ -68,9 +68,38 @@ Implemented:
 Result:
 - Faster bring-up triage and clearer run configuration in logs.
 
+## 9) Read API + Metrics Surface (Devnet)
+
+Implemented:
+- Added query route `/metrics/engine` for app-level metrics payloads.
+- Added explorer-oriented query routes:
+  - `/explorer/overview`
+  - `/explorer/block`
+  - `/explorer/transaction`
+- Added `transaction_builder query-key` support for the new explorer paths.
+- Added docs:
+  - `doc/abci_quick_reference.md`
+  - `doc/query_and_keyspace_contract.md` updates
+
+Result:
+- Public devnet can expose a stable read contract for dashboards and basic explorer/indexer builds.
+
 ## Remaining Easy Follow-Ups
 
 These are still low effort and can be done next without deep refactors:
 - Add golden vectors for one `intent_state_t` and one `policy_set_state_t`.
 - Add query-path fixture tests for all supported paths’ error envelopes.
 - Add startup metric counters (tx accepted/denied, replay applied, snapshot count) in periodic logs.
+- Add a reference Prometheus exporter that maps `/metrics/engine` to scrape-ready series.
+- Add minimal indexer service for `/explorer/*` into a queryable SQLite/Postgres store.
+
+## Roadmap Reminder: Owner-Run Devnet Infrastructure
+
+The remaining roadmap work includes infrastructure you need to stand up and operate:
+- Public devnet nodes (validator set + public read endpoint).
+- Prometheus/Grafana stack for monitoring.
+- Explorer/indexer/read API service for external users.
+
+Cost reminder:
+- The software stack is mostly free/open source.
+- Public devnet operations are not free (compute, storage, bandwidth, domain/TLS, monitoring).

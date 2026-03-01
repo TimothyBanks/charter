@@ -666,11 +666,27 @@ charter::schema::bytes_t make_height_range_query_key(
 }
 
 template <typename Encoder>
+charter::schema::bytes_t make_explorer_block_query_key(
+    Encoder& encoder,
+    const po::variables_map& vm) {
+  return encoder.encode(vm["block-height"].as<uint64_t>());
+}
+
+template <typename Encoder>
+charter::schema::bytes_t make_explorer_transaction_query_key(
+    Encoder& encoder,
+    const po::variables_map& vm) {
+  return encoder.encode(std::tuple{vm["block-height"].as<uint64_t>(),
+                                   vm["tx-index"].as<uint32_t>()});
+}
+
+template <typename Encoder>
 charter::schema::bytes_t make_query_key(Encoder& encoder,
                                         const po::variables_map& vm) {
   auto path = vm["path"].as<std::string>();
   if (path == "/engine/info" || path == "/engine/keyspaces" ||
-      path == "/history/export" || path == "/state/degraded_mode") {
+      path == "/history/export" || path == "/state/degraded_mode" ||
+      path == "/metrics/engine" || path == "/explorer/overview") {
     return make_empty_query_key();
   }
   if (path == "/state/workspace") {
@@ -711,6 +727,12 @@ charter::schema::bytes_t make_query_key(Encoder& encoder,
   }
   if (path == "/history/range" || path == "/events/range") {
     return make_height_range_query_key(encoder, vm);
+  }
+  if (path == "/explorer/block") {
+    return make_explorer_block_query_key(encoder, vm);
+  }
+  if (path == "/explorer/transaction") {
+    return make_explorer_transaction_query_key(encoder, vm);
   }
   charter::common::critical("unsupported query path");
 }
@@ -887,7 +909,11 @@ int main(int argc, const char** argv) {
       "degraded mode reason bytes hex")("from-height",
                                         po::value<uint64_t>()->default_value(1),
                                         "history range from")(
-      "to-height", po::value<uint64_t>()->default_value(1), "history range to");
+      "to-height", po::value<uint64_t>()->default_value(1), "history range to")(
+      "block-height", po::value<uint64_t>()->default_value(1),
+      "explorer block height")("tx-index",
+                               po::value<uint32_t>()->default_value(0),
+                               "explorer transaction index in block");
 
   auto positional = po::positional_options_description{};
   positional.add("command", 1);

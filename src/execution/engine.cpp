@@ -458,7 +458,9 @@ void append_security_event(
     const std::optional<charter::schema::hash32_t>& workspace_id,
     const std::optional<charter::schema::hash32_t>& vault_id,
     const uint64_t now_ms,
-    const uint64_t block_height) {
+    const uint64_t block_height,
+    uint64_t* security_event_total = nullptr,
+    std::map<uint32_t, uint64_t>* security_severity_counts = nullptr) {
   auto seq_key = make_event_sequence_key(encoder);
   auto next_id =
       storage
@@ -483,6 +485,10 @@ void append_security_event(
   storage.put(encoder,
               charter::schema::bytes_view_t{seq_key.data(), seq_key.size()},
               next_id + 1);
+  if (security_event_total != nullptr && security_severity_counts != nullptr) {
+    *security_event_total += 1;
+    (*security_severity_counts)[static_cast<uint32_t>(severity)] += 1;
+  }
 }
 
 template <typename Encoder>
@@ -1136,14 +1142,241 @@ std::vector<charter::storage::key_value_entry_t> list_state_entries(
     const rocksdb_storage_t& storage,
     const std::vector<charter::schema::bytes_t>& state_prefixes);
 
+template <typename Encoder>
+std::optional<charter::schema::transaction_t> decode_transaction(
+    Encoder& encoder,
+    const charter::schema::bytes_view_t& raw_tx,
+    std::string& decode_error);
+
 struct query_request_context final {
   rocksdb_storage_t& storage;
   scale_encoder_t& encoder;
   int64_t last_committed_height;
   const charter::schema::hash32_t& last_committed_state_root;
   const charter::schema::hash32_t& chain_id;
+  const uint64_t& metrics_transaction_total;
+  const uint64_t& metrics_transaction_failed;
+  const uint64_t& metrics_security_event_total;
+  const uint64_t& metrics_snapshots_total;
+  const std::map<uint32_t, uint64_t>& metrics_transaction_code_counts;
+  const std::map<uint32_t, uint64_t>& metrics_security_severity_counts;
+  const std::map<uint32_t, uint64_t>& metrics_intent_status_counts;
   charter::schema::bytes_view_t data;
 };
+
+template <typename RowFn>
+void for_each_history_row(const rocksdb_storage_t& storage,
+                          scale_encoder_t& encoder,
+                          RowFn&& row_fn) {
+  auto history_prefix = make_prefix_key(encoder, kHistoryPrefix);
+  auto history_rows = storage.list_by_prefix(charter::schema::bytes_view_t{
+      history_prefix.data(), history_prefix.size()});
+  for (const auto& [key, value] : history_rows) {
+    auto parsed = parse_history_key(
+        encoder, charter::schema::bytes_view_t{key.data(), key.size()});
+    if (!parsed.has_value()) {
+      continue;
+    }
+    auto decoded_row =
+        encoder.try_decode<std::tuple<uint32_t, charter::schema::bytes_t>>(
+            charter::schema::bytes_view_t{value.data(), value.size()});
+    if (!decoded_row.has_value()) {
+      continue;
+    }
+    row_fn(parsed->first, parsed->second, std::get<0>(*decoded_row),
+           std::get<1>(*decoded_row));
+  }
+}
+
+std::string hash_to_hex_string(const charter::schema::hash32_t& hash) {
+  auto bytes = charter::schema::bytes_t{std::begin(hash), std::end(hash)};
+  return to_hex(charter::schema::bytes_view_t{bytes.data(), bytes.size()});
+}
+
+struct decoded_transaction_summary final {
+  std::string payload_name{"decode_failed"};
+  uint64_t nonce{};
+  std::string signer_hex{};
+};
+
+decoded_transaction_summary summarize_transaction_bytes(
+    scale_encoder_t& encoder,
+    const charter::schema::bytes_t& tx_bytes) {
+  auto summary = decoded_transaction_summary{};
+  auto decode_error = std::string{};
+  auto maybe_tx = decode_transaction(
+      encoder, charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()},
+      decode_error);
+  if (!maybe_tx.has_value()) {
+    return summary;
+  }
+
+  summary.payload_name = payload_type_name(maybe_tx->payload);
+  summary.nonce = maybe_tx->nonce;
+  auto encoded_signer = encoder.encode(maybe_tx->signer);
+  summary.signer_hex = to_hex(charter::schema::bytes_view_t{
+      encoded_signer.data(), encoded_signer.size()});
+  return summary;
+}
+
+struct explorer_transaction_summary final {
+  std::string transaction_hash_hex{};
+  decoded_transaction_summary transaction{};
+};
+
+explorer_transaction_summary make_explorer_transaction_summary(
+    scale_encoder_t& encoder,
+    const charter::schema::bytes_t& tx_bytes) {
+  auto tx_hash = charter::blake3::hash(
+      charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
+  return explorer_transaction_summary{
+      .transaction_hash_hex = hash_to_hex_string(tx_hash),
+      .transaction = summarize_transaction_bytes(encoder, tx_bytes)};
+}
+
+struct engine_observability_snapshot final {
+  uint64_t transaction_total{};
+  uint64_t transaction_failed{};
+  uint64_t security_event_total{};
+  uint64_t snapshots_total{};
+  std::map<uint32_t, uint64_t> transaction_code_counts;
+  std::map<uint32_t, uint64_t> security_severity_counts;
+  std::map<uint32_t, uint64_t> intent_status_counts;
+};
+
+void increment_counter(std::map<uint32_t, uint64_t>& counters,
+                       const uint32_t key) {
+  counters[key] += 1;
+}
+
+void decrement_counter_if_present(std::map<uint32_t, uint64_t>& counters,
+                                  const uint32_t key) {
+  auto existing = counters.find(key);
+  if (existing == std::end(counters) || existing->second == 0) {
+    return;
+  }
+  existing->second -= 1;
+  if (existing->second == 0) {
+    counters.erase(existing);
+  }
+}
+
+void record_history_code_counters(
+    uint32_t code,
+    uint64_t& transaction_total,
+    uint64_t& transaction_failed,
+    std::map<uint32_t, uint64_t>& transaction_code_counts) {
+  transaction_total += 1;
+  increment_counter(transaction_code_counts, code);
+  if (code != 0) {
+    transaction_failed += 1;
+  }
+}
+
+void record_security_event_counters(
+    const charter::schema::security_event_severity_t severity,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts) {
+  security_event_total += 1;
+  increment_counter(security_severity_counts, static_cast<uint32_t>(severity));
+}
+
+void update_intent_status_counters(
+    const std::optional<charter::schema::intent_status_t>& previous_status,
+    const charter::schema::intent_status_t next_status,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
+  if (previous_status.has_value()) {
+    decrement_counter_if_present(intent_status_counts,
+                                 static_cast<uint32_t>(*previous_status));
+  }
+  increment_counter(intent_status_counts, static_cast<uint32_t>(next_status));
+}
+
+template <typename Encoder>
+void put_intent_state_with_counters(
+    rocksdb_storage_t& storage,
+    Encoder& encoder,
+    const charter::schema::bytes_t& intent_key,
+    const std::optional<charter::schema::intent_status_t>& previous_status,
+    const charter::schema::intent_state_t& next_state,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
+  update_intent_status_counters(previous_status, next_state.status,
+                                intent_status_counts);
+  storage.put(
+      encoder,
+      charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
+      next_state);
+}
+
+void rebuild_observability_counters(
+    const rocksdb_storage_t& storage,
+    scale_encoder_t& encoder,
+    const std::vector<charter::schema::snapshot_descriptor_t>& snapshots,
+    uint64_t& transaction_total,
+    uint64_t& transaction_failed,
+    std::map<uint32_t, uint64_t>& transaction_code_counts,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts,
+    std::map<uint32_t, uint64_t>& intent_status_counts,
+    uint64_t& snapshots_total) {
+  transaction_total = 0;
+  transaction_failed = 0;
+  security_event_total = 0;
+  snapshots_total = static_cast<uint64_t>(snapshots.size());
+  transaction_code_counts.clear();
+  security_severity_counts.clear();
+  intent_status_counts.clear();
+
+  for_each_history_row(
+      storage, encoder,
+      [&](uint64_t /*height*/, uint32_t /*index*/, uint32_t code,
+          const charter::schema::bytes_t& /*tx*/) {
+        record_history_code_counters(code, transaction_total,
+                                     transaction_failed,
+                                     transaction_code_counts);
+      });
+
+  auto event_prefix = make_prefix_key(encoder, kEventPrefix);
+  auto event_rows = storage.list_by_prefix(
+      charter::schema::bytes_view_t{event_prefix.data(), event_prefix.size()});
+  for (const auto& [unused_key, value] : event_rows) {
+    (void)unused_key;
+    auto event = encoder.try_decode<charter::schema::security_event_record_t>(
+        charter::schema::bytes_view_t{value.data(), value.size()});
+    if (!event.has_value()) {
+      continue;
+    }
+    record_security_event_counters(event->severity, security_event_total,
+                                   security_severity_counts);
+  }
+
+  auto intent_prefix = make_prefix_key(encoder, kIntentKeyPrefix);
+  auto intent_rows = storage.list_by_prefix(charter::schema::bytes_view_t{
+      intent_prefix.data(), intent_prefix.size()});
+  for (const auto& [unused_key, value] : intent_rows) {
+    (void)unused_key;
+    auto intent = encoder.try_decode<charter::schema::intent_state_t>(
+        charter::schema::bytes_view_t{value.data(), value.size()});
+    if (!intent.has_value()) {
+      continue;
+    }
+    increment_counter(intent_status_counts,
+                      static_cast<uint32_t>(intent->status));
+  }
+}
+
+engine_observability_snapshot collect_engine_observability(
+    const query_request_context& request) {
+  return engine_observability_snapshot{
+      .transaction_total = request.metrics_transaction_total,
+      .transaction_failed = request.metrics_transaction_failed,
+      .security_event_total = request.metrics_security_event_total,
+      .snapshots_total = request.metrics_snapshots_total,
+      .transaction_code_counts = request.metrics_transaction_code_counts,
+      .security_severity_counts = request.metrics_security_severity_counts,
+      .intent_status_counts = request.metrics_intent_status_counts,
+  };
+}
 
 charter::schema::query_result_t make_query_success_result(
     const query_request_context& request,
@@ -1166,6 +1399,38 @@ charter::schema::query_result_t make_query_error_result(
                                  request.last_committed_height, request.data);
 }
 
+std::optional<charter::schema::query_result_t> require_empty_query_key(
+    const query_request_context& request,
+    std::string_view query_name) {
+  if (request.data.empty()) {
+    return std::nullopt;
+  }
+
+  return make_query_error_result(
+      request, charter::schema::query_error_code::invalid_key, "invalid key",
+      std::string{query_name} + " query does not accept key payload");
+}
+
+std::vector<std::tuple<uint8_t, uint64_t>> encode_intent_status_counts(
+    const std::map<uint32_t, uint64_t>& intent_status_counts) {
+  auto encoded = std::vector<std::tuple<uint8_t, uint64_t>>{};
+  encoded.reserve(intent_status_counts.size());
+  for (const auto& [status, count] : intent_status_counts) {
+    encoded.emplace_back(std::tuple{static_cast<uint8_t>(status), count});
+  }
+  return encoded;
+}
+
+void append_intent_status_metrics(
+    const std::map<uint32_t, uint64_t>& intent_status_counts,
+    std::vector<std::tuple<std::string, uint64_t>>& numeric) {
+  for (const auto& [status, count] : intent_status_counts) {
+    numeric.emplace_back(std::tuple{
+        "intent_status_" + std::to_string(static_cast<uint32_t>(status)),
+        count});
+  }
+}
+
 charter::schema::query_result_t query_engine_info(
     const query_request_context& request) {
   return make_query_success_result(
@@ -1182,6 +1447,69 @@ charter::schema::query_result_t query_engine_keyspaces(
     prefixes.emplace_back(prefix);
   }
   return make_query_success_result(request, request.encoder.encode(prefixes));
+}
+
+charter::schema::query_result_t query_metrics_engine(
+    const query_request_context& request) {
+  if (auto invalid = require_empty_query_key(request, "metrics");
+      invalid.has_value()) {
+    return *invalid;
+  }
+
+  auto observed = collect_engine_observability(request);
+  auto degraded_mode = current_degraded_mode(request.storage, request.encoder);
+  auto numeric = std::vector<std::tuple<std::string, uint64_t>>{
+      {"last_committed_height",
+       static_cast<uint64_t>(request.last_committed_height)},
+      {"transactions_total", observed.transaction_total},
+      {"transactions_failed", observed.transaction_failed},
+      {"transactions_succeeded",
+       observed.transaction_total - observed.transaction_failed},
+      {"security_events_total", observed.security_event_total},
+      {"snapshots_total", observed.snapshots_total},
+      {"degraded_mode_active",
+       degraded_mode == charter::schema::degraded_mode_t::normal ? 0u : 1u},
+  };
+  for (const auto& [code, count] : observed.transaction_code_counts) {
+    numeric.emplace_back(
+        std::tuple{"transactions_code_" + std::to_string(code), count});
+  }
+  for (const auto& [severity, count] : observed.security_severity_counts) {
+    numeric.emplace_back(
+        std::tuple{"security_events_severity_" +
+                       std::to_string(static_cast<uint32_t>(severity)),
+                   count});
+  }
+  append_intent_status_metrics(observed.intent_status_counts, numeric);
+
+  auto labels = std::vector<std::tuple<std::string, std::string>>{
+      {"chain_id", hash_to_hex_string(request.chain_id)},
+      {"state_root", hash_to_hex_string(request.last_committed_state_root)},
+      {"degraded_mode", std::string{to_string(degraded_mode)}},
+  };
+  return make_query_success_result(request, request.encoder.encode(std::tuple{
+                                                uint16_t{1}, numeric, labels}));
+}
+
+charter::schema::query_result_t query_explorer_overview(
+    const query_request_context& request) {
+  if (auto invalid = require_empty_query_key(request, "explorer overview");
+      invalid.has_value()) {
+    return *invalid;
+  }
+
+  auto observed = collect_engine_observability(request);
+  auto intent_status_counts =
+      encode_intent_status_counts(observed.intent_status_counts);
+  auto degraded_mode = current_degraded_mode(request.storage, request.encoder);
+  return make_query_success_result(
+      request,
+      request.encoder.encode(std::tuple{
+          uint16_t{1}, static_cast<uint64_t>(request.last_committed_height),
+          request.last_committed_state_root, request.chain_id,
+          observed.transaction_total, observed.transaction_failed,
+          observed.security_event_total, observed.snapshots_total,
+          intent_status_counts, static_cast<uint8_t>(degraded_mode)}));
 }
 
 charter::schema::query_result_t query_state_workspace(
@@ -1493,32 +1821,17 @@ charter::schema::query_result_t query_history_range(
   }
   auto from_height = std::get<0>(decoded.value());
   auto to_height = std::get<1>(decoded.value());
-  auto prefix = make_prefix_key(request.encoder, kHistoryPrefix);
-  auto history_rows = request.storage.list_by_prefix(
-      charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   auto encoded_rows = std::vector<
       std::tuple<uint64_t, uint32_t, uint32_t, charter::schema::bytes_t>>{};
-  for (const auto& [key, value] : history_rows) {
-    auto parsed = parse_history_key(
-        request.encoder, charter::schema::bytes_view_t{key.data(), key.size()});
-    if (!parsed) {
-      continue;
-    }
-    auto [height, index] = *parsed;
-    if (height < from_height || height > to_height) {
-      continue;
-    }
-    auto decoded_row =
-        request.encoder
-            .try_decode<std::tuple<uint32_t, charter::schema::bytes_t>>(
-                charter::schema::bytes_view_t{value.data(), value.size()});
-    if (!decoded_row) {
-      continue;
-    }
-    encoded_rows.emplace_back(std::tuple{height, index,
-                                         std::get<0>(decoded_row.value()),
-                                         std::get<1>(decoded_row.value())});
-  }
+  for_each_history_row(
+      request.storage, request.encoder,
+      [&](uint64_t height, uint32_t index, uint32_t code,
+          const charter::schema::bytes_t& tx_bytes) {
+        if (height < from_height || height > to_height) {
+          return;
+        }
+        encoded_rows.emplace_back(std::tuple{height, index, code, tx_bytes});
+      });
   return make_query_success_result(request,
                                    request.encoder.encode(encoded_rows));
 }
@@ -1574,6 +1887,74 @@ charter::schema::query_result_t query_events_range(
   return make_query_success_result(request, request.encoder.encode(events));
 }
 
+charter::schema::query_result_t query_explorer_block(
+    const query_request_context& request) {
+  auto decoded = request.encoder.try_decode<uint64_t>(request.data);
+  if (!decoded.has_value()) {
+    return make_query_error_result(
+        request, charter::schema::query_error_code::invalid_key,
+        "invalid key encoding",
+        "explorer block query requires SCALE uint64 block height");
+  }
+  auto block_height = decoded.value();
+  auto rows = std::vector<std::tuple<uint32_t, uint32_t, std::string,
+                                     std::string, uint64_t, std::string>>{};
+  for_each_history_row(
+      request.storage, request.encoder,
+      [&](uint64_t height, uint32_t index, uint32_t code,
+          const charter::schema::bytes_t& tx_bytes) {
+        if (height != block_height) {
+          return;
+        }
+        auto transaction =
+            make_explorer_transaction_summary(request.encoder, tx_bytes);
+        rows.emplace_back(std::tuple{
+            index, code, transaction.transaction_hash_hex,
+            transaction.transaction.payload_name, transaction.transaction.nonce,
+            transaction.transaction.signer_hex});
+      });
+  std::ranges::sort(rows, [](const auto& lhs, const auto& rhs) {
+    return std::get<0>(lhs) < std::get<0>(rhs);
+  });
+  return make_query_success_result(
+      request, request.encoder.encode(std::tuple{block_height, rows}));
+}
+
+charter::schema::query_result_t query_explorer_transaction(
+    const query_request_context& request) {
+  auto decoded =
+      request.encoder.try_decode<std::tuple<uint64_t, uint32_t>>(request.data);
+  if (!decoded.has_value()) {
+    return make_query_error_result(
+        request, charter::schema::query_error_code::invalid_key,
+        "invalid key encoding",
+        "explorer transaction query requires SCALE tuple(height,index)");
+  }
+  auto height = std::get<0>(decoded.value());
+  auto index = std::get<1>(decoded.value());
+  auto key = make_history_key(request.encoder, height, index);
+  auto row =
+      request.storage.get<std::tuple<uint32_t, charter::schema::bytes_t>>(
+          request.encoder,
+          charter::schema::bytes_view_t{key.data(), key.size()});
+  if (!row.has_value()) {
+    return make_query_error_result(
+        request, charter::schema::query_error_code::not_found, "not found",
+        "history row not found for requested (height,index)");
+  }
+
+  auto code = std::get<0>(row.value());
+  auto tx_bytes = std::get<1>(row.value());
+  auto transaction =
+      make_explorer_transaction_summary(request.encoder, tx_bytes);
+  return make_query_success_result(
+      request,
+      request.encoder.encode(std::tuple{
+          uint16_t{1}, height, index, code, transaction.transaction_hash_hex,
+          transaction.transaction.payload_name, transaction.transaction.nonce,
+          transaction.transaction.signer_hex, tx_bytes}));
+}
+
 charter::schema::query_result_t query_unsupported_path(
     const query_request_context& request) {
   return make_query_error_result(
@@ -1586,7 +1967,9 @@ charter::schema::query_result_t query_unsupported_path(
       "/state/role_assignment, "
       "/state/signer_quarantine, /state/degraded_mode, "
       "/state/destination_update, "
-      "/history/range, /history/export, /events/range, /engine/keyspaces");
+      "/history/range, /history/export, /events/range, /engine/keyspaces, "
+      "/metrics/engine, /explorer/overview, /explorer/block, "
+      "/explorer/transaction");
 }
 
 using query_handler_t =
@@ -1600,6 +1983,10 @@ struct query_route_t final {
 const auto kQueryRoutes = std::array{
     query_route_t{"/engine/info", query_engine_info},
     query_route_t{"/engine/keyspaces", query_engine_keyspaces},
+    query_route_t{"/metrics/engine", query_metrics_engine},
+    query_route_t{"/explorer/overview", query_explorer_overview},
+    query_route_t{"/explorer/block", query_explorer_block},
+    query_route_t{"/explorer/transaction", query_explorer_transaction},
     query_route_t{"/state/workspace", query_state_workspace},
     query_route_t{"/state/vault", query_state_vault},
     query_route_t{"/state/asset", query_state_asset},
@@ -1858,7 +2245,8 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
     Encoder& encoder,
     const charter::schema::propose_intent_t& operation,
     const charter::schema::signer_id_t& signer,
-    const uint64_t now_ms) {
+    const uint64_t now_ms,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
   // Proposal stage freezes initial policy snapshot information on the intent
   // and performs early checks that can fail fast before approvals accumulate.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
@@ -1966,10 +2354,8 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
       .approvals_count = 0,
       // Claim requirements are copied onto intent state at proposal time.
       .claim_requirements = requirements->claim_requirements};
-  storage.put(
-      encoder,
-      charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-      state);
+  put_intent_state_with_counters(storage, encoder, intent_key, std::nullopt,
+                                 state, intent_status_counts);
   return make_execute_success("propose_intent persisted");
 }
 
@@ -1979,7 +2365,8 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
     Encoder& encoder,
     const charter::schema::approve_intent_t& operation,
     const charter::schema::signer_id_t& signer,
-    const uint64_t now_ms) {
+    const uint64_t now_ms,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
   // Approval stage records signer vote and updates intent readiness state.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
@@ -2007,11 +2394,11 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
   }
 
   if (intent->expires_at.has_value() && now_ms > intent->expires_at.value()) {
+    auto previous_status = intent->status;
     intent->status = charter::schema::intent_status_t::expired;
-    storage.put(
-        encoder,
-        charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-        *intent);
+    put_intent_state_with_counters(storage, encoder, intent_key,
+                                   previous_status, *intent,
+                                   intent_status_counts);
     return make_execute_error(
         charter::schema::transaction_error_code::intent_expired,
         "intent expired", "intent can no longer be approved");
@@ -2052,6 +2439,7 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
                                         .signer = signer,
                                         .signed_at = now_ms});
 
+  auto previous_status = intent->status;
   intent->approvals_count += 1;
   // Intent becomes executable only when both threshold and timelock are met.
   if (intent->approvals_count >= intent->required_threshold &&
@@ -2060,10 +2448,8 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
   } else {
     intent->status = charter::schema::intent_status_t::pending_approval;
   }
-  storage.put(
-      encoder,
-      charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-      *intent);
+  put_intent_state_with_counters(storage, encoder, intent_key, previous_status,
+                                 *intent, intent_status_counts);
   return make_execute_success("approve_intent persisted");
 }
 
@@ -2071,7 +2457,8 @@ template <typename Encoder>
 charter::schema::transaction_result_t execute_cancel_intent_operation(
     rocksdb_storage_t& storage,
     Encoder& encoder,
-    const charter::schema::cancel_intent_t& operation) {
+    const charter::schema::cancel_intent_t& operation,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
                     operation.vault_id)) {
@@ -2096,11 +2483,10 @@ charter::schema::transaction_result_t execute_cancel_intent_operation(
         "intent already executed", "executed intent cannot be cancelled");
   }
 
+  auto previous_status = intent->status;
   intent->status = charter::schema::intent_status_t::cancelled;
-  storage.put(
-      encoder,
-      charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-      *intent);
+  put_intent_state_with_counters(storage, encoder, intent_key, previous_status,
+                                 *intent, intent_status_counts);
   return make_execute_success("cancel_intent persisted");
 }
 
@@ -2110,7 +2496,8 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
     Encoder& encoder,
     const charter::schema::execute_intent_t& operation,
     const charter::schema::signer_id_t& signer,
-    const uint64_t now_ms) {
+    const uint64_t now_ms,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
   // Execution stage revalidates dynamic controls before final state transition.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
@@ -2131,11 +2518,11 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
         "intent missing", "intent must exist before execution");
   }
   if (intent->expires_at.has_value() && now_ms > intent->expires_at.value()) {
+    auto previous_status = intent->status;
     intent->status = charter::schema::intent_status_t::expired;
-    storage.put(
-        encoder,
-        charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-        *intent);
+    put_intent_state_with_counters(storage, encoder, intent_key,
+                                   previous_status, *intent,
+                                   intent_status_counts);
     return make_execute_error(
         charter::schema::transaction_error_code::intent_expired,
         "intent expired", "intent can no longer be executed");
@@ -2200,11 +2587,10 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
     }
   }
 
+  auto previous_status = intent->status;
   intent->status = charter::schema::intent_status_t::executed;
-  storage.put(
-      encoder,
-      charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
-      *intent);
+  put_intent_state_with_counters(storage, encoder, intent_key, previous_status,
+                                 *intent, intent_status_counts);
   // Counters mutate only after successful execution state transition.
   apply_velocity_limits(storage, encoder, operation.workspace_id,
                         operation.vault_id, intent->action,
@@ -2432,7 +2818,9 @@ charter::schema::transaction_result_t execute_upsert_role_assignment_operation(
     const charter::schema::upsert_role_assignment_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms,
-    const uint64_t current_block_height) {
+    const uint64_t current_block_height,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts) {
   auto role_assignment_key = make_role_assignment_key(
       encoder, operation.scope, operation.subject, operation.role);
   storage.put(encoder,
@@ -2444,7 +2832,7 @@ charter::schema::transaction_result_t execute_upsert_role_assignment_operation(
       charter::schema::security_event_type_t::role_assignment_updated,
       charter::schema::security_event_severity_t::info, 0,
       "role assignment updated", signer, std::nullopt, std::nullopt, now_ms,
-      current_block_height);
+      current_block_height, &security_event_total, &security_severity_counts);
   return make_execute_success("upsert_role_assignment persisted");
 }
 
@@ -2456,7 +2844,9 @@ execute_upsert_signer_quarantine_operation(
     const charter::schema::upsert_signer_quarantine_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms,
-    const uint64_t current_block_height) {
+    const uint64_t current_block_height,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts) {
   auto quarantine_key = make_signer_quarantine_key(encoder, operation.signer);
   storage.put(encoder,
               charter::schema::bytes_view_t{quarantine_key.data(),
@@ -2467,7 +2857,7 @@ execute_upsert_signer_quarantine_operation(
       charter::schema::security_event_type_t::signer_quarantine_updated,
       charter::schema::security_event_severity_t::warning, 0,
       "signer quarantine updated", signer, std::nullopt, std::nullopt, now_ms,
-      current_block_height);
+      current_block_height, &security_event_total, &security_severity_counts);
   return make_execute_success("upsert_signer_quarantine persisted");
 }
 
@@ -2478,7 +2868,9 @@ charter::schema::transaction_result_t execute_set_degraded_mode_operation(
     const charter::schema::set_degraded_mode_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms,
-    const uint64_t current_block_height) {
+    const uint64_t current_block_height,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts) {
   auto mode_key = make_degraded_mode_key(encoder);
   storage.put(encoder,
               charter::schema::bytes_view_t{mode_key.data(), mode_key.size()},
@@ -2488,7 +2880,7 @@ charter::schema::transaction_result_t execute_set_degraded_mode_operation(
       charter::schema::security_event_type_t::degraded_mode_updated,
       charter::schema::security_event_severity_t::warning, 0,
       "degraded mode updated", signer, std::nullopt, std::nullopt, now_ms,
-      current_block_height);
+      current_block_height, &security_event_total, &security_severity_counts);
   return make_execute_success("set_degraded_mode persisted");
 }
 
@@ -2498,7 +2890,10 @@ charter::schema::transaction_result_t execute_payload_operation(
     Encoder& encoder,
     const charter::schema::transaction_t& tx,
     const uint64_t now_ms,
-    const uint64_t current_block_height) {
+    const uint64_t current_block_height,
+    std::map<uint32_t, uint64_t>& intent_status_counts,
+    uint64_t& security_event_total,
+    std::map<uint32_t, uint64_t>& security_severity_counts) {
   // Execution dispatch intentionally stays centralized so the operation matrix
   // is explicit and testable in one location.
   return std::visit(
@@ -2530,18 +2925,22 @@ charter::schema::transaction_result_t execute_payload_operation(
           },
           [&](const charter::schema::propose_intent_t& operation) {
             return execute_propose_intent_operation(storage, encoder, operation,
-                                                    tx.signer, now_ms);
+                                                    tx.signer, now_ms,
+                                                    intent_status_counts);
           },
           [&](const charter::schema::approve_intent_t& operation) {
             return execute_approve_intent_operation(storage, encoder, operation,
-                                                    tx.signer, now_ms);
+                                                    tx.signer, now_ms,
+                                                    intent_status_counts);
           },
           [&](const charter::schema::cancel_intent_t& operation) {
-            return execute_cancel_intent_operation(storage, encoder, operation);
+            return execute_cancel_intent_operation(storage, encoder, operation,
+                                                   intent_status_counts);
           },
           [&](const charter::schema::execute_intent_t& operation) {
             return execute_execute_intent_operation(storage, encoder, operation,
-                                                    tx.signer, now_ms);
+                                                    tx.signer, now_ms,
+                                                    intent_status_counts);
           },
           [&](const charter::schema::upsert_attestation_t& operation) {
             return execute_upsert_attestation_operation(storage, encoder,
@@ -2566,17 +2965,20 @@ charter::schema::transaction_result_t execute_payload_operation(
           [&](const charter::schema::upsert_role_assignment_t& operation) {
             return execute_upsert_role_assignment_operation(
                 storage, encoder, operation, tx.signer, now_ms,
-                current_block_height);
+                current_block_height, security_event_total,
+                security_severity_counts);
           },
           [&](const charter::schema::upsert_signer_quarantine_t& operation) {
             return execute_upsert_signer_quarantine_operation(
                 storage, encoder, operation, tx.signer, now_ms,
-                current_block_height);
+                current_block_height, security_event_total,
+                security_severity_counts);
           },
           [&](const charter::schema::set_degraded_mode_t& operation) {
             return execute_set_degraded_mode_operation(
                 storage, encoder, operation, tx.signer, now_ms,
-                current_block_height);
+                current_block_height, security_event_total,
+                security_severity_counts);
           }},
       tx.payload);
 }
@@ -2873,7 +3275,9 @@ transaction_result_t engine::execute_operation(
     const charter::schema::transaction_t& tx) {
   // Execute the payload and emit security telemetry for denied operations.
   auto result = execute_payload_operation(
-      storage_, encoder_, tx, current_block_time_ms_, current_block_height_);
+      storage_, encoder_, tx, current_block_time_ms_, current_block_height_,
+      metrics_intent_status_counts_, metrics_security_event_total_,
+      metrics_security_severity_counts_);
   auto [workspace_id, vault_id] = scope_ids_for_payload(tx.payload);
 
   if (result.code != 0) {
@@ -2882,7 +3286,8 @@ transaction_result_t engine::execute_operation(
                           charter::schema::security_event_severity_t::error,
                           result.code, result.log, tx.signer, workspace_id,
                           vault_id, current_block_time_ms_,
-                          current_block_height_);
+                          current_block_height_, &metrics_security_event_total_,
+                          &metrics_security_severity_counts_);
   }
 
   if (result.code == 0) {
@@ -3023,12 +3428,16 @@ block_result_t engine::finalize_block(
           encoder_,
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{tx_result.code, txs[i]});
+      record_history_code_counters(tx_result.code, metrics_transaction_total_,
+                                   metrics_transaction_failed_,
+                                   metrics_transaction_code_counts_);
       append_security_event(
           storage_, encoder_,
           event_type_for_transaction_error(tx_result.code, true),
           charter::schema::security_event_severity_t::error, tx_result.code,
           tx_result.log, std::nullopt, std::nullopt, std::nullopt,
-          current_block_time_ms_, current_block_height_);
+          current_block_time_ms_, current_block_height_,
+          &metrics_security_event_total_, &metrics_security_severity_counts_);
       append_transaction_result_event(encoder_, tx_result, height,
                                       static_cast<uint32_t>(i), std::nullopt);
       result.tx_results.emplace_back(std::move(tx_result));
@@ -3049,12 +3458,16 @@ block_result_t engine::finalize_block(
           encoder_,
           charter::schema::bytes_view_t{history_key.data(), history_key.size()},
           std::tuple{validation.code, txs[i]});
+      record_history_code_counters(validation.code, metrics_transaction_total_,
+                                   metrics_transaction_failed_,
+                                   metrics_transaction_code_counts_);
       append_security_event(
           storage_, encoder_,
           event_type_for_transaction_error(validation.code, true),
           charter::schema::security_event_severity_t::error, validation.code,
           validation.log, maybe_tx->signer, std::nullopt, std::nullopt,
-          current_block_time_ms_, current_block_height_);
+          current_block_time_ms_, current_block_height_,
+          &metrics_security_event_total_, &metrics_security_severity_counts_);
       append_transaction_result_event(encoder_, validation, height,
                                       static_cast<uint32_t>(i), maybe_tx);
       result.tx_results.emplace_back(std::move(validation));
@@ -3068,6 +3481,9 @@ block_result_t engine::finalize_block(
         encoder_,
         charter::schema::bytes_view_t{history_key.data(), history_key.size()},
         std::tuple{tx_result.code, txs[i]});
+    record_history_code_counters(tx_result.code, metrics_transaction_total_,
+                                 metrics_transaction_failed_,
+                                 metrics_transaction_code_counts_);
     append_transaction_result_event(encoder_, tx_result, height,
                                     static_cast<uint32_t>(i), maybe_tx);
     result.tx_results.emplace_back(std::move(tx_result));
@@ -3127,6 +3543,13 @@ query_result_t engine::query(std::string_view path,
       .last_committed_height = last_committed_height_,
       .last_committed_state_root = last_committed_state_root_,
       .chain_id = chain_id_,
+      .metrics_transaction_total = metrics_transaction_total_,
+      .metrics_transaction_failed = metrics_transaction_failed_,
+      .metrics_security_event_total = metrics_security_event_total_,
+      .metrics_snapshots_total = metrics_snapshots_total_,
+      .metrics_transaction_code_counts = metrics_transaction_code_counts_,
+      .metrics_security_severity_counts = metrics_security_severity_counts_,
+      .metrics_intent_status_counts = metrics_intent_status_counts_,
       .data = data};
 
   // Route table keeps query behavior deterministic and easy to audit.
@@ -3142,31 +3565,17 @@ query_result_t engine::query(std::string_view path,
 std::vector<history_entry_t> engine::history(uint64_t from_height,
                                              uint64_t to_height) const {
   auto lock = std::scoped_lock{mutex_};
-  auto prefix = make_prefix_key(encoder_, kHistoryPrefix);
-  auto rows = storage_.list_by_prefix(
-      charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   auto output = std::vector<history_entry_t>{};
-  for (const auto& [key, value] : rows) {
-    auto parsed = parse_history_key(
-        encoder_, charter::schema::bytes_view_t{key.data(), key.size()});
-    if (!parsed) {
-      continue;
-    }
-    auto [height, index] = *parsed;
-    if (height < from_height || height > to_height) {
-      continue;
-    }
-    auto decoded =
-        encoder_.try_decode<std::tuple<uint32_t, charter::schema::bytes_t>>(
-            charter::schema::bytes_view_t{value.data(), value.size()});
-    if (!decoded) {
-      continue;
-    }
-    output.emplace_back(history_entry_t{.height = height,
-                                        .index = index,
-                                        .code = std::get<0>(decoded.value()),
-                                        .tx = std::get<1>(decoded.value())});
-  }
+  for_each_history_row(
+      storage_, encoder_,
+      [&](uint64_t height, uint32_t index, uint32_t code,
+          const charter::schema::bytes_t& tx_bytes) {
+        if (height < from_height || height > to_height) {
+          return;
+        }
+        output.emplace_back(history_entry_t{
+            .height = height, .index = index, .code = code, .tx = tx_bytes});
+      });
   return output;
 }
 
@@ -3254,7 +3663,8 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
         charter::schema::security_event_type_t::backup_import_failed,
         charter::schema::security_event_severity_t::error, 1, error,
         std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return false;
   }
   if (std::get<0>(decoded.value()) != 1) {
@@ -3264,7 +3674,8 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
         charter::schema::security_event_type_t::backup_import_failed,
         charter::schema::security_event_severity_t::error, 1, error,
         std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return false;
   }
   if (std::get<5>(decoded.value()) != chain_id_) {
@@ -3274,7 +3685,8 @@ bool engine::load_backup(const charter::schema::bytes_view_t& backup,
         charter::schema::security_event_type_t::backup_import_failed,
         charter::schema::security_event_severity_t::error, 1, error,
         std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return false;
   }
 
@@ -3400,7 +3812,8 @@ replay_result_t engine::replay_history() {
         charter::schema::security_event_type_t::replay_checkpoint_mismatch,
         charter::schema::security_event_severity_t::warning, 0, result.error,
         std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
   }
   result.ok = true;
   result.last_height = last_committed_height_;
@@ -3459,7 +3872,8 @@ offer_snapshot_result engine::offer_snapshot(
         charter::schema::security_event_type_t::snapshot_rejected,
         charter::schema::security_event_severity_t::warning, 0,
         "snapshot format rejected", std::nullopt, std::nullopt, std::nullopt,
-        current_block_time_ms_, static_cast<uint64_t>(last_committed_height_));
+        current_block_time_ms_, static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return offer_snapshot_result::reject_format;
   }
   if (offered.chunks != 1) {
@@ -3471,7 +3885,8 @@ offer_snapshot_result engine::offer_snapshot(
         charter::schema::security_event_severity_t::warning, 0,
         "snapshot chunk count rejected", std::nullopt, std::nullopt,
         std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return offer_snapshot_result::reject;
   }
   if (!trusted_state_root.empty() && trusted_state_root != offered.hash) {
@@ -3483,7 +3898,8 @@ offer_snapshot_result engine::offer_snapshot(
         charter::schema::security_event_severity_t::warning, 0,
         "snapshot trusted hash rejected", std::nullopt, std::nullopt,
         std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return offer_snapshot_result::reject;
   }
   pending_snapshot_offer_ = offered;
@@ -3513,7 +3929,8 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
         charter::schema::security_event_severity_t::warning, 0,
         "snapshot chunk hash mismatch", std::nullopt, std::nullopt,
         std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return apply_snapshot_chunk_result::reject_snapshot;
   }
   auto restore_error = std::string{};
@@ -3524,7 +3941,8 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
         charter::schema::security_event_type_t::snapshot_rejected,
         charter::schema::security_event_severity_t::error, 0, restore_error,
         std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-        static_cast<uint64_t>(last_committed_height_));
+        static_cast<uint64_t>(last_committed_height_),
+        &metrics_security_event_total_, &metrics_security_severity_counts_);
     return apply_snapshot_chunk_result::reject_snapshot;
   }
 
@@ -3546,6 +3964,11 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
   } else {
     *existing = *pending_snapshot_offer_;
   }
+  rebuild_observability_counters(
+      storage_, encoder_, snapshots_, metrics_transaction_total_,
+      metrics_transaction_failed_, metrics_transaction_code_counts_,
+      metrics_security_event_total_, metrics_security_severity_counts_,
+      metrics_intent_status_counts_, metrics_snapshots_total_);
   pending_snapshot_offer_.reset();
   spdlog::info("Applied snapshot chunk {}", index);
   append_security_event(
@@ -3553,7 +3976,8 @@ apply_snapshot_chunk_result engine::apply_snapshot_chunk(
       charter::schema::security_event_type_t::snapshot_applied,
       charter::schema::security_event_severity_t::info, 0, "snapshot applied",
       std::nullopt, std::nullopt, std::nullopt, current_block_time_ms_,
-      static_cast<uint64_t>(last_committed_height_));
+      static_cast<uint64_t>(last_committed_height_),
+      &metrics_security_event_total_, &metrics_security_severity_counts_);
   return apply_snapshot_chunk_result::accept;
 }
 
@@ -3585,6 +4009,7 @@ void engine::create_snapshot_if_due(int64_t height) {
   } else {
     *existing = snapshot;
   }
+  metrics_snapshots_total_ = static_cast<uint64_t>(snapshots_.size());
   spdlog::info("Created snapshot at height {} format {}", snapshot.height,
                snapshot.format);
 }
@@ -3608,6 +4033,11 @@ void engine::load_persisted_state() {
                               .hash = snapshot.hash,
                               .metadata = snapshot.metadata});
   }
+  rebuild_observability_counters(
+      storage_, encoder_, snapshots_, metrics_transaction_total_,
+      metrics_transaction_failed_, metrics_transaction_code_counts_,
+      metrics_security_event_total_, metrics_security_severity_counts_,
+      metrics_intent_status_counts_, metrics_snapshots_total_);
 }
 
 }  // namespace charter::execution
