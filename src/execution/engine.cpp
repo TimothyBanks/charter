@@ -2701,6 +2701,7 @@ engine::engine(
     : encoder_{encoder},
       storage_{storage},
       chain_id_{make_chain_id()},
+      require_strict_crypto_{require_strict_crypto},
       snapshot_interval_{snapshot_interval} {
   spdlog::info(
       "Initializing execution engine:  snapshot_interval={} "
@@ -2721,21 +2722,26 @@ engine::engine(
   if (snapshot_interval_ == 0) {
     spdlog::warn("Snapshot interval is 0; snapshots disabled");
   }
-  if (charter::crypto::available()) {
-    signature_verifier_ = charter::crypto::verify_signature;
-  } else {
-    if (require_strict_crypto) {
+  auto crypto_available = charter::crypto::available();
+  if (require_strict_crypto_) {
+    if (!crypto_available) {
       charter::common::critical(
           "OpenSSL backend unavailable for strict signature verification");
     }
-    spdlog::warn(
-        "OpenSSL backend unavailable for full signature verification; "
-        "falling back to compatibility-only checks");
-    signature_verifier_ = [](const charter::schema::bytes_view_t&,
-                             const charter::schema::signer_id_t&,
-                             const charter::schema::signature_t&) {
-      return true;
-    };
+    signature_verifier_ = charter::crypto::verify_signature;
+    signature_verifier_overridden_ = false;
+  } else {
+    if (crypto_available) {
+      spdlog::warn(
+          "Strict signature verification disabled by configuration; "
+          "signature checks are bypassed");
+    } else {
+      spdlog::warn(
+          "OpenSSL backend unavailable for full signature verification; "
+          "signature checks are bypassed");
+    }
+    signature_verifier_ = {};
+    signature_verifier_overridden_ = false;
   }
   spdlog::info("Execution engine ready at height {} with {} snapshot(s)",
                last_committed_height_, snapshots_.size());
@@ -2851,7 +2857,21 @@ transaction_result_t engine::validate_transaction(
         std::string{codespace});
   }
   auto signing_bytes = make_signing_bytes(encoder_, tx);
-  if (signature_verifier_ &&
+  // In non-strict mode, signatures are always bypassed for PoC/demo workflows.
+  // Runtime verifier overrides are only honored when strict crypto is enabled.
+  auto should_verify_signature = require_strict_crypto_;
+  spdlog::debug(
+      "signature gate: strict={} overridden={} has_verifier={} codespace={}",
+      require_strict_crypto_, signature_verifier_overridden_,
+      static_cast<bool>(signature_verifier_), codespace);
+  if (should_verify_signature && !signature_verifier_) {
+    return make_error_transaction_result(
+        charter::schema::transaction_error_code::signature_verification_failed,
+        "signature verification failed",
+        "signature verifier is not configured in verification-required mode",
+        std::string{codespace});
+  }
+  if (should_verify_signature &&
       !signature_verifier_(charter::schema::bytes_view_t{signing_bytes.data(),
                                                          signing_bytes.size()},
                            tx.signer, tx.signature)) {
@@ -3296,7 +3316,20 @@ replay_result_t engine::replay_history() {
 
 void engine::set_signature_verifier(signature_verifier_t verifier) {
   auto lock = std::scoped_lock{mutex_};
+  if (!require_strict_crypto_) {
+    spdlog::warn(
+        "set_signature_verifier ignored because strict crypto is disabled");
+    signature_verifier_ = {};
+    signature_verifier_overridden_ = false;
+    return;
+  }
+  spdlog::warn(
+      "set_signature_verifier called at runtime (strict={} current_overridden={} "
+      "new_has_verifier={})",
+      require_strict_crypto_, signature_verifier_overridden_,
+      static_cast<bool>(verifier));
   signature_verifier_ = std::move(verifier);
+  signature_verifier_overridden_ = true;
 }
 
 std::vector<snapshot_descriptor_t> engine::list_snapshots() const {

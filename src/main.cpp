@@ -61,7 +61,8 @@ int main(int argc, char* argv[]) {
           ->default_value("charter.backup"),
       "Path to backup bundle used for startup/shutdown restore")(
       "allow-insecure-crypto",
-      "Allow startup without strict cryptographic verification backend");
+      boost::program_options::bool_switch(&allow_insecure_crypto),
+      "Disable strict signature verification (PoC/demo mode only)");
   boost::program_options::store(
       boost::program_options::parse_command_line(argc, argv, description), vm);
   boost::program_options::notify(vm);
@@ -71,17 +72,20 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  if (vm.contains("allow-insecure-crypto")) {
-    allow_insecure_crypto = true;
-  }
+  auto require_strict_crypto = !allow_insecure_crypto;
 
   auto copy = grpc_port;
   std::ranges::replace(copy, ':', ' ');
   spdlog::info(
       "startup config: grpc_port='{}' backup_file='{}' strict_crypto={} "
       "openssl_backend_available={} snapshot_interval_default={} cxx={}",
-      grpc_port, backup_path, !allow_insecure_crypto,
+      grpc_port, backup_path, require_strict_crypto,
       charter::crypto::available(), 100, __cplusplus);
+  if (!require_strict_crypto) {
+    spdlog::warn(
+        "--allow-insecure-crypto enabled: signature checks run in "
+        "compatibility mode");
+  }
   spdlog::info("gRPC service listening on {}", copy);
 
   grpc::EnableDefaultHealthCheckService(true);
@@ -94,7 +98,7 @@ int main(int argc, char* argv[]) {
       charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
           db_path);
   auto execution_engine =
-      charter::execution::engine{encoder, storage, 100, !allow_insecure_crypto};
+      charter::execution::engine{encoder, storage, 100, require_strict_crypto};
   auto loaded_backup = execution_engine.load_backup(backup_path);
   if (loaded_backup) {
     auto replay = execution_engine.replay_history();
@@ -111,6 +115,14 @@ int main(int argc, char* argv[]) {
   grpc_builder.RegisterService(&grpc_listener);
   auto grpc_server =
       std::unique_ptr<grpc::Server>(grpc_builder.BuildAndStart());
+  if (!grpc_server) {
+    spdlog::critical(
+        "Failed to start gRPC server on '{}'. Address may be invalid or "
+        "already in use.",
+        grpc_port);
+    spdlog::shutdown();
+    return 1;
+  }
   grpc_server->GetHealthCheckService()->SetServingStatus(false);
 
   auto threads = std::vector<std::thread>{};

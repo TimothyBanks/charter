@@ -193,6 +193,22 @@ This repo also includes:
 tests/run_proof_first_demo.sh
 ```
 
+### Strict Crypto Note (Important)
+
+The proof script currently builds transactions with a `named_signer_t` identity
+and placeholder signature bytes. That is fine for PoC mode with
+`ALLOW_INSECURE_CRYPTO=1`, but it will fail in strict mode.
+
+If you run local services with strict crypto enabled, `CheckTx` will reject txs
+with:
+
+- code `6`
+- log `signature verification failed`
+
+Reason: strict verification expects a real public-key signer variant
+(`ed25519_signer_id` or `secp256k1_signer_id`) and a valid signature over the
+transaction signing bytes.
+
 Defaults:
 - uses `build.debug/transaction_builder`
 - expects Comet RPC at `http://127.0.0.1:26657`
@@ -205,6 +221,7 @@ Examples:
 tests/run_proof_first_demo.sh
 
 # Ask script to start local services (requires cometbft available)
+# PoC default: use insecure crypto mode because demo tx signatures are placeholders
 START_LOCAL=1 ALLOW_INSECURE_CRYPTO=1 tests/run_proof_first_demo.sh
 ```
 

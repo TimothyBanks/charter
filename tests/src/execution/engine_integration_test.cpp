@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <charter/crypto/verify.hpp>
 #include <charter/execution/engine.hpp>
 #include <charter/schema/active_policy_pointer.hpp>
 #include <charter/schema/encoding/scale/encoder.hpp>
@@ -1215,8 +1216,12 @@ TEST(engine_integration, snapshot_chunk_corruption_is_rejected_then_recovers) {
 }
 
 TEST(engine_integration, transaction_error_code_matrix_coverage) {
+  if (!charter::crypto::available()) {
+    GTEST_SKIP() << "OpenSSL backend not available; strict signature path "
+                    "cannot be exercised for code=6";
+  }
   auto observed = std::set<uint32_t>{};
-  auto run = [&](const std::string& label, const auto& fn) {
+  auto run = [&](const std::string& label, const auto& fn, bool strict = false) {
     auto db = make_db_path("charter_engine_code_" + label);
     {
       auto encoder = charter::schema::encoding::encoder<
@@ -1224,7 +1229,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
       auto storage =
           charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
               db);
-      auto engine = charter::execution::engine{encoder, storage, 1, false};
+      auto engine = charter::execution::engine{encoder, storage, 1, strict};
       engine.set_signature_verifier(
           [](const charter::schema::bytes_view_t&,
              const charter::schema::signer_id_t&,
@@ -1330,7 +1335,7 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
         charter::schema::bytes_view_t{raw.data(), raw.size()});
     seen.insert(result.code);
     EXPECT_EQ(result.code, 6u);
-  });
+  }, true);
 
   run("10_12_14_19_24_37", [](auto& engine, auto& seen) {
     auto chain = chain_id_from_engine(engine);
@@ -2605,6 +2610,39 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                          17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
                          30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41};
   EXPECT_EQ(observed, expected);
+}
+
+TEST(engine_integration,
+     non_strict_crypto_mode_allows_placeholder_signature_checktx) {
+  if (!charter::crypto::available()) {
+    GTEST_SKIP()
+        << "OpenSSL backend not available; strict/non-strict verifier behavior "
+           "cannot be distinguished";
+  }
+
+  auto db = make_db_path("charter_engine_non_strict_sig");
+  {
+    auto encoder = charter::schema::encoding::encoder<
+        charter::schema::encoding::scale_encoder_tag>{};
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
+    auto engine = charter::execution::engine{encoder, storage, 1, false};
+    auto chain = chain_id_from_engine(engine);
+    auto signer = make_named_signer(77);
+    auto tx = make_transaction(
+        chain, 1, signer,
+        charter::schema::create_workspace_t{.workspace_id = make_hash(90),
+                                            .admin_set = {signer},
+                                            .quorum_size = 1,
+                                            .metadata_ref = std::nullopt});
+    auto raw = encode_transaction(tx);
+    auto result = engine.check_transaction(
+        charter::schema::bytes_view_t{raw.data(), raw.size()});
+    EXPECT_EQ(result.code, 0u);
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
 }
 
 TEST(engine_integration, security_event_type_coverage) {

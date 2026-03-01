@@ -3,6 +3,7 @@
 #include <boost/endian/buffers.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -40,6 +41,12 @@ hash32_t make_hash32(const std::string_view& bytes);
 std::optional<hash32_t> try_make_hash32(const std::string& bytes);
 std::optional<hash32_t> try_make_hash32(const std::string_view& bytes);
 std::string to_hex(const charter::schema::bytes_view_t& bytes);
+std::optional<bytes_t> try_from_hex(std::string_view hex);
+bytes_t from_hex(std::string_view hex);
+std::string to_base64(const charter::schema::bytes_view_t& bytes);
+std::string to_base64(const charter::schema::bytes_t& bytes);
+std::optional<bytes_t> try_from_base64(std::string_view encoded);
+bytes_t from_base64(std::string_view encoded);
 hash32_t make_zero_hash();
 
 struct ed25519_signer_id final {

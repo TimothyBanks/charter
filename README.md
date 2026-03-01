@@ -64,6 +64,11 @@ Then start CometBFT
 $ cometbft node
 ```
 
+You can also run the golden workflow for the PoC
+```
+$ REPORT_PATH=/tmp/proof_report.txt START_LOCAL=1 ALLOW_INSECURE_CRYPTO=1 CHARTER_GRPC_ADDR=127.0.0.1:36658 COMET_RPC=http://127.0.0.1:36657 bash ./tests/run_proof_first_demo.sh
+```
+
 ## Onboarding Checklist
 
 Use this as the default first-day setup and verification flow.
@@ -76,7 +81,7 @@ $ ./build.debug/charter_tests
 ```
 4. Run the canonical PoC workflow script:
 ```
-$ tests/run_proof_first_demo.sh
+$ START_LOCAL=1 ALLOW_INSECURE_CRYPTO=1 tests/run_proof_first_demo.sh
 ```
 5. Confirm the proof report is generated under `tests/` and ends in success.
 6. Validate key state queries from the proof flow:
@@ -90,6 +95,9 @@ $ tests/run_proof_first_demo.sh
    - `doc/transaction_workflow_matrix.md`
 
 Note: asset onboarding (`upsert_asset`) is required before transfer intents; missing or disabled assets fail with codes `40`/`41`.
+Note: strict crypto mode requires real public-key signers and valid signatures.
+The current PoC script uses placeholder signatures, so strict mode will fail at
+`CheckTx` with code `6` (`signature_verification_failed`).
 
 ## Chat Recovery Log
 
@@ -114,5 +122,5 @@ Required args:
 ## clang-format
 
 ```
-$ ./run-clang-format.sh include/ src/
+$ ./run-clang-format.sh include src tests/include tests/src
 ```

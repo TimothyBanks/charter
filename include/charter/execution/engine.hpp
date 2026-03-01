@@ -94,6 +94,8 @@ class engine final {
   uint64_t current_block_time_ms_{};
   uint64_t current_block_height_{};
   charter::schema::hash32_t chain_id_;
+  bool require_strict_crypto_{true};
+  bool signature_verifier_overridden_{false};
   signature_verifier_t signature_verifier_;
   std::optional<charter::schema::snapshot_descriptor_t> pending_snapshot_offer_;
   std::vector<charter::schema::snapshot_descriptor_t> snapshots_;

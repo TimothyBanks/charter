@@ -23,3 +23,15 @@ TEST(primitives, make_zero_hash_returns_zero_bytes) {
     EXPECT_EQ(byte, 0u);
   }
 }
+
+TEST(primitives, base64_round_trips_bytes) {
+  auto payload = charter::schema::bytes_t{0x01, 0x02, 0x03, 0xFE, 0xFF};
+  auto encoded = charter::schema::to_base64(payload);
+  auto decoded = charter::schema::from_base64(encoded);
+  EXPECT_EQ(decoded, payload);
+}
+
+TEST(primitives, try_from_base64_rejects_invalid_input) {
+  auto decoded = charter::schema::try_from_base64("not base64***");
+  EXPECT_FALSE(decoded.has_value());
+}
