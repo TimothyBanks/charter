@@ -449,6 +449,10 @@ if(WITH_TESTS)
       spdlog::spdlog
       ${Boost_LIBRARIES}
   )
+  target_include_directories(charter_tests
+    PRIVATE
+      ${CMAKE_CURRENT_LIST_DIR}/tests/include
+  )
   target_compile_definitions(charter_tests
     PRIVATE
       SPDLOG_USE_STD_FORMAT

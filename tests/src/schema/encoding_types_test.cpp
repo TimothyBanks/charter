@@ -16,6 +16,7 @@
 #include <charter/schema/upsert_role_assignment.hpp>
 #include <charter/schema/upsert_signer_quarantine.hpp>
 #include <charter/schema/velocity_counter_state.hpp>
+#include <charter/testing/common.hpp>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -26,20 +27,10 @@
 
 namespace {
 
-charter::schema::hash32_t make_hash(const uint8_t seed) {
-  auto out = charter::schema::hash32_t{};
-  for (std::size_t i = 0; i < out.size(); ++i) {
-    out[i] = static_cast<uint8_t>(seed + static_cast<uint8_t>(i));
-  }
-  return out;
-}
+using charter::testing::make_hash;
 
 charter::schema::signer_id_t make_ed25519_signer(const uint8_t seed) {
-  auto signer = charter::schema::ed25519_signer_id{};
-  for (std::size_t i = 0; i < signer.public_key.size(); ++i) {
-    signer.public_key[i] = static_cast<uint8_t>(seed + static_cast<uint8_t>(i));
-  }
-  return signer;
+  return charter::testing::make_ed25519_signer(seed);
 }
 
 std::string to_hex(const charter::schema::bytes_t& bytes) {

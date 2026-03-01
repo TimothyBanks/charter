@@ -2,8 +2,8 @@
 #include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/storage/rocksdb/storage.hpp>
 #include <charter/storage/storage.hpp>
+#include <charter/testing/common.hpp>
 
-#include <chrono>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -14,23 +14,9 @@ using storage_t =
     charter::storage::storage<charter::storage::rocksdb_storage_tag>;
 using encoder_t = charter::schema::encoding::encoder<
     charter::schema::encoding::scale_encoder_tag>;
-
-charter::schema::hash32_t make_hash(const uint8_t seed) {
-  auto out = charter::schema::hash32_t{};
-  for (std::size_t i = 0; i < out.size(); ++i) {
-    out[i] = static_cast<uint8_t>(seed + static_cast<uint8_t>(i));
-  }
-  return out;
-}
-
-std::string make_db_path(const std::string& prefix) {
-  auto now =
-      std::chrono::high_resolution_clock::now().time_since_epoch().count();
-  auto path =
-      std::filesystem::temp_directory_path() /
-      (prefix + "_" + std::to_string(static_cast<unsigned long long>(now)));
-  return path.string();
-}
+using charter::testing::make_db_path;
+using charter::testing::make_hash;
+using charter::testing::remove_path;
 
 }  // namespace
 
@@ -65,8 +51,7 @@ TEST(storage_types, committed_state_round_trips) {
     EXPECT_EQ(loaded->height, state.height);
     EXPECT_EQ(loaded->state_root, state.state_root);
   }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  remove_path(db);
 }
 
 TEST(storage_types, snapshot_lifecycle_round_trips) {
@@ -103,8 +88,7 @@ TEST(storage_types, snapshot_lifecycle_round_trips) {
                                                      snapshot.format, 1);
     EXPECT_FALSE(missing_chunk.has_value());
   }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  remove_path(db);
 }
 
 TEST(storage_types, replace_by_prefix_rewrites_selected_keyspace_only) {
@@ -152,6 +136,5 @@ TEST(storage_types, replace_by_prefix_rewrites_selected_keyspace_only) {
     ASSERT_TRUE(b_value.has_value());
     EXPECT_EQ(b_value.value(), 9u);
   }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  remove_path(db);
 }

@@ -1,216 +1,33 @@
 #include <gtest/gtest.h>
 #include <charter/crypto/verify.hpp>
 #include <charter/execution/engine.hpp>
-#include <charter/schema/active_policy_pointer.hpp>
-#include <charter/schema/encoding/scale/encoder.hpp>
-#include <charter/schema/intent_state.hpp>
 #include <charter/storage/rocksdb/storage.hpp>
+#include <charter/testing/execution_fixture.hpp>
+#include <charter/testing/execution_harness.hpp>
 
 #include <algorithm>
-#include <chrono>
-#include <cstdint>
 #include <filesystem>
-#include <map>
 #include <optional>
 #include <set>
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace {
 
-using encoder_t = charter::schema::encoding::encoder<
-    charter::schema::encoding::scale_encoder_tag>;
-
-charter::schema::hash32_t make_hash(uint8_t seed) {
-  auto value = charter::schema::hash32_t{};
-  for (size_t i = 0; i < value.size(); ++i) {
-    value[i] = static_cast<uint8_t>(seed + i);
-  }
-  return value;
-}
-
-charter::schema::signer_id_t make_named_signer(uint8_t seed) {
-  auto named = charter::schema::named_signer_t{};
-  named[0] = seed;
-  return charter::schema::signer_id_t{named};
-}
-
-charter::schema::transaction_t make_transaction(
-    const charter::schema::hash32_t& chain_id,
-    uint64_t nonce,
-    const charter::schema::signer_id_t& signer,
-    const charter::schema::transaction_payload_t& payload) {
-  return charter::schema::transaction_t{
-      .version = 1,
-      .chain_id = chain_id,
-      .nonce = nonce,
-      .signer = signer,
-      .payload = payload,
-      .signature = charter::schema::ed25519_signature_t{}};
-}
-
-charter::schema::bytes_t encode_transaction(
-    const charter::schema::transaction_t& tx) {
-  auto encoder = encoder_t{};
-  return encoder.encode(tx);
-}
-
-charter::schema::hash32_t chain_id_from_engine(
-    charter::execution::engine& engine) {
-  auto query = engine.query("/engine/info", {});
-  EXPECT_EQ(query.code, 0u);
-  auto encoder = encoder_t{};
-  auto decoded = encoder.decode<std::tuple<int64_t, charter::schema::hash32_t,
-                                           charter::schema::hash32_t>>(
-      charter::schema::bytes_view_t{query.value.data(), query.value.size()});
-  return std::get<2>(decoded);
-}
-
-charter::schema::transaction_result_t finalize_single(
-    charter::execution::engine& engine,
-    const uint64_t height,
-    const charter::schema::transaction_t& tx) {
-  auto signer_nonce_key = [](const charter::schema::signer_id_t& signer) {
-    auto key = std::string{};
-    std::visit(
-        overloaded{
-            [&](const charter::schema::ed25519_signer_id& value) {
-              key.push_back(static_cast<char>(0));
-              key.append(reinterpret_cast<const char*>(value.public_key.data()),
-                         value.public_key.size());
-            },
-            [&](const charter::schema::secp256k1_signer_id& value) {
-              key.push_back(static_cast<char>(1));
-              key.append(reinterpret_cast<const char*>(value.public_key.data()),
-                         value.public_key.size());
-            },
-            [&](const charter::schema::named_signer_t& value) {
-              key.push_back(static_cast<char>(2));
-              key.append(reinterpret_cast<const char*>(value.data()),
-                         value.size());
-            }},
-        signer);
-    return key;
-  };
-  static auto nonce_state =
-      std::map<std::uintptr_t, std::map<std::string, uint64_t>>{};
-  auto engine_key = reinterpret_cast<std::uintptr_t>(&engine);
-  auto signer_key = signer_nonce_key(tx.signer);
-  auto& signer_nonces = nonce_state[engine_key];
-  auto& expected = signer_nonces[signer_key];
-  if (expected == 0) {
-    expected = tx.nonce;
-  }
-
-  auto normalized = tx;
-  normalized.nonce = expected;
-  auto block = engine.finalize_block(height, {encode_transaction(normalized)});
-  EXPECT_EQ(block.tx_results.size(), 1u);
-  auto result = block.tx_results.front();
-  if (result.code == 0) {
-    ++expected;
-  }
-  (void)engine.commit();
-  return result;
-}
-
-std::vector<charter::schema::security_event_record_t> query_events(
-    charter::execution::engine& engine,
-    const uint64_t from_id,
-    const uint64_t to_id) {
-  auto encoder = encoder_t{};
-  auto query_key = encoder.encode(std::tuple{from_id, to_id});
-  auto result = engine.query(
-      "/events/range",
-      charter::schema::bytes_view_t{query_key.data(), query_key.size()});
-  EXPECT_EQ(result.code, 0u);
-  return encoder.decode<std::vector<charter::schema::security_event_record_t>>(
-      charter::schema::bytes_view_t{result.value.data(), result.value.size()});
-}
-
-charter::schema::bytes_t make_state_backup(
-    const charter::schema::hash32_t& chain_id,
-    const std::vector<charter::storage::key_value_entry_t>& state_rows) {
-  auto encoder = encoder_t{};
-  auto history_rows = std::vector<charter::storage::key_value_entry_t>{};
-  auto snapshots = std::vector<charter::storage::key_value_entry_t>{};
-  return encoder.encode(std::tuple{
-      uint16_t{1}, std::optional<charter::storage::committed_state>{},
-      state_rows, history_rows, snapshots, chain_id});
-}
-
-charter::schema::bytes_t prefixed_key(const std::string_view prefix,
-                                      const charter::schema::bytes_t& suffix) {
-  auto codec = encoder_t{};
-  auto out = codec.encode(prefix);
-  out.insert(std::end(out), std::begin(suffix), std::end(suffix));
-  return out;
-}
-
-std::string make_db_path(const std::string& prefix) {
-  auto now =
-      std::chrono::high_resolution_clock::now().time_since_epoch().count();
-  auto path =
-      std::filesystem::temp_directory_path() /
-      (prefix + "_" + std::to_string(static_cast<unsigned long long>(now)));
-  return path.string();
-}
-
-charter::schema::policy_rule_t make_transfer_rule(
-    const charter::schema::hash32_t& asset_id,
-    uint32_t threshold,
-    uint64_t timelock_ms,
-    std::optional<uint64_t> limit_amount = std::nullopt,
-    bool require_whitelist = false,
-    std::vector<charter::schema::claim_type_t> required_claims = {}) {
-  auto approval = charter::schema::approval_rule_t{
-      .approver_role = charter::schema::role_id_t::approver,
-      .threshold = threshold,
-      .require_distinct_from_initiator = false,
-      .require_distinct_from_executor = false};
-  auto time_lock = charter::schema::time_lock_rule_t{
-      .operation = charter::schema::operation_type_t::transfer,
-      .delay = timelock_ms};
-  return charter::schema::policy_rule_t{
-      .operation = charter::schema::operation_type_t::transfer,
-      .approvals = {approval},
-      .limits =
-          limit_amount.has_value()
-              ? std::vector<charter::schema::
-                                limit_rule_t>{charter::schema::limit_rule_t{
-                    .asset_id = asset_id,
-                    .per_transaction_amount =
-                        charter::schema::amount_t{limit_amount.value()}}}
-              : std::vector<charter::schema::limit_rule_t>{},
-      .time_locks = std::vector{time_lock},
-      .destination_rules =
-          require_whitelist
-              ? std::vector<
-                    charter::schema::
-                        destination_rule_t>{charter::schema::destination_rule_t{
-                    .require_whitelisted = true}}
-              : std::vector<charter::schema::destination_rule_t>{},
-      .required_claims = std::move(required_claims),
-      .velocity_limits = {}};
-}
-
-charter::schema::upsert_asset_t make_upsert_asset(
-    const charter::schema::hash32_t& asset_id,
-    bool enabled = true) {
-  return charter::schema::upsert_asset_t{
-      .asset_id = asset_id,
-      .chain =
-          charter::schema::chain_type_t{charter::schema::chain_type::ethereum},
-      .kind = charter::schema::asset_kind_t::erc20,
-      .reference =
-          charter::schema::asset_ref_contract_address_t{
-              .address = charter::schema::bytes_t{0xAA, 0xBB}},
-      .symbol = charter::schema::make_bytes(std::string_view{"TOK"}),
-      .name = charter::schema::make_bytes(std::string_view{"Token"}),
-      .decimals = 18,
-      .enabled = enabled};
-}
+using encoder_t = charter::testing::scale_encoder_t;
+using charter::testing::chain_id_from_engine;
+using charter::testing::encode_transaction;
+using charter::testing::execution_fixture;
+using charter::testing::finalize_single;
+using charter::testing::make_db_path;
+using charter::testing::make_hash;
+using charter::testing::make_named_signer;
+using charter::testing::make_state_backup;
+using charter::testing::make_transaction;
+using charter::testing::make_transfer_rule;
+using charter::testing::make_upsert_asset;
+using charter::testing::prefixed_key;
+using charter::testing::query_events;
 
 }  // namespace
 
@@ -891,192 +708,157 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
 }
 
 TEST(engine_integration, query_errors_echo_key_and_codespace) {
-  auto db = make_db_path("charter_engine_query_contract");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    auto keyspaces = engine.query("/engine/keyspaces", {});
-    ASSERT_EQ(keyspaces.code, 0u);
-    auto prefixes =
-        encoder.decode<std::vector<std::string>>(charter::schema::bytes_view_t{
-            keyspaces.value.data(), keyspaces.value.size()});
-    EXPECT_FALSE(prefixes.empty());
-    EXPECT_TRUE(std::find(std::begin(prefixes), std::end(prefixes),
-                          "SYS|STATE|WORKSPACE|") != std::end(prefixes));
+  auto fixture =
+      execution_fixture{"charter_engine_query_contract", false, false};
+  auto& encoder = fixture.encoder();
+  auto& engine = fixture.engine();
+  auto keyspaces = engine.query("/engine/keyspaces", {});
+  ASSERT_EQ(keyspaces.code, 0u);
+  auto prefixes =
+      encoder.decode<std::vector<std::string>>(charter::schema::bytes_view_t{
+          keyspaces.value.data(), keyspaces.value.size()});
+  EXPECT_FALSE(prefixes.empty());
+  EXPECT_TRUE(std::find(std::begin(prefixes), std::end(prefixes),
+                        "SYS|STATE|WORKSPACE|") != std::end(prefixes));
 
-    auto bad_key = charter::schema::bytes_t{0xAA, 0xBB, 0xCC};
-    auto result = engine.query(
-        "/state/workspace",
-        charter::schema::bytes_view_t{bad_key.data(), bad_key.size()});
-    EXPECT_EQ(result.code, 1u);
-    EXPECT_EQ(result.codespace, "charter.query");
-    EXPECT_EQ(result.key, bad_key);
-    EXPECT_EQ(result.height, engine.info().last_block_height);
-  }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto bad_key = charter::schema::bytes_t{0xAA, 0xBB, 0xCC};
+  auto result = engine.query(
+      "/state/workspace",
+      charter::schema::bytes_view_t{bad_key.data(), bad_key.size()});
+  EXPECT_EQ(result.code, 1u);
+  EXPECT_EQ(result.codespace, "charter.query");
+  EXPECT_EQ(result.key, bad_key);
+  EXPECT_EQ(result.height, engine.info().last_block_height);
 }
 
 TEST(engine_integration, query_route_matrix_valid_and_invalid_keys) {
-  auto db = make_db_path("charter_engine_query_routes");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
+  auto fixture = execution_fixture{"charter_engine_query_routes", false, false};
+  auto& encoder = fixture.encoder();
+  auto& engine = fixture.engine();
 
-    auto workspace_id = make_hash(101);
-    auto vault_id = make_hash(102);
-    auto asset_id = make_hash(152);
-    auto destination_id = make_hash(103);
-    auto policy_set_id = make_hash(104);
-    auto intent_id = make_hash(105);
-    auto update_id = make_hash(106);
-    auto signer = make_named_signer(107);
-    auto scope = charter::schema::policy_scope_t{charter::schema::vault_t{
-        .workspace_id = workspace_id, .vault_id = vault_id}};
-    auto claim = charter::schema::claim_type_t{
-        charter::schema::claim_type::kyb_verified};
+  auto workspace_id = make_hash(101);
+  auto vault_id = make_hash(102);
+  auto asset_id = make_hash(152);
+  auto destination_id = make_hash(103);
+  auto policy_set_id = make_hash(104);
+  auto intent_id = make_hash(105);
+  auto update_id = make_hash(106);
+  auto signer = make_named_signer(107);
+  auto scope = charter::schema::policy_scope_t{charter::schema::vault_t{
+      .workspace_id = workspace_id, .vault_id = vault_id}};
+  auto claim =
+      charter::schema::claim_type_t{charter::schema::claim_type::kyb_verified};
 
-    auto valid_cases = std::vector<
-        std::tuple<std::string, charter::schema::bytes_t, uint32_t>>{
-        {"/engine/info", {}, 0u},
-        {"/engine/keyspaces", {}, 0u},
-        {"/history/export", {}, 0u},
-        {"/history/range",
-         encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}), 0u},
-        {"/events/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
-         0u},
-        {"/state/degraded_mode", {}, 0u},
-        {"/state/workspace",
-         charter::schema::bytes_t{std::begin(workspace_id),
-                                  std::end(workspace_id)},
-         2u},
-        {"/state/asset",
-         charter::schema::bytes_t{std::begin(asset_id), std::end(asset_id)},
-         2u},
-        {"/state/vault", encoder.encode(std::tuple{workspace_id, vault_id}),
-         2u},
-        {"/state/destination",
-         encoder.encode(std::tuple{workspace_id, destination_id}), 2u},
-        {"/state/policy_set",
-         encoder.encode(std::tuple{policy_set_id, uint32_t{1}}), 2u},
-        {"/state/active_policy", encoder.encode(scope), 2u},
-        {"/state/intent",
-         encoder.encode(std::tuple{workspace_id, vault_id, intent_id}), 2u},
-        {"/state/approval", encoder.encode(std::tuple{intent_id, signer}), 2u},
-        {"/state/attestation",
-         encoder.encode(std::tuple{workspace_id, workspace_id, claim, signer}),
-         2u},
-        {"/state/role_assignment",
-         encoder.encode(
-             std::tuple{scope, signer, charter::schema::role_id_t::admin}),
-         2u},
-        {"/state/signer_quarantine", encoder.encode(signer), 2u},
-        {"/state/destination_update",
-         encoder.encode(std::tuple{workspace_id, destination_id, update_id}),
-         2u},
-    };
+  auto valid_cases = std::vector<
+      std::tuple<std::string, charter::schema::bytes_t, uint32_t>>{
+      {"/engine/info", {}, 0u},
+      {"/engine/keyspaces", {}, 0u},
+      {"/history/export", {}, 0u},
+      {"/history/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
+       0u},
+      {"/events/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
+       0u},
+      {"/state/degraded_mode", {}, 0u},
+      {"/state/workspace",
+       charter::schema::bytes_t{std::begin(workspace_id),
+                                std::end(workspace_id)},
+       2u},
+      {"/state/asset",
+       charter::schema::bytes_t{std::begin(asset_id), std::end(asset_id)}, 2u},
+      {"/state/vault", encoder.encode(std::tuple{workspace_id, vault_id}), 2u},
+      {"/state/destination",
+       encoder.encode(std::tuple{workspace_id, destination_id}), 2u},
+      {"/state/policy_set",
+       encoder.encode(std::tuple{policy_set_id, uint32_t{1}}), 2u},
+      {"/state/active_policy", encoder.encode(scope), 2u},
+      {"/state/intent",
+       encoder.encode(std::tuple{workspace_id, vault_id, intent_id}), 2u},
+      {"/state/approval", encoder.encode(std::tuple{intent_id, signer}), 2u},
+      {"/state/attestation",
+       encoder.encode(std::tuple{workspace_id, workspace_id, claim, signer}),
+       2u},
+      {"/state/role_assignment",
+       encoder.encode(
+           std::tuple{scope, signer, charter::schema::role_id_t::admin}),
+       2u},
+      {"/state/signer_quarantine", encoder.encode(signer), 2u},
+      {"/state/destination_update",
+       encoder.encode(std::tuple{workspace_id, destination_id, update_id}), 2u},
+  };
 
-    for (const auto& [path, key, expected_code] : valid_cases) {
-      auto result = engine.query(
-          path, charter::schema::bytes_view_t{key.data(), key.size()});
-      EXPECT_EQ(result.code, expected_code) << "path=" << path;
-      EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
-    }
-
-    auto invalid_cases = std::vector<std::string>{"/state/workspace",
-                                                  "/state/asset",
-                                                  "/state/vault",
-                                                  "/state/destination",
-                                                  "/state/policy_set",
-                                                  "/state/active_policy",
-                                                  "/state/intent",
-                                                  "/state/approval",
-                                                  "/state/attestation",
-                                                  "/state/role_assignment",
-                                                  "/state/signer_quarantine",
-                                                  "/state/destination_update",
-                                                  "/history/range",
-                                                  "/events/range"};
-    auto invalid_key = charter::schema::bytes_t{0xFF};
-    for (const auto& path : invalid_cases) {
-      auto result =
-          engine.query(path, charter::schema::bytes_view_t{invalid_key.data(),
-                                                           invalid_key.size()});
-      EXPECT_EQ(result.code, 1u) << "path=" << path;
-      EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
-      EXPECT_EQ(result.key, invalid_key) << "path=" << path;
-    }
-
-    auto unsupported = engine.query("/unsupported/path", {});
-    EXPECT_EQ(unsupported.code, 3u);
-    EXPECT_EQ(unsupported.codespace, "charter.query");
+  for (const auto& [path, key, expected_code] : valid_cases) {
+    auto result = engine.query(
+        path, charter::schema::bytes_view_t{key.data(), key.size()});
+    EXPECT_EQ(result.code, expected_code) << "path=" << path;
+    EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
   }
 
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto invalid_cases = std::vector<std::string>{"/state/workspace",
+                                                "/state/asset",
+                                                "/state/vault",
+                                                "/state/destination",
+                                                "/state/policy_set",
+                                                "/state/active_policy",
+                                                "/state/intent",
+                                                "/state/approval",
+                                                "/state/attestation",
+                                                "/state/role_assignment",
+                                                "/state/signer_quarantine",
+                                                "/state/destination_update",
+                                                "/history/range",
+                                                "/events/range"};
+  auto invalid_key = charter::schema::bytes_t{0xFF};
+  for (const auto& path : invalid_cases) {
+    auto result = engine.query(
+        path,
+        charter::schema::bytes_view_t{invalid_key.data(), invalid_key.size()});
+    EXPECT_EQ(result.code, 1u) << "path=" << path;
+    EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
+    EXPECT_EQ(result.key, invalid_key) << "path=" << path;
+  }
+
+  auto unsupported = engine.query("/unsupported/path", {});
+  EXPECT_EQ(unsupported.code, 3u);
+  EXPECT_EQ(unsupported.codespace, "charter.query");
 }
 
 TEST(engine_integration, transaction_results_include_useful_events) {
-  auto db = make_db_path("charter_engine_transaction_events");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
+  auto fixture = execution_fixture{"charter_engine_transaction_events"};
+  auto& engine = fixture.engine();
 
-    auto chain = chain_id_from_engine(engine);
-    auto signer = make_named_signer(10);
-    auto workspace_id = make_hash(11);
+  auto chain = fixture.chain_id();
+  auto signer = make_named_signer(10);
+  auto workspace_id = make_hash(11);
 
-    auto tx = make_transaction(
-        chain, 1, signer,
-        charter::schema::create_workspace_t{.workspace_id = workspace_id,
-                                            .admin_set = {signer},
-                                            .quorum_size = 1,
-                                            .metadata_ref = std::nullopt});
+  auto tx = make_transaction(
+      chain, 1, signer,
+      charter::schema::create_workspace_t{.workspace_id = workspace_id,
+                                          .admin_set = {signer},
+                                          .quorum_size = 1,
+                                          .metadata_ref = std::nullopt});
 
-    auto block = engine.finalize_block(1, {encode_transaction(tx)});
-    ASSERT_EQ(block.tx_results.size(), 1u);
-    const auto& result = block.tx_results.front();
-    EXPECT_EQ(result.code, 0u);
-    ASSERT_FALSE(result.events.empty());
-    EXPECT_EQ(result.events.front().type, "charter.tx_result");
+  auto block = engine.finalize_block(1, {encode_transaction(tx)});
+  ASSERT_EQ(block.tx_results.size(), 1u);
+  const auto& result = block.tx_results.front();
+  EXPECT_EQ(result.code, 0u);
+  ASSERT_FALSE(result.events.empty());
+  EXPECT_EQ(result.events.front().type, "charter.tx_result");
 
-    auto attrs = std::map<std::string, std::string>{};
-    for (const auto& attribute : result.events.front().attributes) {
-      attrs[attribute.key] = attribute.value;
-    }
-    EXPECT_EQ(attrs["code"], "0");
-    EXPECT_EQ(attrs["success"], "true");
-    EXPECT_EQ(attrs["codespace"], "charter.execute");
-    EXPECT_EQ(attrs["payload_type"], "create_workspace");
-    EXPECT_EQ(attrs["height"], "1");
-    EXPECT_EQ(attrs["tx_index"], "0");
-    EXPECT_EQ(attrs["nonce"], "1");
-    EXPECT_FALSE(attrs["signer"].empty());
+  auto attrs = std::map<std::string, std::string>{};
+  for (const auto& attribute : result.events.front().attributes) {
+    attrs[attribute.key] = attribute.value;
   }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  EXPECT_EQ(attrs["code"], "0");
+  EXPECT_EQ(attrs["success"], "true");
+  EXPECT_EQ(attrs["codespace"], "charter.execute");
+  EXPECT_EQ(attrs["payload_type"], "create_workspace");
+  EXPECT_EQ(attrs["height"], "1");
+  EXPECT_EQ(attrs["tx_index"], "0");
+  EXPECT_EQ(attrs["nonce"], "1");
+  EXPECT_FALSE(attrs["signer"].empty());
 }
 
 TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
-  auto db1 = make_db_path("charter_engine_determinism_1");
-  auto db2 = make_db_path("charter_engine_determinism_2");
-
   auto signer = make_named_signer(51);
   auto workspace_id = make_hash(61);
   auto vault_id = make_hash(62);
@@ -1085,19 +867,10 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
   auto destination_id = make_hash(65);
   auto scope = charter::schema::policy_scope_t{charter::schema::vault_t{
       .workspace_id = workspace_id, .vault_id = vault_id}};
-  auto encoder = charter::schema::encoding::encoder<
-      charter::schema::encoding::scale_encoder_tag>{};
-
-  auto run_sequence = [&](const std::string& db_path) {
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db_path);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain_id = chain_id_from_engine(engine);
+  auto run_sequence = [&](const std::string_view db_prefix) {
+    auto fixture = execution_fixture{db_prefix};
+    auto& engine = fixture.engine();
+    auto chain_id = fixture.chain_id();
     auto block = engine.finalize_block(
         1, {encode_transaction(
                 make_transaction(chain_id, 1, signer,
@@ -1148,24 +921,19 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
                       engine.info().last_block_state_root};
   };
 
-  auto [backup1, export1, app_hash1] = run_sequence(db1);
-  auto [backup2, export2, app_hash2] = run_sequence(db2);
+  auto [backup1, export1, app_hash1] =
+      run_sequence("charter_engine_determinism_1");
+  auto [backup2, export2, app_hash2] =
+      run_sequence("charter_engine_determinism_2");
 
   EXPECT_FALSE(export1.empty());
   EXPECT_FALSE(export2.empty());
   EXPECT_FALSE(backup1.empty());
   EXPECT_FALSE(backup2.empty());
 
-  auto restored_db = make_db_path("charter_engine_determinism_restore");
-  auto restored_storage =
-      charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-          restored_db);
-  auto restored =
-      charter::execution::engine{encoder, restored_storage, 1, false};
-  restored.set_signature_verifier(
-      [](const charter::schema::bytes_view_t&,
-         const charter::schema::signer_id_t&,
-         const charter::schema::signature_t&) { return true; });
+  auto restored_fixture =
+      execution_fixture{"charter_engine_determinism_restore"};
+  auto& restored = restored_fixture.engine();
   auto error = std::string{};
   EXPECT_TRUE(restored.load_backup(
       charter::schema::bytes_view_t{backup1.data(), backup1.size()}, error));
@@ -1174,121 +942,86 @@ TEST(engine_integration, deterministic_history_export_matches_across_nodes) {
   auto restored_export = restored.query("/history/export", {});
   EXPECT_EQ(restored_export.code, 0u);
   EXPECT_FALSE(restored_export.value.empty());
-
-  std::error_code ec;
-  std::filesystem::remove_all(db1, ec);
-  std::filesystem::remove_all(db2, ec);
-  std::filesystem::remove_all(restored_db, ec);
 }
 
 TEST(engine_integration, replay_history_is_idempotent_for_same_chain_state) {
-  auto db = make_db_path("charter_engine_replay_idempotent");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain_id = chain_id_from_engine(engine);
-    auto signer = make_named_signer(91);
-    auto workspace = make_hash(92);
+  auto fixture = execution_fixture{"charter_engine_replay_idempotent"};
+  auto& engine = fixture.engine();
+  auto chain_id = fixture.chain_id();
+  auto signer = make_named_signer(91);
+  auto workspace = make_hash(92);
 
-    auto block =
-        engine.finalize_block(1, {encode_transaction(make_transaction(
-                                     chain_id, 1, signer,
-                                     charter::schema::create_workspace_t{
-                                         .workspace_id = workspace,
-                                         .admin_set = {signer},
-                                         .quorum_size = 1,
-                                         .metadata_ref = std::nullopt}))});
-    ASSERT_EQ(block.tx_results.size(), 1u);
-    EXPECT_EQ(block.tx_results[0].code, 0u);
-    (void)engine.commit();
+  auto block = engine.finalize_block(
+      1,
+      {encode_transaction(make_transaction(
+          chain_id, 1, signer,
+          charter::schema::create_workspace_t{.workspace_id = workspace,
+                                              .admin_set = {signer},
+                                              .quorum_size = 1,
+                                              .metadata_ref = std::nullopt}))});
+  ASSERT_EQ(block.tx_results.size(), 1u);
+  EXPECT_EQ(block.tx_results[0].code, 0u);
+  (void)engine.commit();
 
-    auto replay1 = engine.replay_history();
-    auto replay2 = engine.replay_history();
-    EXPECT_TRUE(replay1.ok);
-    EXPECT_TRUE(replay2.ok);
-    EXPECT_EQ(replay1.tx_count, replay2.tx_count);
-    EXPECT_EQ(replay1.applied_count, replay2.applied_count);
-    EXPECT_EQ(replay1.last_height, replay2.last_height);
-    EXPECT_EQ(replay1.state_root, replay2.state_root);
-    EXPECT_EQ(engine.info().last_block_height, replay2.last_height);
-  }
-
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto replay1 = engine.replay_history();
+  auto replay2 = engine.replay_history();
+  EXPECT_TRUE(replay1.ok);
+  EXPECT_TRUE(replay2.ok);
+  EXPECT_EQ(replay1.tx_count, replay2.tx_count);
+  EXPECT_EQ(replay1.applied_count, replay2.applied_count);
+  EXPECT_EQ(replay1.last_height, replay2.last_height);
+  EXPECT_EQ(replay1.state_root, replay2.state_root);
+  EXPECT_EQ(engine.info().last_block_height, replay2.last_height);
 }
 
 TEST(engine_integration, snapshot_chunk_corruption_is_rejected_then_recovers) {
-  auto db = make_db_path("charter_engine_snapshot_corrupt");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain_id = chain_id_from_engine(engine);
-    auto signer = make_named_signer(101);
-    auto workspace = make_hash(102);
+  auto fixture = execution_fixture{"charter_engine_snapshot_corrupt"};
+  auto& engine = fixture.engine();
+  auto chain_id = fixture.chain_id();
+  auto signer = make_named_signer(101);
+  auto workspace = make_hash(102);
 
-    auto block =
-        engine.finalize_block(1, {encode_transaction(make_transaction(
-                                     chain_id, 1, signer,
-                                     charter::schema::create_workspace_t{
-                                         .workspace_id = workspace,
-                                         .admin_set = {signer},
-                                         .quorum_size = 1,
-                                         .metadata_ref = std::nullopt}))});
-    ASSERT_EQ(block.tx_results.size(), 1u);
-    EXPECT_EQ(block.tx_results[0].code, 0u);
-    (void)engine.commit();
+  auto block = engine.finalize_block(
+      1,
+      {encode_transaction(make_transaction(
+          chain_id, 1, signer,
+          charter::schema::create_workspace_t{.workspace_id = workspace,
+                                              .admin_set = {signer},
+                                              .quorum_size = 1,
+                                              .metadata_ref = std::nullopt}))});
+  ASSERT_EQ(block.tx_results.size(), 1u);
+  EXPECT_EQ(block.tx_results[0].code, 0u);
+  (void)engine.commit();
 
-    auto snapshots = engine.list_snapshots();
-    ASSERT_FALSE(snapshots.empty());
-    auto offered = snapshots.front();
-    EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
-              charter::schema::offer_snapshot_result::accept);
+  auto snapshots = engine.list_snapshots();
+  ASSERT_FALSE(snapshots.empty());
+  auto offered = snapshots.front();
+  EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
+            charter::schema::offer_snapshot_result::accept);
 
-    auto chunk = engine.load_snapshot_chunk(offered.height, offered.format, 0);
-    ASSERT_TRUE(chunk.has_value());
-    ASSERT_FALSE(chunk->empty());
+  auto chunk = engine.load_snapshot_chunk(offered.height, offered.format, 0);
+  ASSERT_TRUE(chunk.has_value());
+  ASSERT_FALSE(chunk->empty());
 
-    auto corrupted = *chunk;
-    corrupted[0] ^= 0xFF;
-    auto corrupted_result = engine.apply_snapshot_chunk(
-        0, charter::schema::bytes_view_t{corrupted.data(), corrupted.size()},
-        "peer-a");
-    EXPECT_EQ(corrupted_result,
-              charter::schema::apply_snapshot_chunk_result::reject_snapshot);
+  auto corrupted = *chunk;
+  corrupted[0] ^= 0xFF;
+  auto corrupted_result = engine.apply_snapshot_chunk(
+      0, charter::schema::bytes_view_t{corrupted.data(), corrupted.size()},
+      "peer-a");
+  EXPECT_EQ(corrupted_result,
+            charter::schema::apply_snapshot_chunk_result::reject_snapshot);
 
-    auto wrong_index = engine.apply_snapshot_chunk(
-        1, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
-        "peer-a");
-    EXPECT_EQ(wrong_index,
-              charter::schema::apply_snapshot_chunk_result::retry_snapshot);
+  auto wrong_index = engine.apply_snapshot_chunk(
+      1, charter::schema::bytes_view_t{chunk->data(), chunk->size()}, "peer-a");
+  EXPECT_EQ(wrong_index,
+            charter::schema::apply_snapshot_chunk_result::retry_snapshot);
 
-    EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
-              charter::schema::offer_snapshot_result::accept);
-    auto applied_result = engine.apply_snapshot_chunk(
-        0, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
-        "peer-a");
-    EXPECT_EQ(applied_result,
-              charter::schema::apply_snapshot_chunk_result::accept);
-  }
-
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
+            charter::schema::offer_snapshot_result::accept);
+  auto applied_result = engine.apply_snapshot_chunk(
+      0, charter::schema::bytes_view_t{chunk->data(), chunk->size()}, "peer-a");
+  EXPECT_EQ(applied_result,
+            charter::schema::apply_snapshot_chunk_result::accept);
 }
 
 TEST(engine_integration, transaction_error_code_matrix_coverage) {
@@ -1299,22 +1032,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
   auto observed = std::set<uint32_t>{};
   auto run = [&](const std::string& label, const auto& fn,
                  bool strict = false) {
-    auto db = make_db_path("charter_engine_code_" + label);
-    {
-      auto encoder = charter::schema::encoding::encoder<
-          charter::schema::encoding::scale_encoder_tag>{};
-      auto storage =
-          charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-              db);
-      auto engine = charter::execution::engine{encoder, storage, 1, strict};
-      engine.set_signature_verifier(
-          [](const charter::schema::bytes_view_t&,
-             const charter::schema::signer_id_t&,
-             const charter::schema::signature_t&) { return true; });
-      fn(engine, observed);
-    }
-    std::error_code ec;
-    std::filesystem::remove_all(db, ec);
+    auto fixture =
+        execution_fixture{"charter_engine_code_" + label, strict, true};
+    fn(fixture.engine(), observed);
   };
 
   run("1", [](auto& engine, auto& seen) {
@@ -2718,355 +2438,305 @@ TEST(engine_integration,
            "cannot be distinguished";
   }
 
-  auto db = make_db_path("charter_engine_non_strict_sig");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    auto chain = chain_id_from_engine(engine);
-    auto signer = make_named_signer(77);
-    auto tx = make_transaction(
-        chain, 1, signer,
-        charter::schema::create_workspace_t{.workspace_id = make_hash(90),
-                                            .admin_set = {signer},
-                                            .quorum_size = 1,
-                                            .metadata_ref = std::nullopt});
-    auto raw = encode_transaction(tx);
-    auto result = engine.check_transaction(
-        charter::schema::bytes_view_t{raw.data(), raw.size()});
-    EXPECT_EQ(result.code, 0u);
-  }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto fixture = execution_fixture{"charter_engine_non_strict_sig"};
+  auto& engine = fixture.engine();
+  auto chain = fixture.chain_id();
+  auto signer = make_named_signer(77);
+  auto tx = make_transaction(
+      chain, 1, signer,
+      charter::schema::create_workspace_t{.workspace_id = make_hash(90),
+                                          .admin_set = {signer},
+                                          .quorum_size = 1,
+                                          .metadata_ref = std::nullopt});
+  auto raw = encode_transaction(tx);
+  auto result = engine.check_transaction(
+      charter::schema::bytes_view_t{raw.data(), raw.size()});
+  EXPECT_EQ(result.code, 0u);
 }
 
 TEST(engine_integration, security_event_type_coverage) {
-  auto db = make_db_path("charter_engine_events_coverage");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain = chain_id_from_engine(engine);
-    auto signer = make_named_signer(80);
-    auto other = make_named_signer(81);
-    auto ws = make_hash(100);
-    auto vault = make_hash(101);
-    auto destination = make_hash(102);
-    auto policy = make_hash(103);
-    auto asset = make_hash(104);
-    auto intent = make_hash(105);
-    auto scope = charter::schema::policy_scope_t{
-        charter::schema::workspace_scope_t{.workspace_id = ws}};
-    auto vault_scope = charter::schema::policy_scope_t{
-        charter::schema::vault_t{.workspace_id = ws, .vault_id = vault}};
+  auto fixture = execution_fixture{"charter_engine_events_coverage"};
+  auto& engine = fixture.engine();
+  auto chain = fixture.chain_id();
+  auto signer = make_named_signer(80);
+  auto other = make_named_signer(81);
+  auto ws = make_hash(100);
+  auto vault = make_hash(101);
+  auto destination = make_hash(102);
+  auto policy = make_hash(103);
+  auto asset = make_hash(104);
+  auto intent = make_hash(105);
+  auto scope = charter::schema::policy_scope_t{
+      charter::schema::workspace_scope_t{.workspace_id = ws}};
+  auto vault_scope = charter::schema::policy_scope_t{
+      charter::schema::vault_t{.workspace_id = ws, .vault_id = vault}};
 
-    auto malformed = charter::schema::bytes_t{0xFF, 0xEE, 0xDD};
-    auto malformed_block = engine.finalize_block(1, {malformed});
-    ASSERT_EQ(malformed_block.tx_results.size(), 1u);
-    EXPECT_EQ(malformed_block.tx_results[0].code, 1u);
-    (void)engine.commit();
+  auto malformed = charter::schema::bytes_t{0xFF, 0xEE, 0xDD};
+  auto malformed_block = engine.finalize_block(1, {malformed});
+  ASSERT_EQ(malformed_block.tx_results.size(), 1u);
+  EXPECT_EQ(malformed_block.tx_results[0].code, 1u);
+  (void)engine.commit();
 
-    EXPECT_EQ(
-        finalize_single(engine, 2,
-                        make_transaction(chain, 1, signer,
-                                         charter::schema::create_workspace_t{
-                                             .workspace_id = ws,
-                                             .admin_set = {signer},
-                                             .quorum_size = 1,
-                                             .metadata_ref = std::nullopt}))
-            .code,
-        0u);
-    auto authz_denied = finalize_single(
-        engine, 3,
-        make_transaction(
-            chain, 1, other,
-            charter::schema::create_vault_t{
-                .workspace_id = ws,
-                .vault_id = vault,
-                .model = charter::schema::vault_model_t::segregated,
-                .label = std::nullopt}));
-    EXPECT_EQ(authz_denied.code, 33u);
-    auto denied = finalize_single(
-        engine, 4,
-        make_transaction(
-            chain, 2, signer,
-            charter::schema::create_workspace_t{.workspace_id = ws,
-                                                .admin_set = {signer},
-                                                .quorum_size = 1,
-                                                .metadata_ref = std::nullopt}));
-    EXPECT_EQ(denied.code, 10u);
+  EXPECT_EQ(
+      finalize_single(engine, 2,
+                      make_transaction(chain, 1, signer,
+                                       charter::schema::create_workspace_t{
+                                           .workspace_id = ws,
+                                           .admin_set = {signer},
+                                           .quorum_size = 1,
+                                           .metadata_ref = std::nullopt}))
+          .code,
+      0u);
+  auto authz_denied = finalize_single(
+      engine, 3,
+      make_transaction(chain, 1, other,
+                       charter::schema::create_vault_t{
+                           .workspace_id = ws,
+                           .vault_id = vault,
+                           .model = charter::schema::vault_model_t::segregated,
+                           .label = std::nullopt}));
+  EXPECT_EQ(authz_denied.code, 33u);
+  auto denied = finalize_single(
+      engine, 4,
+      make_transaction(
+          chain, 2, signer,
+          charter::schema::create_workspace_t{.workspace_id = ws,
+                                              .admin_set = {signer},
+                                              .quorum_size = 1,
+                                              .metadata_ref = std::nullopt}));
+  EXPECT_EQ(denied.code, 10u);
 
-    EXPECT_EQ(finalize_single(
-                  engine, 5,
-                  make_transaction(
-                      chain, 3, signer,
-                      charter::schema::create_vault_t{
-                          .workspace_id = ws,
-                          .vault_id = vault,
-                          .model = charter::schema::vault_model_t::segregated,
-                          .label = std::nullopt}))
-                  .code,
-              0u);
+  EXPECT_EQ(finalize_single(
+                engine, 5,
+                make_transaction(
+                    chain, 3, signer,
+                    charter::schema::create_vault_t{
+                        .workspace_id = ws,
+                        .vault_id = vault,
+                        .model = charter::schema::vault_model_t::segregated,
+                        .label = std::nullopt}))
+                .code,
+            0u);
 
-    EXPECT_EQ(
-        finalize_single(
-            engine, 6,
-            make_transaction(
-                chain, 4, signer,
-                charter::schema::upsert_destination_t{
-                    .workspace_id = ws,
-                    .destination_id = destination,
-                    .type = charter::schema::destination_type_t::address,
-                    .chain_type =
-                        charter::schema::chain_type_t{
-                            charter::schema::chain_type::ethereum},
-                    .address_or_contract = charter::schema::bytes_t{0x55, 0x66},
-                    .enabled = false,
-                    .label = std::nullopt}))
-            .code,
-        0u);
+  EXPECT_EQ(
+      finalize_single(
+          engine, 6,
+          make_transaction(
+              chain, 4, signer,
+              charter::schema::upsert_destination_t{
+                  .workspace_id = ws,
+                  .destination_id = destination,
+                  .type = charter::schema::destination_type_t::address,
+                  .chain_type =
+                      charter::schema::chain_type_t{
+                          charter::schema::chain_type::ethereum},
+                  .address_or_contract = charter::schema::bytes_t{0x55, 0x66},
+                  .enabled = false,
+                  .label = std::nullopt}))
+          .code,
+      0u);
 
-    EXPECT_EQ(
-        finalize_single(
-            engine, 7,
-            make_transaction(
-                chain, 5, signer,
-                charter::schema::create_policy_set_t{
-                    .policy_set_id = policy,
-                    .scope = vault_scope,
-                    .policy_version = 1,
-                    .roles = {{charter::schema::role_id_t::approver, {signer}}},
-                    .rules = {make_transfer_rule(asset, 1, 0, 10, true)}}))
-            .code,
-        0u);
-    EXPECT_EQ(
-        finalize_single(engine, 8,
-                        make_transaction(chain, 6, signer,
-                                         charter::schema::activate_policy_set_t{
-                                             .scope = vault_scope,
-                                             .policy_set_id = policy,
-                                             .policy_set_version = 1}))
-            .code,
-        0u);
-    EXPECT_EQ(finalize_single(
-                  engine, 9,
-                  make_transaction(chain, 7, signer, make_upsert_asset(asset)))
-                  .code,
-              0u);
-    auto policy_denied = finalize_single(
-        engine, 10,
-        make_transaction(chain, 8, signer,
-                         charter::schema::propose_intent_t{
-                             .workspace_id = ws,
-                             .vault_id = vault,
-                             .intent_id = intent,
-                             .action =
-                                 charter::schema::transfer_parameters_t{
-                                     .asset_id = asset,
-                                     .destination_id = destination,
-                                     .amount = 11},
-                             .expires_at = std::nullopt}));
-    EXPECT_EQ(policy_denied.code, 28u);
+  EXPECT_EQ(
+      finalize_single(
+          engine, 7,
+          make_transaction(
+              chain, 5, signer,
+              charter::schema::create_policy_set_t{
+                  .policy_set_id = policy,
+                  .scope = vault_scope,
+                  .policy_version = 1,
+                  .roles = {{charter::schema::role_id_t::approver, {signer}}},
+                  .rules = {make_transfer_rule(asset, 1, 0, 10, true)}}))
+          .code,
+      0u);
+  EXPECT_EQ(
+      finalize_single(engine, 8,
+                      make_transaction(chain, 6, signer,
+                                       charter::schema::activate_policy_set_t{
+                                           .scope = vault_scope,
+                                           .policy_set_id = policy,
+                                           .policy_set_version = 1}))
+          .code,
+      0u);
+  EXPECT_EQ(finalize_single(
+                engine, 9,
+                make_transaction(chain, 7, signer, make_upsert_asset(asset)))
+                .code,
+            0u);
+  auto policy_denied = finalize_single(
+      engine, 10,
+      make_transaction(chain, 8, signer,
+                       charter::schema::propose_intent_t{
+                           .workspace_id = ws,
+                           .vault_id = vault,
+                           .intent_id = intent,
+                           .action =
+                               charter::schema::transfer_parameters_t{
+                                   .asset_id = asset,
+                                   .destination_id = destination,
+                                   .amount = 11},
+                           .expires_at = std::nullopt}));
+  EXPECT_EQ(policy_denied.code, 28u);
 
-    EXPECT_EQ(finalize_single(engine, 11,
-                              make_transaction(
-                                  chain, 9, signer,
-                                  charter::schema::upsert_role_assignment_t{
-                                      .scope = scope,
-                                      .subject = signer,
-                                      .role = charter::schema::role_id_t::admin,
-                                      .enabled = true,
-                                      .not_before = std::nullopt,
-                                      .expires_at = std::nullopt,
-                                      .note = std::nullopt}))
-                  .code,
-              0u);
-    EXPECT_EQ(finalize_single(
-                  engine, 12,
-                  make_transaction(chain, 10, signer,
-                                   charter::schema::upsert_signer_quarantine_t{
-                                       .signer = other,
-                                       .quarantined = false,
-                                       .until = std::nullopt,
-                                       .reason = std::nullopt}))
-                  .code,
-              0u);
-    EXPECT_EQ(finalize_single(
-                  engine, 13,
-                  make_transaction(
-                      chain, 11, signer,
-                      charter::schema::set_degraded_mode_t{
-                          .mode = charter::schema::degraded_mode_t::normal,
-                          .effective_at = std::nullopt,
-                          .reason = std::nullopt}))
-                  .code,
-              0u);
+  EXPECT_EQ(finalize_single(
+                engine, 11,
+                make_transaction(chain, 9, signer,
+                                 charter::schema::upsert_role_assignment_t{
+                                     .scope = scope,
+                                     .subject = signer,
+                                     .role = charter::schema::role_id_t::admin,
+                                     .enabled = true,
+                                     .not_before = std::nullopt,
+                                     .expires_at = std::nullopt,
+                                     .note = std::nullopt}))
+                .code,
+            0u);
+  EXPECT_EQ(finalize_single(
+                engine, 12,
+                make_transaction(chain, 10, signer,
+                                 charter::schema::upsert_signer_quarantine_t{
+                                     .signer = other,
+                                     .quarantined = false,
+                                     .until = std::nullopt,
+                                     .reason = std::nullopt}))
+                .code,
+            0u);
+  EXPECT_EQ(
+      finalize_single(
+          engine, 13,
+          make_transaction(chain, 11, signer,
+                           charter::schema::set_degraded_mode_t{
+                               .mode = charter::schema::degraded_mode_t::normal,
+                               .effective_at = std::nullopt,
+                               .reason = std::nullopt}))
+          .code,
+      0u);
 
-    auto bad_backup = charter::schema::bytes_t{1, 2, 3};
-    auto import_error = std::string{};
-    EXPECT_FALSE(engine.load_backup(
-        charter::schema::bytes_view_t{bad_backup.data(), bad_backup.size()},
-        import_error));
+  auto bad_backup = charter::schema::bytes_t{1, 2, 3};
+  auto import_error = std::string{};
+  EXPECT_FALSE(engine.load_backup(
+      charter::schema::bytes_view_t{bad_backup.data(), bad_backup.size()},
+      import_error));
 
-    auto rejected = charter::schema::snapshot_descriptor_t{};
-    rejected.height = 10;
-    rejected.format = 2;
-    rejected.chunks = 1;
-    rejected.hash = make_hash(111);
-    rejected.metadata = charter::schema::bytes_t{0x01};
-    EXPECT_EQ(engine.offer_snapshot(rejected, rejected.hash),
-              charter::schema::offer_snapshot_result::reject_format);
+  auto rejected = charter::schema::snapshot_descriptor_t{};
+  rejected.height = 10;
+  rejected.format = 2;
+  rejected.chunks = 1;
+  rejected.hash = make_hash(111);
+  rejected.metadata = charter::schema::bytes_t{0x01};
+  EXPECT_EQ(engine.offer_snapshot(rejected, rejected.hash),
+            charter::schema::offer_snapshot_result::reject_format);
 
-    auto snapshots = engine.list_snapshots();
-    ASSERT_FALSE(snapshots.empty());
-    auto offered = snapshots.front();
-    EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
-              charter::schema::offer_snapshot_result::accept);
-    auto chunk = engine.load_snapshot_chunk(offered.height, offered.format, 0);
-    ASSERT_TRUE(chunk.has_value());
-    EXPECT_EQ(
-        engine.apply_snapshot_chunk(
-            0, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
-            "peer-1"),
-        charter::schema::apply_snapshot_chunk_result::accept);
+  auto snapshots = engine.list_snapshots();
+  ASSERT_FALSE(snapshots.empty());
+  auto offered = snapshots.front();
+  EXPECT_EQ(engine.offer_snapshot(offered, offered.hash),
+            charter::schema::offer_snapshot_result::accept);
+  auto chunk = engine.load_snapshot_chunk(offered.height, offered.format, 0);
+  ASSERT_TRUE(chunk.has_value());
+  EXPECT_EQ(engine.apply_snapshot_chunk(
+                0, charter::schema::bytes_view_t{chunk->data(), chunk->size()},
+                "peer-1"),
+            charter::schema::apply_snapshot_chunk_result::accept);
 
-    auto events = query_events(engine, 1, 1000);
-    auto types = std::set<charter::schema::security_event_type_t>{};
-    for (const auto& event : events) {
-      types.insert(event.type);
-    }
-    auto numeric_types = std::set<uint16_t>{};
-    for (const auto type : types) {
-      numeric_types.insert(static_cast<uint16_t>(type));
-    }
-    EXPECT_EQ(numeric_types,
-              (std::set<uint16_t>{1u, 2u, 4u, 6u, 7u, 8u, 9u, 10u, 11u}));
+  auto events = query_events(engine, 1, 1000);
+  auto types = std::set<charter::schema::security_event_type_t>{};
+  for (const auto& event : events) {
+    types.insert(event.type);
   }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto numeric_types = std::set<uint16_t>{};
+  for (const auto type : types) {
+    numeric_types.insert(static_cast<uint16_t>(type));
+  }
+  EXPECT_EQ(numeric_types,
+            (std::set<uint16_t>{1u, 2u, 4u, 6u, 7u, 8u, 9u, 10u, 11u}));
 }
 
 TEST(engine_integration, authz_denied_emits_type3_event) {
-  auto db = make_db_path("charter_engine_events_authz_denied");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain = chain_id_from_engine(engine);
-    auto admin = make_named_signer(220);
-    auto other = make_named_signer(221);
-    auto ws = make_hash(222);
+  auto fixture = execution_fixture{"charter_engine_events_authz_denied"};
+  auto& engine = fixture.engine();
+  auto chain = fixture.chain_id();
+  auto admin = make_named_signer(220);
+  auto other = make_named_signer(221);
+  auto ws = make_hash(222);
 
-    EXPECT_EQ(
-        finalize_single(engine, 1,
-                        make_transaction(chain, 1, admin,
-                                         charter::schema::create_workspace_t{
-                                             .workspace_id = ws,
-                                             .admin_set = {admin},
-                                             .quorum_size = 1,
-                                             .metadata_ref = std::nullopt}))
-            .code,
-        0u);
+  EXPECT_EQ(
+      finalize_single(engine, 1,
+                      make_transaction(chain, 1, admin,
+                                       charter::schema::create_workspace_t{
+                                           .workspace_id = ws,
+                                           .admin_set = {admin},
+                                           .quorum_size = 1,
+                                           .metadata_ref = std::nullopt}))
+          .code,
+      0u);
 
-    auto denied = finalize_single(
-        engine, 2,
-        make_transaction(
-            chain, 1, other,
-            charter::schema::create_vault_t{
-                .workspace_id = ws,
-                .vault_id = make_hash(223),
-                .model = charter::schema::vault_model_t::segregated,
-                .label = std::nullopt}));
-    EXPECT_EQ(denied.code, 33u);
+  auto denied = finalize_single(
+      engine, 2,
+      make_transaction(chain, 1, other,
+                       charter::schema::create_vault_t{
+                           .workspace_id = ws,
+                           .vault_id = make_hash(223),
+                           .model = charter::schema::vault_model_t::segregated,
+                           .label = std::nullopt}));
+  EXPECT_EQ(denied.code, 33u);
 
-    auto events = query_events(engine, 1, 1000);
-    auto has_type3 =
-        std::any_of(std::begin(events), std::end(events),
-                    [](const charter::schema::security_event_record_t& event) {
-                      return static_cast<uint16_t>(event.type) == 3u;
-                    });
-    EXPECT_TRUE(has_type3);
-  }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto events = query_events(engine, 1, 1000);
+  auto has_type3 =
+      std::any_of(std::begin(events), std::end(events),
+                  [](const charter::schema::security_event_record_t& event) {
+                    return static_cast<uint16_t>(event.type) == 3u;
+                  });
+  EXPECT_TRUE(has_type3);
 }
 
 TEST(engine_integration, replay_mismatch_emits_type5_event) {
-  auto db = make_db_path("charter_engine_events_replay_mismatch");
-  {
-    auto encoder = charter::schema::encoding::encoder<
-        charter::schema::encoding::scale_encoder_tag>{};
-    auto storage =
-        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
-            db);
-    auto engine = charter::execution::engine{encoder, storage, 1, false};
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return true; });
-    auto chain = chain_id_from_engine(engine);
-    auto signer = make_named_signer(201);
-    auto ws = make_hash(202);
+  auto fixture = execution_fixture{"charter_engine_events_replay_mismatch"};
+  auto& encoder = fixture.encoder();
+  auto& engine = fixture.engine();
+  auto chain = fixture.chain_id();
+  auto signer = make_named_signer(201);
+  auto ws = make_hash(202);
 
-    EXPECT_EQ(
-        finalize_single(engine, 1,
-                        make_transaction(chain, 1, signer,
-                                         charter::schema::create_workspace_t{
-                                             .workspace_id = ws,
-                                             .admin_set = {signer},
-                                             .quorum_size = 1,
-                                             .metadata_ref = std::nullopt}))
-            .code,
-        0u);
+  EXPECT_EQ(
+      finalize_single(engine, 1,
+                      make_transaction(chain, 1, signer,
+                                       charter::schema::create_workspace_t{
+                                           .workspace_id = ws,
+                                           .admin_set = {signer},
+                                           .quorum_size = 1,
+                                           .metadata_ref = std::nullopt}))
+          .code,
+      0u);
 
-    auto backup = engine.export_backup();
-    auto decoded = encoder.decode<
-        std::tuple<uint16_t, std::optional<charter::storage::committed_state>,
-                   std::vector<charter::storage::key_value_entry_t>,
-                   std::vector<charter::storage::key_value_entry_t>,
-                   std::vector<charter::storage::key_value_entry_t>,
-                   charter::schema::hash32_t>>(
-        charter::schema::bytes_view_t{backup.data(), backup.size()});
-    auto committed = std::get<1>(decoded);
-    ASSERT_TRUE(committed.has_value());
-    committed->state_root[0] ^= 0xAA;
-    auto tampered = encoder.encode(std::tuple{
-        std::get<0>(decoded), committed, std::get<2>(decoded),
-        std::get<3>(decoded), std::get<4>(decoded), std::get<5>(decoded)});
-    auto import_error = std::string{};
-    ASSERT_TRUE(engine.load_backup(
-        charter::schema::bytes_view_t{tampered.data(), tampered.size()},
-        import_error));
+  auto backup = engine.export_backup();
+  auto decoded = encoder.decode<
+      std::tuple<uint16_t, std::optional<charter::storage::committed_state>,
+                 std::vector<charter::storage::key_value_entry_t>,
+                 std::vector<charter::storage::key_value_entry_t>,
+                 std::vector<charter::storage::key_value_entry_t>,
+                 charter::schema::hash32_t>>(
+      charter::schema::bytes_view_t{backup.data(), backup.size()});
+  auto committed = std::get<1>(decoded);
+  ASSERT_TRUE(committed.has_value());
+  committed->state_root[0] ^= 0xAA;
+  auto tampered = encoder.encode(std::tuple{
+      std::get<0>(decoded), committed, std::get<2>(decoded),
+      std::get<3>(decoded), std::get<4>(decoded), std::get<5>(decoded)});
+  auto import_error = std::string{};
+  ASSERT_TRUE(engine.load_backup(
+      charter::schema::bytes_view_t{tampered.data(), tampered.size()},
+      import_error));
 
-    auto replay = engine.replay_history();
-    EXPECT_TRUE(replay.ok);
-    EXPECT_FALSE(replay.error.empty());
+  auto replay = engine.replay_history();
+  EXPECT_TRUE(replay.ok);
+  EXPECT_FALSE(replay.error.empty());
 
-    auto events = query_events(engine, 1, 1000);
-    auto has_type5 =
-        std::any_of(std::begin(events), std::end(events),
-                    [](const charter::schema::security_event_record_t& event) {
-                      return static_cast<uint16_t>(event.type) == 5u;
-                    });
-    EXPECT_TRUE(has_type5);
-  }
-  std::error_code ec;
-  std::filesystem::remove_all(db, ec);
+  auto events = query_events(engine, 1, 1000);
+  auto has_type5 =
+      std::any_of(std::begin(events), std::end(events),
+                  [](const charter::schema::security_event_record_t& event) {
+                    return static_cast<uint16_t>(event.type) == 5u;
+                  });
+  EXPECT_TRUE(has_type5);
 }

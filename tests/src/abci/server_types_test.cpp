@@ -1,77 +1,20 @@
 #include <gtest/gtest.h>
 #include <charter/abci/server.hpp>
-#include <charter/schema/encoding/scale/encoder.hpp>
 #include <charter/storage/rocksdb/storage.hpp>
+#include <charter/testing/abci_harness.hpp>
 
-#include <chrono>
-#include <cstdint>
-#include <filesystem>
-#include <optional>
 #include <string>
-#include <tuple>
 
 namespace {
 
-using encoder_t = charter::schema::encoding::encoder<
-    charter::schema::encoding::scale_encoder_tag>;
-
-charter::schema::hash32_t make_hash(uint8_t seed) {
-  auto value = charter::schema::hash32_t{};
-  for (size_t i = 0; i < value.size(); ++i) {
-    value[i] = static_cast<uint8_t>(seed + i);
-  }
-  return value;
-}
-
-charter::schema::signer_id_t make_named_signer(uint8_t seed) {
-  auto named = charter::schema::named_signer_t{};
-  named[0] = seed;
-  return charter::schema::signer_id_t{named};
-}
-
-charter::schema::transaction_t make_create_workspace_transaction(
-    const charter::schema::hash32_t& chain_id,
-    const uint64_t nonce,
-    const charter::schema::signer_id_t& signer,
-    const charter::schema::hash32_t& workspace_id) {
-  return charter::schema::transaction_t{
-      .version = 1,
-      .chain_id = chain_id,
-      .nonce = nonce,
-      .signer = signer,
-      .payload =
-          charter::schema::create_workspace_t{.workspace_id = workspace_id,
-                                              .admin_set = {signer},
-                                              .quorum_size = 1,
-                                              .metadata_ref = std::nullopt},
-      .signature = charter::schema::ed25519_signature_t{}};
-}
-
-charter::schema::bytes_t encode_transaction(
-    const charter::schema::transaction_t& transaction) {
-  auto encoder = encoder_t{};
-  return encoder.encode(transaction);
-}
-
-charter::schema::hash32_t chain_id_from_engine(
-    charter::execution::engine& engine) {
-  auto query = engine.query("/engine/info", {});
-  EXPECT_EQ(query.code, 0u);
-  auto encoder = encoder_t{};
-  auto decoded = encoder.decode<std::tuple<int64_t, charter::schema::hash32_t,
-                                           charter::schema::hash32_t>>(
-      charter::schema::bytes_view_t{query.value.data(), query.value.size()});
-  return std::get<2>(decoded);
-}
-
-std::string make_db_path(const std::string& prefix) {
-  auto now =
-      std::chrono::high_resolution_clock::now().time_since_epoch().count();
-  auto path =
-      std::filesystem::temp_directory_path() /
-      (prefix + "_" + std::to_string(static_cast<unsigned long long>(now)));
-  return path.string();
-}
+using encoder_t = charter::testing::scale_encoder_t;
+using charter::testing::chain_id_from_engine;
+using charter::testing::encode_transaction;
+using charter::testing::make_create_workspace_transaction;
+using charter::testing::make_db_path;
+using charter::testing::make_hash;
+using charter::testing::make_named_signer;
+using charter::testing::remove_path;
 
 }  // namespace
 
@@ -113,8 +56,7 @@ TEST(abci_server, prepare_proposal_filters_invalid_and_respects_max_bytes) {
     EXPECT_EQ(response.txs(0), charter::schema::make_string(tx_1));
   }
 
-  auto error = std::error_code{};
-  std::filesystem::remove_all(db, error);
+  remove_path(db);
 }
 
 TEST(abci_server, process_proposal_rejects_invalid_and_accepts_valid) {
@@ -161,8 +103,7 @@ TEST(abci_server, process_proposal_rejects_invalid_and_accepts_valid) {
     }
   }
 
-  auto error = std::error_code{};
-  std::filesystem::remove_all(db, error);
+  remove_path(db);
 }
 
 TEST(abci_server, finalize_block_maps_exec_results_and_state_root) {
@@ -204,6 +145,5 @@ TEST(abci_server, finalize_block_maps_exec_results_and_state_root) {
     EXPECT_EQ(committed, charter::schema::make_bytes(response.app_hash()));
   }
 
-  auto error = std::error_code{};
-  std::filesystem::remove_all(db, error);
+  remove_path(db);
 }
