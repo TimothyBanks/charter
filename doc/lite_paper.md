@@ -148,6 +148,24 @@ Near-term compliance extensions are expected to include:
 - regulator evidence bundle generation
 - explicit control mapping from schema fields to regulatory obligations
 
+## 8.1 PII Boundary and Cryptographic Reference Model
+
+Charter's privacy posture is to keep raw PII off-chain while anchoring
+verifiable references on-chain.
+
+PII handling intent:
+- PII and sensitive customer records remain in controlled off-chain systems.
+- On-chain state stores cryptographic references to those records (for example,
+  content hashes, commitment values, or signed attestations).
+- The reference allows independent verification that an off-chain record is the
+  one used in policy/compliance decisions without publishing the underlying
+  personal data.
+
+This model aims to preserve:
+- auditability and evidence integrity
+- minimum necessary on-chain disclosure
+- flexibility for jurisdiction-specific retention and disclosure obligations
+
 ## 9. Data Integrity, Recovery, and Evidence
 
 Operational resilience features are first-class:

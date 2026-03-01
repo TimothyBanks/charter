@@ -85,6 +85,15 @@ The architecture separates:
 This separation is intended to preserve deterministic behavior while allowing
 consensus and infrastructure evolution over time.
 
+## 7.1 PII Handling Boundary
+
+Charter's design intent is to keep raw PII off-chain.
+
+PII and sensitive customer records remain in controlled off-chain systems, while
+the chain stores cryptographic references (for example, hash commitments or
+signed attestations) that allow verification and audit without exposing personal
+data on-chain.
+
 ## 8. Current Status
 
 Current stage: Proof of Concept.

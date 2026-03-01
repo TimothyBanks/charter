@@ -199,6 +199,7 @@ Current canonical expected tx denials/success paths include:
 Primary docs:
 - `doc/one_pager.md`
 - `doc/funding_checklist.md`
+- `doc/competitive_matrix.md`
 - `doc/operation_happy_failure_paths.md`
 - `doc/error_codes_and_events_contract.md`
 - `doc/query_and_keyspace_contract.md`
