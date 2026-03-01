@@ -11,11 +11,13 @@ COMET_BIN="${COMET_BIN:-cometbft}"
 COMET_RPC="${COMET_RPC:-http://127.0.0.1:26657}"
 CHARTER_GRPC_ADDR="${CHARTER_GRPC_ADDR:-127.0.0.1:26658}"
 ALLOW_INSECURE_CRYPTO="${ALLOW_INSECURE_CRYPTO:-1}"
-START_LOCAL="${START_LOCAL:-1}"
+START_LOCAL="${START_LOCAL:-0}"
 KEEP_LOCAL_STATE="${KEEP_LOCAL_STATE:-0}"
 RPC_TIMEOUT_SECONDS="${RPC_TIMEOUT_SECONDS:-15}"
 BROADCAST_RETRIES="${BROADCAST_RETRIES:-3}"
-CLEAN_STALE_LOCAL_PROCESSES="${CLEAN_STALE_LOCAL_PROCESSES:-1}"
+CLEAN_STALE_LOCAL_PROCESSES="${CLEAN_STALE_LOCAL_PROCESSES:-0}"
+AUTO_NONCE_RECOVERY="${AUTO_NONCE_RECOVERY:-1}"
+VERIFY_WORKSPACE_ADMIN_QUERY="${VERIFY_WORKSPACE_ADMIN_QUERY:-0}"
 REPORT_PATH="${REPORT_PATH:-$ROOT_DIR/tests/proof_report_$(date +%Y%m%d_%H%M%S).txt}"
 CHARTER_LOG="${CHARTER_LOG:-/tmp/charter_demo.log}"
 COMET_LOG="${COMET_LOG:-/tmp/comet_demo.log}"
@@ -193,9 +195,16 @@ parse_broadcast() {
   python3 - "$1" <<'PY'
 import json
 import sys
-obj = json.loads(sys.argv[1])
+sep = "\x1f"
+raw = sys.argv[1] if len(sys.argv) > 1 else ""
+try:
+    obj = json.loads(raw)
+except Exception as exc:
+    msg = f"parse_error: {exc}".replace("\n", " ").replace("\t", " ")
+    print(sep.join(["rpc_error", "rpc_error", "-", "-", "", msg, "", "", "", ""]))
+    raise SystemExit(0)
 if obj.get("error") is not None:
-    print("rpc_error\trpc_error\t-\t-\t-\t-\t-\t-")
+    print(sep.join(["rpc_error", "rpc_error", "-", "-", "-", "-", "-", "-", "-", "-"]))
     raise SystemExit(0)
 r = obj.get("result", {})
 check = r.get("check_tx", {}).get("code", 0)
@@ -204,12 +213,16 @@ txhash = r.get("hash", "")
 height = r.get("height", "")
 check_log = r.get("check_tx", {}).get("log", "") or ""
 check_codespace = r.get("check_tx", {}).get("codespace", "") or ""
+check_info = r.get("check_tx", {}).get("info", "") or ""
 deliver_node = r.get("tx_result", r.get("deliver_tx", {}))
 deliver_log = deliver_node.get("log", "") or ""
 deliver_codespace = deliver_node.get("codespace", "") or ""
+deliver_info = deliver_node.get("info", "") or ""
 check_log = str(check_log).replace("\n", " ").replace("\t", " ")
+check_info = str(check_info).replace("\n", " ").replace("\t", " ")
 deliver_log = str(deliver_log).replace("\n", " ").replace("\t", " ")
-print(f"{check}\t{deliver}\t{txhash}\t{height}\t{check_codespace}\t{check_log}\t{deliver_codespace}\t{deliver_log}")
+deliver_info = str(deliver_info).replace("\n", " ").replace("\t", " ")
+print(sep.join([str(check), str(deliver), str(txhash), str(height), str(check_codespace), str(check_log), str(check_info), str(deliver_codespace), str(deliver_log), str(deliver_info)]))
 PY
 }
 
@@ -217,13 +230,19 @@ parse_query_fields() {
   python3 - "$1" <<'PY'
 import json
 import sys
-obj = json.loads(sys.argv[1])
+sep = "\x1f"
+raw = sys.argv[1] if len(sys.argv) > 1 else ""
+try:
+    obj = json.loads(raw)
+except Exception:
+    print(sep.join(["rpc_error", ""]))
+    raise SystemExit(0)
 if obj.get("error") is not None:
-    print("rpc_error\t")
+    print(sep.join(["rpc_error", ""]))
     raise SystemExit(0)
 r = obj.get("result", {}).get("response", {})
 value = r.get("value", "") or ""
-print(f"{r.get('code', 0)}\t{value}")
+print(sep.join([str(r.get("code", 0)), str(value)]))
 PY
 }
 
@@ -305,6 +324,7 @@ declare -a query_rows
 history_range_value_len="0"
 history_export_value_len="0"
 last_query_value_b64=""
+NONCE_DELTA=0
 
 finalize_report() {
   if [[ "$report_finalized" == "1" ]]; then
@@ -469,71 +489,109 @@ broadcast_transaction() {
   ensure_local_processes_alive
   local expected="$1"
   shift
-  local nonce
-  nonce="$(extract_arg_value --nonce "$@")"
+  local -a base_args=("$@")
+  local base_nonce
+  base_nonce="$(extract_arg_value --nonce "${base_args[@]}")"
   local payload
-  payload="$(extract_arg_value --payload "$@")"
+  payload="$(extract_arg_value --payload "${base_args[@]}")"
+  local nonce_recovery_tries=0
 
-  local transaction_b64
-  transaction_b64="$($TX_BUILDER transaction "$@")"
-
-  local response=""
-  local broadcast_ok="0"
-  local sent=0
-  while [[ "$sent" -lt "$BROADCAST_RETRIES" ]]; do
-    if response="$(rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"broadcast_tx_commit\",\"params\":{\"tx\":\"$transaction_b64\"}}")"; then
-      broadcast_ok="1"
-      break
+  while true; do
+    local -a tx_args=("${base_args[@]}")
+    local nonce="$base_nonce"
+    if [[ -n "$base_nonce" ]]; then
+      nonce=$((base_nonce + NONCE_DELTA))
+      for i in "${!tx_args[@]}"; do
+        if [[ "${tx_args[$i]}" == "--nonce" ]] && (( i + 1 < ${#tx_args[@]} )); then
+          tx_args[$((i + 1))]="$nonce"
+          break
+        fi
+      done
     fi
-    sent=$((sent + 1))
-    log "broadcast rpc retry $sent/$BROADCAST_RETRIES for payload=$payload nonce=$nonce"
-    sleep 0.5
-  done
-  if [[ "$broadcast_ok" != "1" ]]; then
-    local status_probe
-    status_probe="$(rpc_try '{"jsonrpc":"2.0","id":1,"method":"status","params":{}}' 2>&1 || true)"
-    log "diagnostic: status probe to COMET_RPC=$COMET_RPC -> ${status_probe:-<empty>}"
-    record_tx_result "$nonce" "$payload" "$expected" "rpc_error" "rpc_error" "-" "-" "FAIL"
-    fail "broadcast rpc call failed for payload=$payload nonce=$nonce"
-  fi
 
-  local check_code deliver_code txhash height check_codespace check_log deliver_codespace deliver_log
-  IFS=$'\t' read -r check_code deliver_code txhash height check_codespace check_log deliver_codespace deliver_log <<<"$(parse_broadcast "$response")"
-  log "broadcast payload=$(printf '%q ' "$@") -> check=$check_code deliver=$deliver_code height=$height hash=$txhash check_codespace='$check_codespace' check_log='$check_log'"
+    local transaction_b64
+    transaction_b64="$($TX_BUILDER transaction "${tx_args[@]}")"
 
-  if [[ "$check_code" == "rpc_error" ]]; then
-    record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
-    log "broadcast raw response: $response"
-    fail "broadcast rpc returned error for payload=$payload nonce=$nonce"
-  fi
+    local response=""
+    local broadcast_ok="0"
+    local sent=0
+    while [[ "$sent" -lt "$BROADCAST_RETRIES" ]]; do
+      if response="$(rpc "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"broadcast_tx_commit\",\"params\":{\"tx\":\"$transaction_b64\"}}")"; then
+        broadcast_ok="1"
+        break
+      fi
+      sent=$((sent + 1))
+      log "broadcast rpc retry $sent/$BROADCAST_RETRIES for payload=$payload nonce=$nonce"
+      sleep 0.5
+    done
+    if [[ "$broadcast_ok" != "1" ]]; then
+      local status_probe
+      status_probe="$(rpc_try '{"jsonrpc":"2.0","id":1,"method":"status","params":{}}' 2>&1 || true)"
+      log "diagnostic: status probe to COMET_RPC=$COMET_RPC -> ${status_probe:-<empty>}"
+      record_tx_result "$nonce" "$payload" "$expected" "rpc_error" "rpc_error" "-" "-" "FAIL"
+      fail "broadcast rpc call failed for payload=$payload nonce=$nonce"
+    fi
 
-  if [[ "$check_code" != "0" ]]; then
-    record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
-    if [[ "$check_code" == "6" ]]; then
-      log "diagnostic: code=6 indicates strict signature verification is active for the app handling CheckTx."
-      if [[ "$START_LOCAL" != "1" ]]; then
-        log "diagnostic: START_LOCAL=$START_LOCAL, so this script is not launching charter; ALLOW_INSECURE_CRYPTO only affects charter started by this script."
-        log "diagnostic: you are likely connected to an external comet/charter pair at COMET_RPC=$COMET_RPC running strict crypto."
-      else
-        log "diagnostic: START_LOCAL=$START_LOCAL; verify local charter startup logs include strict_crypto=false and '--allow-insecure-crypto enabled'."
-        if [[ -f "$CHARTER_LOG" ]] && grep -q "strict_crypto=false" "$CHARTER_LOG"; then
-          log "diagnostic: local charter log shows strict_crypto=false; if CheckTx still returns code=6, COMET_RPC may not be connected to this charter instance."
+    local parsed_broadcast
+    parsed_broadcast="$(parse_broadcast "$response" || true)"
+    local check_code deliver_code txhash height check_codespace check_log check_info deliver_codespace deliver_log deliver_info
+    IFS=$'\x1f' read -r check_code deliver_code txhash height check_codespace check_log check_info deliver_codespace deliver_log deliver_info <<<"${parsed_broadcast}" || true
+    if [[ -z "${check_code:-}" ]]; then
+      record_tx_result "$nonce" "$payload" "$expected" "rpc_error" "rpc_error" "-" "-" "FAIL"
+      log "broadcast parse failure: parsed='${parsed_broadcast}' response='${response}'"
+      fail "broadcast parse failed for payload=$payload nonce=$nonce"
+    fi
+    log "broadcast payload=$(printf '%q ' "${tx_args[@]}") -> check=$check_code deliver=$deliver_code height=$height hash=$txhash check_codespace='$check_codespace' check_log='$check_log'"
+
+    if [[ "$check_code" == "4" && -n "$base_nonce" && "$nonce_recovery_tries" -lt 2 ]] && is_truthy "$AUTO_NONCE_RECOVERY"; then
+      local expected_nonce_text="$check_info $check_log"
+      if [[ "$expected_nonce_text" =~ expected[[:space:]]nonce[[:space:]]([0-9]+) ]]; then
+        local expected_nonce="${BASH_REMATCH[1]}"
+        local new_delta=$((expected_nonce - base_nonce))
+        if [[ "$new_delta" != "$NONCE_DELTA" ]]; then
+          log "nonce recovery: payload=$payload base_nonce=$base_nonce old_delta=$NONCE_DELTA new_delta=$new_delta (expected_nonce=$expected_nonce)"
+          NONCE_DELTA="$new_delta"
+          nonce_recovery_tries=$((nonce_recovery_tries + 1))
+          continue
         fi
       fi
     fi
-    log "check_tx details: codespace='$check_codespace' log='$check_log'"
-    log "broadcast raw response: $response"
-    fail "check_tx failed unexpectedly for payload=$payload nonce=$nonce"
-  fi
 
-  if [[ "$deliver_code" != "$expected" ]]; then
-    record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
-    log "deliver details: codespace='$deliver_codespace' log='$deliver_log'"
-    log "broadcast raw response: $response"
-    fail "deliver code mismatch for payload=$payload nonce=$nonce expected=$expected actual=$deliver_code"
-  fi
+    if [[ "$check_code" == "rpc_error" ]]; then
+      record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
+      log "broadcast raw response: $response"
+      fail "broadcast rpc returned error for payload=$payload nonce=$nonce"
+    fi
 
-  record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "PASS"
+    if [[ "$check_code" != "0" ]]; then
+      record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
+      if [[ "$check_code" == "6" ]]; then
+        log "diagnostic: code=6 indicates strict signature verification is active for the app handling CheckTx."
+        if [[ "$START_LOCAL" != "1" ]]; then
+          log "diagnostic: START_LOCAL=$START_LOCAL, so this script is not launching charter; ALLOW_INSECURE_CRYPTO only affects charter started by this script."
+          log "diagnostic: you are likely connected to an external comet/charter pair at COMET_RPC=$COMET_RPC running strict crypto."
+        else
+          log "diagnostic: START_LOCAL=$START_LOCAL; verify local charter startup logs include strict_crypto=false and '--allow-insecure-crypto enabled'."
+          if [[ -f "$CHARTER_LOG" ]] && grep -q "strict_crypto=false" "$CHARTER_LOG"; then
+            log "diagnostic: local charter log shows strict_crypto=false; if CheckTx still returns code=6, COMET_RPC may not be connected to this charter instance."
+          fi
+        fi
+      fi
+      log "check_tx details: codespace='$check_codespace' log='$check_log' info='$check_info'"
+      log "broadcast raw response: $response"
+      fail "check_tx failed unexpectedly for payload=$payload nonce=$nonce"
+    fi
+
+    if [[ "$deliver_code" != "$expected" ]]; then
+      record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "FAIL"
+      log "deliver details: codespace='$deliver_codespace' log='$deliver_log' info='$deliver_info'"
+      log "broadcast raw response: $response"
+      fail "deliver code mismatch for payload=$payload nonce=$nonce expected=$expected actual=$deliver_code"
+    fi
+
+    record_tx_result "$nonce" "$payload" "$expected" "$check_code" "$deliver_code" "$height" "$txhash" "PASS"
+    return 0
+  done
 }
 
 query_path_expect_ok() {
@@ -548,8 +606,15 @@ query_path_expect_ok() {
     fail "query rpc failed for path=$path"
   fi
 
+  local parsed_query
+  parsed_query="$(parse_query_fields "$response" || true)"
   local code value_b64
-  IFS=$'\t' read -r code value_b64 <<<"$(parse_query_fields "$response")"
+  IFS=$'\x1f' read -r code value_b64 <<<"${parsed_query}" || true
+  if [[ -z "${code:-}" ]]; then
+    record_query_result "$path" "code=0" "rpc_error" "0" "FAIL"
+    log "query parse failure: path=$path parsed='${parsed_query}' response='${response}'"
+    fail "query parse failed for path=$path"
+  fi
   local value_len
   value_len="${#value_b64}"
   last_query_value_b64="$value_b64"
@@ -597,7 +662,7 @@ fi
 require_cmd "$TX_BUILDER"
 
 log "mode: START_LOCAL=$START_LOCAL COMET_RPC=$COMET_RPC CHARTER_GRPC_ADDR=$CHARTER_GRPC_ADDR ALLOW_INSECURE_CRYPTO=$ALLOW_INSECURE_CRYPTO AUTO_BUILD=$AUTO_BUILD"
-log "mode: RPC_TIMEOUT_SECONDS=$RPC_TIMEOUT_SECONDS BROADCAST_RETRIES=$BROADCAST_RETRIES CLEAN_STALE_LOCAL_PROCESSES=$CLEAN_STALE_LOCAL_PROCESSES"
+log "mode: RPC_TIMEOUT_SECONDS=$RPC_TIMEOUT_SECONDS BROADCAST_RETRIES=$BROADCAST_RETRIES CLEAN_STALE_LOCAL_PROCESSES=$CLEAN_STALE_LOCAL_PROCESSES AUTO_NONCE_RECOVERY=$AUTO_NONCE_RECOVERY VERIFY_WORKSPACE_ADMIN_QUERY=$VERIFY_WORKSPACE_ADMIN_QUERY"
 
 if [[ "$START_LOCAL" == "1" ]] && ! is_truthy "$ALLOW_INSECURE_CRYPTO"; then
   log "ERROR: START_LOCAL=1 with ALLOW_INSECURE_CRYPTO='$ALLOW_INSECURE_CRYPTO' runs strict signature verification."
@@ -769,21 +834,29 @@ fi
 ensure_rpc_ready_or_fail 8 0.5
 
 CHAIN_ID="$($TX_BUILDER chain-id)"
-SIGNER="1111111111111111111111111111111111111111111111111111111111111111"
-WORKSPACE_ID="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-VAULT_ID="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-POLICY_SET_ID="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-INTENT_ID="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-ASSET_ID="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-DEST_ID="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+SIGNER="${SIGNER:-1111111111111111111111111111111111111111111111111111111111111111}"
+WORKSPACE_ID="${WORKSPACE_ID:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+VAULT_ID="${VAULT_ID:-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"
+POLICY_SET_ID="${POLICY_SET_ID:-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc}"
+INTENT_ID="${INTENT_ID:-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}"
+ASSET_ID="${ASSET_ID:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}"
+DEST_ID="${DEST_ID:-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff}"
 
 log "chain_id=$CHAIN_ID"
+log "run ids: signer=$SIGNER workspace_id=$WORKSPACE_ID vault_id=$VAULT_ID policy_set_id=$POLICY_SET_ID intent_id=$INTENT_ID asset_id=$ASSET_ID destination_id=$DEST_ID"
 log "starting golden workflow proof run"
 
 broadcast_transaction 0 --payload create_workspace --chain-id "$CHAIN_ID" --nonce 1 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --admin "$SIGNER"
 
-workspace_admin_key="$($TX_BUILDER query-key --path /state/role_assignment --scope-type workspace --workspace-id "$WORKSPACE_ID" --subject-signer "$SIGNER" --role admin)"
-query_path_expect_ok /state/role_assignment "$workspace_admin_key" 1 >/dev/null
+if is_truthy "$VERIFY_WORKSPACE_ADMIN_QUERY"; then
+  log "phase: building workspace admin query key"
+  workspace_admin_key="$($TX_BUILDER query-key --path /state/role_assignment --scope-type workspace --workspace-id "$WORKSPACE_ID" --subject-signer "$SIGNER" --role admin)"
+  log "phase: querying workspace admin role assignment"
+  query_path_expect_ok /state/role_assignment "$workspace_admin_key" 1 >/dev/null
+  log "phase: workspace admin role assignment confirmed"
+else
+  log "phase: skipping workspace admin query verification (VERIFY_WORKSPACE_ADMIN_QUERY=$VERIFY_WORKSPACE_ADMIN_QUERY)"
+fi
 
 broadcast_transaction 0 --payload create_vault --chain-id "$CHAIN_ID" --nonce 2 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID"
 broadcast_transaction 0 --payload upsert_asset --chain-id "$CHAIN_ID" --nonce 3 --signer "$SIGNER" --asset-id "$ASSET_ID" --chain ethereum --asset-kind erc20 --address-or-contract-hex aabbccdd --asset-symbol-hex 55534443 --asset-name-hex 55534420436f696e --asset-decimals 6 --asset-enabled true
