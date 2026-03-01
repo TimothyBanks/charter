@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema key type: nonce record.
+// Custody workflow: Signer nonce keyspace used for anti-replay sequencing in
+// transaction admission.
 namespace charter::schema::key {
 
 template <typename Encoder>

@@ -4,6 +4,9 @@
 #include <charter/schema/role_id.hpp>
 #include <optional>
 
+// Schema type: create policy set.
+// Custody workflow: Policy authoring: defines approval, limits, destination,
+// claim, and velocity controls for a scope.
 namespace charter::schema {
 
 template <uint16_t Version>

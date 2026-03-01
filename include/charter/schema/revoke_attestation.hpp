@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: revoke attestation.
+// Custody workflow: Compliance revocation: invalidates previously issued
+// attestations for risk or expiry events.
 namespace charter::schema {
 
 template <uint16_t Version>

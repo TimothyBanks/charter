@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: asset kind.
+// Custody workflow: Asset classification enum: distinguishes native/token/NFT
+// styles for policy and tooling.
 namespace charter::schema {
 
 enum class asset_kind_t : uint8_t {

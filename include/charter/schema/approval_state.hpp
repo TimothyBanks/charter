@@ -2,6 +2,9 @@
 
 #include <charter/schema/primitives.hpp>
 
+// Schema type: approval state.
+// Custody workflow: Approval ledger state: tracks which signer approved which
+// intent and when.
 namespace charter::schema {
 
 template <uint16_t Version>

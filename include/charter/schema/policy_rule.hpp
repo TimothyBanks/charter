@@ -9,6 +9,9 @@
 #include <charter/schema/velocity_limit_rule.hpp>
 #include <optional>
 
+// Schema type: policy rule.
+// Custody workflow: Composite policy clause: bundles operation-specific
+// approval/limit/claim/destination constraints.
 namespace charter::schema {
 
 template <uint16_t Version>

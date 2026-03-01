@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// Schema type: security event type.
+// Custody workflow: Security taxonomy: classifies custody security event
+// categories for alerting and triage.
 namespace charter::schema {
 
 enum class security_event_type_t : uint16_t {

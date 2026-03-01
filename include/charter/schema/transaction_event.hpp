@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+// Schema type: transaction event.
+// Custody workflow: Event stream item: indexed emission for observability,
+// indexing, and post-trade analytics.
 namespace charter::schema {
 
 template <uint16_t Version>

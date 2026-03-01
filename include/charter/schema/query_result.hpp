@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <string>
 
+// Schema type: query result.
+// Custody workflow: Read API envelope: returns deterministic query output, key
+// echo, height, and error metadata.
 namespace charter::schema {
 
 template <uint16_t Version>

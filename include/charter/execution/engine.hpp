@@ -27,8 +27,17 @@
 
 namespace charter::execution {
 
+/// Deterministic custody state machine used by the ABCI server.
+///
+/// The engine validates transactions, executes payload operations, persists
+/// state/history/security events, and exposes query/snapshot/backup interfaces.
 class engine final {
  public:
+  /// Construct the engine with encoder/storage backends and runtime options.
+  ///
+  /// `snapshot_interval` controls periodic snapshot creation in commit flow.
+  /// `require_strict_crypto` enables real signature verification; when false,
+  /// signatures are bypassed for PoC compatibility mode.
   explicit engine(
       charter::schema::encoding::encoder<
           charter::schema::encoding::scale_encoder_tag>& encoder,
@@ -36,51 +45,104 @@ class engine final {
       uint64_t snapshot_interval = 100,
       bool require_strict_crypto = true);
 
+  /// Admit a transaction for mempool inclusion (CheckTx semantics).
+  ///
+  /// Performs decode + validation checks only; does not mutate application
+  /// state.
   charter::schema::transaction_result_t check_transaction(
       const charter::schema::bytes_view_t& raw_tx);
+
+  /// Validate a transaction in proposal building flow (PrepareProposal path).
+  ///
+  /// Reuses the same validation pipeline as CheckTx.
   charter::schema::transaction_result_t process_proposal_transaction(
       const charter::schema::bytes_view_t& raw_tx);
+
+  /// Execute a candidate block and compute its resulting state_root.
+  ///
+  /// Transactions are processed in-order; per-tx results are returned even on
+  /// failures.
   charter::schema::block_result_t finalize_block(
       uint64_t height,
       const std::vector<charter::schema::bytes_t>& txs);
+
+  /// Commit the latest finalized block state to durable storage.
+  ///
+  /// Persists committed height/state_root and triggers snapshot creation when
+  /// due.
   charter::schema::commit_result_t commit();
+
+  /// Return application metadata (latest committed height and state_root).
   charter::schema::app_info_t info() const;
+
+  /// Execute a deterministic read-path query by route.
   charter::schema::query_result_t query(
       std::string_view path,
       const charter::schema::bytes_view_t& data);
+
+  /// Return history entries in the inclusive height range.
   std::vector<charter::schema::history_entry_t> history(
       uint64_t from_height,
       uint64_t to_height) const;
 
+  /// Export backup bytes to filesystem path.
   bool export_backup(std::string_view backup_path) const;
+
+  /// Export backup bytes as in-memory payload.
   charter::schema::bytes_t export_backup() const;
 
+  /// Load backup bytes from filesystem path and replace in-memory state.
   bool load_backup(std::string_view backup_path);
+
+  /// Load backup bytes from memory and replace in-memory state.
+  ///
+  /// On failure, `error` contains a human-readable reason.
   bool load_backup(const charter::schema::bytes_view_t& backup,
                    std::string& error);
 
+  /// Re-run persisted history and check deterministic state-root agreement.
   charter::schema::replay_result_t replay_history();
+
+  /// Install runtime signature verifier callback.
+  ///
+  /// Ignored when strict-crypto mode is disabled.
   void set_signature_verifier(signature_verifier_t verifier);
 
+  /// List persisted local snapshots.
   std::vector<charter::schema::snapshot_descriptor_t> list_snapshots() const;
+
+  /// Load a specific snapshot chunk.
   std::optional<charter::schema::bytes_t>
   load_snapshot_chunk(uint64_t height, uint32_t format, uint32_t chunk) const;
+
+  /// Evaluate offered snapshot compatibility against trusted state root.
   charter::schema::offer_snapshot_result offer_snapshot(
       const charter::schema::snapshot_descriptor_t& offered,
       const charter::schema::hash32_t& trusted_state_root);
+
+  /// Apply one snapshot chunk for previously accepted offer.
   charter::schema::apply_snapshot_chunk_result apply_snapshot_chunk(
       uint32_t index,
       const charter::schema::bytes_view_t& chunk,
       const std::string& sender);
 
  private:
+  /// Execute a validated transaction payload and return execution result.
   charter::schema::transaction_result_t execute_operation(
       const charter::schema::transaction_t& tx);
+
+  /// Validate transaction envelope, authorization, signature, and nonce.
+  ///
+  /// When `expected_nonce` is provided, it is used instead of storage nonce
+  /// (used by block-local sequencing during FinalizeBlock).
   charter::schema::transaction_result_t validate_transaction(
       const charter::schema::transaction_t& tx,
       std::string_view codespace,
       std::optional<uint64_t> expected_nonce);
+
+  /// Create/persist a snapshot if the configured interval has elapsed.
   void create_snapshot_if_due(int64_t height);
+  /// Load committed state and snapshots from storage at startup.
   void load_persisted_state();
 
   mutable std::mutex mutex_;

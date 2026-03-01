@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: execute intent.
+// Custody workflow: Release execution: attempts to move an approved intent into
+// executed state once all guards pass.
 namespace charter::schema {
 
 template <uint16_t Version>

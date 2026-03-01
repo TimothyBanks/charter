@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: disable asset.
+// Custody workflow: Asset risk control: disables an onboarded asset from future
+// intent activity.
 namespace charter::schema {
 
 template <uint16_t Version>

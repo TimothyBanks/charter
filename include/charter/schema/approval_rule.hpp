@@ -2,6 +2,9 @@
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/role_id.hpp>
 
+// Schema type: approval rule.
+// Custody workflow: Approval policy rule: defines thresholds and
+// separation-of-duties constraints.
 namespace charter::schema {
 
 template <uint16_t Version>

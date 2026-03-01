@@ -5,6 +5,9 @@
 #include <charter/schema/security_event_type.hpp>
 #include <optional>
 
+// Schema type: security event record.
+// Custody workflow: Security telemetry row: records
+// authz/policy/validation/degraded-mode events for monitoring.
 namespace charter::schema {
 
 template <uint16_t Version>

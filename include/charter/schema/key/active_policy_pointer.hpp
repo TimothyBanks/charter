@@ -2,6 +2,9 @@
 #include <charter/schema/activate_policy_set.hpp>
 #include <charter/schema/active_policy_pointer.hpp>
 
+// Schema key type: active policy pointer.
+// Custody workflow: Active policy pointer key codec used to resolve current
+// policy for a scope.
 namespace charter::schema::key {
 
 template <typename Encoder>

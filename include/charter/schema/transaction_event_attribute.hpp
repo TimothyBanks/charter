@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <string>
 
+// Schema type: transaction event attribute.
+// Custody workflow: Event attribute tuple: key/value/index metadata used by
+// event consumers.
 namespace charter::schema {
 
 template <uint16_t Version>

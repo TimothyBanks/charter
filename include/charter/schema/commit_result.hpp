@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <cstdint>
 
+// Schema type: commit result.
+// Custody workflow: Commit output: records finalized height/state_root
+// persistence metadata for consensus handoff.
 namespace charter::schema {
 
 template <uint16_t Version>

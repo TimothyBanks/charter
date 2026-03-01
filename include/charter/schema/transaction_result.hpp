@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 
+// Schema type: transaction result.
+// Custody workflow: Write API envelope: returns transaction outcome
+// code/log/info/events and gas accounting.
 namespace charter::schema {
 
 template <uint16_t Version>

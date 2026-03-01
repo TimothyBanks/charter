@@ -10,6 +10,9 @@
 #include <variant>
 #include <vector>
 
+// Schema type: primitives.
+// Custody workflow: Foundational primitives: shared binary IDs,
+// signer/signature variants, and byte helpers.
 namespace charter::schema {
 
 using bytes_t = std::vector<uint8_t>;

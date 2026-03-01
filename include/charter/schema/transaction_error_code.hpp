@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// Schema type: transaction error code.
+// Custody workflow: Transaction failure taxonomy: stable numeric codes for
+// client handling and policy/audit analytics.
 namespace charter::schema {
 
 enum class transaction_error_code : uint32_t {

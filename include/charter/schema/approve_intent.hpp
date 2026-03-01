@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: approve intent.
+// Custody workflow: Approval collection: records an approver decision toward
+// policy threshold satisfaction.
 namespace charter::schema {
 
 template <uint16_t Version>

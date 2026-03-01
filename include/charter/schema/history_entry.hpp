@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <cstdint>
 
+// Schema type: history entry.
+// Custody workflow: Audit history row: stores ordered transaction bytes plus
+// execution code for replay/export.
 namespace charter::schema {
 
 template <uint16_t Version>

@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: vault model.
+// Custody workflow: Custody account model enum: segregated vs omnibus vault
+// operation style.
 namespace charter::schema {
 
 enum class vault_model_t : uint8_t { segregated = 0, omnibus = 1 };

@@ -5,6 +5,9 @@
 #include <charter/schema/velocity_window.hpp>
 #include <optional>
 
+// Schema type: velocity limit rule.
+// Custody workflow: Cumulative velocity rule: caps aggregate value across
+// rolling/deterministic windows.
 namespace charter::schema {
 
 template <uint16_t Version>

@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// Schema type: apply snapshot chunk result.
+// Custody workflow: Snapshot import enum: response to applying received
+// snapshot chunk data.
 namespace charter::schema {
 
 enum class apply_snapshot_chunk_result : uint8_t {

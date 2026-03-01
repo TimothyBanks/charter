@@ -2,6 +2,9 @@
 #include <charter/schema/primitives.hpp>
 #include <cstdint>
 
+// Schema type: claim type.
+// Custody workflow: Claim classification type: canonical or custom claim
+// identifiers for attestations.
 namespace charter::schema {
 
 enum class claim_type : uint16_t {

@@ -4,6 +4,9 @@
 #include <optional>
 #include <vector>
 
+// Schema type: create workspace.
+// Custody workflow: Tenant/workspace onboarding: establishes the custody
+// domain, initial admins, quorum, and optional jurisdiction metadata.
 namespace charter::schema {
 
 template <uint16_t Version>

@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: asset ref.
+// Custody workflow: Chain-specific asset locator: maps custody asset identity
+// to on-chain symbol/contract references.
 namespace charter::schema {
 
 template <uint16_t Version>

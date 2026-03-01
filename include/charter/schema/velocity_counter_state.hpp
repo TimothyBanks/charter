@@ -4,6 +4,9 @@
 #include <charter/schema/velocity_window.hpp>
 #include <optional>
 
+// Schema type: velocity counter state.
+// Custody workflow: Rate-limit accumulator state: tracks consumed amount/count
+// per velocity window bucket.
 namespace charter::schema {
 
 template <uint16_t Version>

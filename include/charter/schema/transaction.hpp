@@ -21,6 +21,9 @@
 #include <charter/schema/upsert_signer_quarantine.hpp>
 #include <variant>
 
+// Schema type: transaction.
+// Custody workflow: Canonical transaction envelope: signer, nonce, chain
+// binding, payload, and signature.
 namespace charter::schema {
 
 using transaction_payload_t = std::variant<activate_policy_set_t,

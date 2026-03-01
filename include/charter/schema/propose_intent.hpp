@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: propose intent.
+// Custody workflow: Transfer initiation: creates a pending intent describing
+// asset, destination, and amount under policy checks.
 namespace charter::schema {
 
 template <uint16_t Version>

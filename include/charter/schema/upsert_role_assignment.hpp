@@ -4,6 +4,9 @@
 #include <charter/schema/role_id.hpp>
 #include <optional>
 
+// Schema type: upsert role assignment.
+// Custody workflow: RBAC administration: grants/revokes scoped signer roles for
+// custody operations.
 namespace charter::schema {
 
 template <uint16_t Version>

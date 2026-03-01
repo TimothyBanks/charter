@@ -4,6 +4,9 @@
 
 #include <cstdint>
 
+// Schema type: jurisdiction.
+// Custody workflow: Regulatory metadata: tags workspace policy context with
+// jurisdiction identifiers.
 namespace charter::schema {
 
 template <uint16_t Version>

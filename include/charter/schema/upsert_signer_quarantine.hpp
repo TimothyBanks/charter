@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: upsert signer quarantine.
+// Custody workflow: Threat containment: quarantines/unquarantines a signer to
+// block suspicious transaction activity.
 namespace charter::schema {
 
 template <uint16_t Version>

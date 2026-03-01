@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema key type: key.
+// Custody workflow: Shared key helper utilities for deterministic key
+// construction and parsing.
 namespace charter::schema::key {
 
 template <typename Encoder, typename... Args>

@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: role id.
+// Custody workflow: Custody role enum: models operator responsibilities (admin,
+// initiator, approver, executor, etc.).
 namespace charter::schema {
 
 enum class role_id_t : uint8_t {

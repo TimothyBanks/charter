@@ -4,6 +4,9 @@
 #include <optional>
 #include <vector>
 
+// Schema type: claim requirement.
+// Custody workflow: Compliance requirement rule: requires attestable claims
+// from trusted issuers.
 namespace charter::schema {
 
 template <uint16_t Version>

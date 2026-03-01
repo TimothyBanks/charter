@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <string>
 
+// Schema type: replay result.
+// Custody workflow: Audit and determinism result: summarizes history replay
+// verification against committed state.
 namespace charter::schema {
 
 template <uint16_t Version>

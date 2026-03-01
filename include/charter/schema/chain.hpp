@@ -8,6 +8,9 @@
 #include <string_view>
 #include <variant>
 
+// Schema type: chain.
+// Custody workflow: Settlement chain identifier: normalized chain type used in
+// asset/address semantics.
 namespace charter::schema {
 
 enum class chain_type : uint16_t {

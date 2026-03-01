@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: upsert attestation.
+// Custody workflow: Compliance attestation issuance/update: records
+// KYB/KYC/other claims used by policy checks.
 namespace charter::schema {
 
 template <uint16_t Version>

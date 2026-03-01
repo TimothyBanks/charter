@@ -4,6 +4,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: upsert destination.
+// Custody workflow: Destination onboarding and maintenance: registers/updates
+// withdrawal targets and enablement state.
 namespace charter::schema {
 
 template <uint16_t Version>

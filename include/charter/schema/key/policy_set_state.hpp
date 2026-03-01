@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/create_policy_set.hpp>
 
+// Schema key type: policy set state.
+// Custody workflow: Policy set key codec used for policy authoring/versioning
+// and enforcement lookups.
 namespace charter::schema::key {
 
 template <typename Encoder>

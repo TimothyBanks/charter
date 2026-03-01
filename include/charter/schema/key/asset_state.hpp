@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/asset_state.hpp>
 
+// Schema key type: asset state.
+// Custody workflow: Asset state key codec used in asset onboarding,
+// disablement, and intent checks.
 namespace charter::schema::key {
 
 template <typename Encoder>

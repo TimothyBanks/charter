@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: destination type.
+// Custody workflow: Destination classification enum: address vs contract
+// semantics for destination controls.
 namespace charter::schema {
 
 enum class destination_type_t : uint8_t { address = 0, contract = 1 };

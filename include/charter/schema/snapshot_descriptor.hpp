@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <cstdint>
 
+// Schema type: snapshot descriptor.
+// Custody workflow: State sync metadata: describes snapshot
+// height/format/hash/chunks for node bootstrap and recovery.
 namespace charter::schema {
 
 template <uint16_t Version>

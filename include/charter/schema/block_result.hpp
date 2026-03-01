@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <vector>
 
+// Schema type: block result.
+// Custody workflow: Finalize output: returns per-transaction results plus
+// candidate post-block state root.
 namespace charter::schema {
 
 template <uint16_t Version>

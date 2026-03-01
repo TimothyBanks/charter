@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <string>
 
+// Schema type: app info.
+// Custody workflow: Node/app introspection: reports latest committed height and
+// state root for handshake/status.
 namespace charter::schema {
 
 template <uint16_t Version>

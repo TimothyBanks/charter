@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: transfer parameters.
+// Custody workflow: Transfer action payload: asset and amount details for value
+// movement intents.
 namespace charter::schema {
 
 template <uint16_t Version>

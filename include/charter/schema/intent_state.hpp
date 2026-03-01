@@ -7,6 +7,9 @@
 #include <vector>
 #include "primitives.hpp"
 
+// Schema type: intent state.
+// Custody workflow: Intent lifecycle state: tracks
+// proposed/approved/executed/cancelled transfer requests.
 namespace charter::schema {
 
 template <uint16_t Version>

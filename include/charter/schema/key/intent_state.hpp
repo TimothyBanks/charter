@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/intent_state.hpp>
 
+// Schema key type: intent state.
+// Custody workflow: Intent state key codec used for lifecycle transitions and
+// execution checks.
 namespace charter::schema::key {
 
 template <typename Encoder>

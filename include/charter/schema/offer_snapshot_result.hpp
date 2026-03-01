@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+// Schema type: offer snapshot result.
+// Custody workflow: Snapshot negotiation enum: response to offered snapshot
+// during state sync.
 namespace charter::schema {
 
 enum class offer_snapshot_result : uint8_t {

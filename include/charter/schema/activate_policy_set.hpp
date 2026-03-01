@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: activate policy set.
+// Custody workflow: Policy change control: promotes a policy set version to
+// active enforcement for its scope.
 namespace charter::schema {
 
 template <uint16_t Version>

@@ -2,6 +2,9 @@
 
 #include <charter/schema/primitives.hpp>
 
+// Schema type: apply destination update.
+// Custody workflow: Destination change rollout: applies an approved destination
+// update to live destination state.
 namespace charter::schema {
 
 template <uint16_t Version>

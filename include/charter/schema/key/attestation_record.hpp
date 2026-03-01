@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/attestation_record.hpp>
 
+// Schema key type: attestation record.
+// Custody workflow: Attestation key codec used for claim verification in
+// compliance-gated workflows.
 namespace charter::schema::key {
 
 template <typename Encoder>

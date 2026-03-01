@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/upsert_destination.hpp>
 
+// Schema key type: destination state.
+// Custody workflow: Destination state key codec used in whitelisting and
+// destination control workflows.
 namespace charter::schema::key {
 
 template <typename Encoder>

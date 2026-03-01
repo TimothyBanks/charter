@@ -6,6 +6,9 @@
 #include <optional>
 #include "primitives.hpp"
 
+// Schema type: attestation record.
+// Custody workflow: Attestation evidence state: stores issuer/subject/claim
+// validity used in compliance gating.
 namespace charter::schema {
 
 template <uint16_t Version>

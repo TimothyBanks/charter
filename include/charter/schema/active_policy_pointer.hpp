@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: active policy pointer.
+// Custody workflow: Policy activation index: points each scope to the currently
+// enforced policy set/version.
 namespace charter::schema {
 
 template <uint16_t Version>

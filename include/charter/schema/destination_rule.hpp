@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: destination rule.
+// Custody workflow: Destination policy rule: enforces whitelisting and
+// destination safety constraints.
 namespace charter::schema {
 
 template <uint16_t Version>

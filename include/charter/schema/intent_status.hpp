@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: intent status.
+// Custody workflow: Intent lifecycle enum: proposed, approved, executed,
+// cancelled, expired-style states.
 namespace charter::schema {
 
 enum class intent_status_t : uint8_t {

@@ -26,6 +26,7 @@ inline constexpr auto kSnapshotMetaPrefix = std::string_view{"SYS|SNAP|META|"};
 inline constexpr auto kSnapshotChunkPrefix =
     std::string_view{"SYS|SNAP|CHUNK|"};
 
+// Decode snapshot metadata key suffix into (height, format).
 template <typename Encoder>
 inline std::optional<std::pair<uint64_t, uint32_t>> parse_snapshot_meta_key(
     Encoder& encoder,
@@ -45,6 +46,7 @@ inline std::optional<std::pair<uint64_t, uint32_t>> parse_snapshot_meta_key(
                                        std::get<1>(decoded.value())};
 }
 
+// Build metadata key for one snapshot descriptor row.
 template <typename Encoder>
 inline std::string make_snapshot_meta_key(Encoder& encoder,
                                           uint64_t height,
@@ -55,6 +57,7 @@ inline std::string make_snapshot_meta_key(Encoder& encoder,
   return key;
 }
 
+// Build payload key for one snapshot chunk row.
 template <typename Encoder>
 inline std::string make_snapshot_chunk_key(Encoder& encoder,
                                            uint64_t height,
@@ -66,6 +69,7 @@ inline std::string make_snapshot_chunk_key(Encoder& encoder,
   return key;
 }
 
+// Copy a RocksDB slice into owned bytes.
 inline charter::schema::bytes_t to_bytes(
     const ROCKSDB_NAMESPACE::Slice& slice) {
   return {reinterpret_cast<const uint8_t*>(slice.data()),
@@ -78,32 +82,40 @@ struct rocksdb_storage_tag {};
 
 template <>
 struct storage<rocksdb_storage_tag> final {
+  /// Owned RocksDB handle for this storage instance.
   std::unique_ptr<ROCKSDB_NAMESPACE::DB> database;
 
+  /// Decode and return value at key, or std::nullopt when missing.
   template <typename T, typename Encoder>
   std::optional<T> get(Encoder& encoder,
                        const charter::schema::bytes_view_t& key);
 
+  /// Encode and persist value at key.
   template <typename T, typename Encoder>
   void put(Encoder& encoder,
            const charter::schema::bytes_view_t& key,
            const T& value);
 
+  /// Load persisted committed checkpoint (height + state_root).
   template <typename Encoder>
   std::optional<committed_state> load_committed_state(Encoder& encoder) const;
 
+  /// Persist committed checkpoint (height + state_root).
   template <typename Encoder>
   void save_committed_state(Encoder& encoder,
                             const committed_state& state) const;
 
+  /// Enumerate persisted snapshot descriptors.
   template <typename Encoder>
   std::vector<snapshot_descriptor> list_snapshots(Encoder& encoder) const;
 
+  /// Persist snapshot metadata and first chunk payload.
   template <typename Encoder>
   void save_snapshot(Encoder& encoder,
                      const snapshot_descriptor& snapshot,
                      const charter::schema::bytes_t& chunk) const;
 
+  /// Load snapshot chunk payload by (height, format, chunk index).
   template <typename Encoder>
   std::optional<charter::schema::bytes_t> load_snapshot_chunk(
       Encoder& encoder,
@@ -111,12 +123,16 @@ struct storage<rocksdb_storage_tag> final {
       uint32_t format,
       uint32_t chunk) const;
 
+  /// Return all entries where key starts with prefix.
   std::vector<key_value_entry_t> list_by_prefix(
       const charter::schema::bytes_view_t& prefix) const;
+
+  /// Replace entire prefix range atomically using a write batch.
   void replace_by_prefix(const charter::schema::bytes_view_t& prefix,
                          const std::vector<key_value_entry_t>& entries) const;
 };
 
+/// Open/create RocksDB storage at filesystem path.
 template <>
 storage<rocksdb_storage_tag> make_storage<rocksdb_storage_tag>(
     const std::string_view& path);

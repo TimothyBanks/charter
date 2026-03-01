@@ -289,6 +289,8 @@ std::optional<charter::schema::policy_scope_t> scope_from_payload(
 
 std::vector<charter::schema::role_id_t> required_roles_for_payload(
     const charter::schema::transaction_payload_t& payload) {
+  // Baseline authorization matrix. Role assignments can later be satisfied by
+  // either scoped overrides or active policy-set role maps.
   using role_t = charter::schema::role_id_t;
   return std::visit(
       overloaded{[&](const charter::schema::create_workspace_t&) {
@@ -526,6 +528,7 @@ charter::schema::operation_type_t operation_type_from_intent_action(
 }
 
 struct policy_requirements final {
+  // Effective policy values after merging all matching rules for an operation.
   uint32_t threshold{1};
   uint64_t delay_ms{};
   charter::schema::hash32_t policy_set_id;
@@ -565,12 +568,20 @@ std::optional<policy_requirements> resolve_policy_requirements(
   requirements.policy_set_id = pointer->policy_set_id;
   requirements.policy_version = pointer->policy_set_version;
 
+  // Merge strategy for matching rules:
+  // - threshold: max (most restrictive approval count)
+  // - delay_ms: max (longest timelock)
+  // - per_transaction_limit: min (smallest spend cap)
+  // - destination/SoD booleans: logical OR (any rule can require)
+  // - claim requirements: set union by claim id
+  // - velocity limits: append all windows/caps
   for (const auto& rule : policy->rules) {
     if (rule.operation != operation_type) {
       continue;
     }
 
     for (const auto& approval : rule.approvals) {
+      // Higher threshold tightens approval requirements.
       requirements.threshold =
           std::max(requirements.threshold, approval.threshold);
       requirements.require_distinct_from_initiator =
@@ -584,6 +595,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
     if (rule.time_locks.has_value()) {
       for (const auto& time_lock : *rule.time_locks) {
         if (time_lock.operation == operation_type) {
+          // Longest delay wins to preserve the strictest timelock.
           requirements.delay_ms =
               std::max(requirements.delay_ms, time_lock.delay);
         }
@@ -591,6 +603,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
     }
 
     for (const auto& limit : rule.limits) {
+      // Smallest allowed amount wins (tightest per-transaction cap).
       if (!requirements.per_transaction_limit.has_value() ||
           limit.per_transaction_amount <
               requirements.per_transaction_limit.value()) {
@@ -599,12 +612,14 @@ std::optional<policy_requirements> resolve_policy_requirements(
     }
 
     for (const auto& destination_rule : rule.destination_rules) {
+      // Any matching rule can require whitelist enforcement.
       requirements.require_whitelisted_destination =
           requirements.require_whitelisted_destination ||
           destination_rule.require_whitelisted;
     }
 
     for (const auto& claim : rule.required_claims) {
+      // Deduplicate claim requirements by claim id.
       auto existing = std::ranges::find_if(
           requirements.claim_requirements,
           [&](const charter::schema::claim_requirement_t& requirement) {
@@ -621,6 +636,7 @@ std::optional<policy_requirements> resolve_policy_requirements(
     }
 
     for (const auto& velocity_limit : rule.velocity_limits) {
+      // Preserve all configured velocity caps for later enforcement.
       requirements.velocity_limits.emplace_back(velocity_limit);
     }
   }
@@ -685,6 +701,8 @@ bool role_granted_by_override(
     const charter::schema::role_id_t role,
     const uint64_t now_ms,
     std::optional<bool>& has_override) {
+  // Scoped role assignment overrides policy role maps.
+  // If an override exists and is disabled, we treat that as explicit deny.
   auto key = make_role_assignment_key(encoder, scope, signer, role);
   auto assignment = storage.get<charter::schema::role_assignment_state_t>(
       encoder, charter::schema::bytes_view_t{key.data(), key.size()});
@@ -715,6 +733,9 @@ bool scope_has_role(
     const charter::schema::signer_id_t& signer,
     const charter::schema::role_id_t role,
     const uint64_t now_ms) {
+  // Precedence:
+  // 1) explicit scoped override
+  // 2) active policy-set role membership
   auto has_override = std::optional<bool>{};
   if (role_granted_by_override(storage, encoder, scope, signer, role, now_ms,
                                has_override)) {
@@ -749,6 +770,7 @@ bool signer_has_role_for_scope(
     return true;
   }
   if (std::holds_alternative<charter::schema::vault_t>(scope)) {
+    // Vault-scoped operations can inherit workspace-level role grants.
     const auto& vault = std::get<charter::schema::vault_t>(scope);
     auto workspace_scope = charter::schema::policy_scope_t{
         charter::schema::workspace_scope_t{.workspace_id = vault.workspace_id}};
@@ -772,6 +794,7 @@ bool signer_has_required_global_role(
     const charter::schema::signer_id_t& signer,
     const std::vector<charter::schema::role_id_t>& required_roles,
     const uint64_t now_ms) {
+  // Global fallback role scan used for operations without an explicit scope.
   auto prefix = make_prefix_key(encoder, kRoleAssignmentKeyPrefix);
   auto rows = storage.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
@@ -815,6 +838,8 @@ bool signer_authorized_for_payload(
     const charter::schema::transaction_payload_t& payload,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms) {
+  // Most operations authorize within a scope (workspace or vault). Operations
+  // without scope fallback to any active global role assignment.
   auto required_roles = required_roles_for_payload(payload);
   if (required_roles.empty()) {
     return true;
@@ -920,6 +945,8 @@ bool enforce_velocity_limits(
     const uint64_t now_ms,
     charter::schema::transaction_result_t& result,
     const std::string_view codespace) {
+  // Velocity checks are pre-execution guards. They evaluate aggregate spend in
+  // a deterministic time bucket without mutating counters.
   auto transfer = transfer_asset_and_amount(action);
   if (!transfer.has_value()) {
     return true;
@@ -929,6 +956,7 @@ bool enforce_velocity_limits(
     if (limit.asset_id.has_value() && limit.asset_id.value() != asset_id) {
       continue;
     }
+    // Each rule is evaluated against its own deterministic window bucket.
     auto window_start = velocity_window_start_ms(now_ms, limit.window);
     auto key =
         make_velocity_counter_key(encoder, workspace_id, vault_id,
@@ -958,6 +986,8 @@ void apply_velocity_limits(
     const charter::schema::intent_action_t& action,
     const std::vector<charter::schema::velocity_limit_rule_t>& limits,
     const uint64_t now_ms) {
+  // Velocity counters are updated only after an operation succeeds so failed
+  // proposals never consume policy budget.
   auto transfer = transfer_asset_and_amount(action);
   if (!transfer.has_value()) {
     return;
@@ -994,6 +1024,9 @@ bool attestation_satisfies_requirement(
     const charter::schema::hash32_t& subject,
     const charter::schema::claim_requirement_t& requirement,
     uint64_t now_ms) {
+  // Requirement check supports:
+  // - explicit trusted issuer set (point lookups)
+  // - any issuer (prefix scan)
   auto matches_record =
       [&](const charter::schema::attestation_record_t& record) {
         if (record.status != charter::schema::attestation_status_t::active) {
@@ -1010,6 +1043,7 @@ bool attestation_satisfies_requirement(
       };
 
   if (requirement.trusted_issuers.has_value()) {
+    // Fast path: issuer-constrained attestation checks.
     for (const auto& issuer : *requirement.trusted_issuers) {
       auto key = make_attestation_key(encoder, workspace_id, subject,
                                       requirement.claim, issuer);
@@ -1024,6 +1058,7 @@ bool attestation_satisfies_requirement(
 
   auto prefix = make_attestation_prefix_key(encoder, workspace_id, subject,
                                             requirement.claim);
+  // Broad path: any active record for claim is acceptable.
   auto rows = storage.list_by_prefix(
       charter::schema::bytes_view_t{prefix.data(), prefix.size()});
   for (const auto& [unused_key, value] : rows) {
@@ -1824,6 +1859,8 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
     const charter::schema::propose_intent_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms) {
+  // Proposal stage freezes initial policy snapshot information on the intent
+  // and performs early checks that can fail fast before approvals accumulate.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
                     operation.vault_id)) {
@@ -1869,6 +1906,7 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
   auto result = charter::schema::transaction_result_t{};
   std::visit(
       overloaded{[&](const charter::schema::transfer_parameters_t& action) {
+        // Per-transaction cap check.
         if (requirements->per_transaction_limit.has_value() &&
             charter::schema::amount_t{action.amount} >
                 requirements->per_transaction_limit.value()) {
@@ -1881,6 +1919,8 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
         if (requirements->require_whitelisted_destination &&
             !destination_enabled(storage, encoder, operation.workspace_id,
                                  action.destination_id)) {
+          // Destination must already be present+enabled when whitelist is
+          // required by policy.
           result =
               make_execute_error(charter::schema::transaction_error_code::
                                      destination_not_whitelisted,
@@ -1903,6 +1943,7 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
 
   auto required_threshold = requirements->threshold;
   auto delay_ms = requirements->delay_ms;
+  // not_before encodes timelock from merged policy rules.
   auto not_before = now_ms + delay_ms;
   auto status = charter::schema::intent_status_t::pending_approval;
   if (required_threshold == 0 && now_ms >= not_before) {
@@ -1923,6 +1964,7 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
       .policy_version = requirements->policy_version,
       .required_threshold = required_threshold,
       .approvals_count = 0,
+      // Claim requirements are copied onto intent state at proposal time.
       .claim_requirements = requirements->claim_requirements};
   storage.put(
       encoder,
@@ -1938,6 +1980,7 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
     const charter::schema::approve_intent_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms) {
+  // Approval stage records signer vote and updates intent readiness state.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
                     operation.vault_id)) {
@@ -2010,6 +2053,7 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
                                         .signed_at = now_ms});
 
   intent->approvals_count += 1;
+  // Intent becomes executable only when both threshold and timelock are met.
   if (intent->approvals_count >= intent->required_threshold &&
       now_ms >= intent->not_before) {
     intent->status = charter::schema::intent_status_t::executable;
@@ -2067,6 +2111,7 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
     const charter::schema::execute_intent_t& operation,
     const charter::schema::signer_id_t& signer,
     const uint64_t now_ms) {
+  // Execution stage revalidates dynamic controls before final state transition.
   if (!workspace_exists(storage, encoder, operation.workspace_id) ||
       !vault_exists(storage, encoder, operation.workspace_id,
                     operation.vault_id)) {
@@ -2119,6 +2164,7 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
     return asset_result;
   }
   if (requirements->require_distinct_from_executor) {
+    // Enforce executor/approver separation by checking for executor approval.
     auto executor_approval_key =
         make_approval_key(encoder, operation.intent_id, signer);
     auto approval_by_executor = storage.get<charter::schema::approval_state_t>(
@@ -2141,6 +2187,7 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
     return result;
   }
 
+  // Claim requirements captured on the intent must still be satisfiable now.
   for (const auto& requirement : intent->claim_requirements) {
     if (!attestation_satisfies_requirement(
             storage, encoder, intent->workspace_id, intent->workspace_id,
@@ -2158,6 +2205,7 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
       encoder,
       charter::schema::bytes_view_t{intent_key.data(), intent_key.size()},
       *intent);
+  // Counters mutate only after successful execution state transition.
   apply_velocity_limits(storage, encoder, operation.workspace_id,
                         operation.vault_id, intent->action,
                         requirements->velocity_limits, now_ms);
@@ -2451,6 +2499,8 @@ charter::schema::transaction_result_t execute_payload_operation(
     const charter::schema::transaction_t& tx,
     const uint64_t now_ms,
     const uint64_t current_block_height) {
+  // Execution dispatch intentionally stays centralized so the operation matrix
+  // is explicit and testable in one location.
   return std::visit(
       overloaded{
           [&](const charter::schema::create_workspace_t& operation) {
@@ -2575,6 +2625,8 @@ template <typename Encoder>
 charter::schema::bytes_t make_signing_bytes(
     Encoder& encoder,
     const charter::schema::transaction_t& tx) {
+  // The signature envelope excludes the signature field itself and signs a
+  // canonical tuple of immutable transaction fields.
   return encoder.encode(
       std::tuple{tx.version, tx.chain_id, tx.nonce, tx.signer, tx.payload});
 }
@@ -2776,6 +2828,8 @@ engine::engine(
 
 transaction_result_t engine::check_transaction(
     const charter::schema::bytes_view_t& raw_tx) {
+  // CheckTx performs stateless+stateful admission checks but never mutates
+  // ledger state.
   auto lock = std::scoped_lock{mutex_};
   auto decode_error = std::string{};
   auto maybe_tx = decode_transaction(
@@ -2797,6 +2851,8 @@ transaction_result_t engine::check_transaction(
 
 transaction_result_t engine::process_proposal_transaction(
     const charter::schema::bytes_view_t& raw_tx) {
+  // PrepareProposal reuses the same validation pipeline as CheckTx so proposer
+  // filtering logic does not diverge from validator logic.
   auto lock = std::scoped_lock{mutex_};
   auto decode_error = std::string{};
   auto maybe_tx = decode_transaction(encoder_, raw_tx, decode_error);
@@ -2815,6 +2871,7 @@ transaction_result_t engine::process_proposal_transaction(
 
 transaction_result_t engine::execute_operation(
     const charter::schema::transaction_t& tx) {
+  // Execute the payload and emit security telemetry for denied operations.
   auto result = execute_payload_operation(
       storage_, encoder_, tx, current_block_time_ms_, current_block_height_);
   auto [workspace_id, vault_id] = scope_ids_for_payload(tx.payload);
@@ -2839,6 +2896,11 @@ transaction_result_t engine::validate_transaction(
     const charter::schema::transaction_t& tx,
     std::string_view codespace,
     std::optional<uint64_t> expected_nonce) {
+  // Validation order matters:
+  // 1) safety gates (degraded mode / quarantine)
+  // 2) authorization gates
+  // 3) envelope + signature checks
+  // 4) nonce sequencing
   auto degraded_mode = current_degraded_mode(storage_, encoder_);
   if (degraded_mode != charter::schema::degraded_mode_t::normal &&
       !std::holds_alternative<charter::schema::set_degraded_mode_t>(
@@ -2911,6 +2973,8 @@ transaction_result_t engine::validate_transaction(
 
   auto nonce_to_match = uint64_t{};
   if (expected_nonce.has_value()) {
+    // During FinalizeBlock we carry a per-block nonce cursor so multiple
+    // transactions from the same signer validate in-order within the block.
     nonce_to_match = expected_nonce.value();
   } else {
     auto nonce_key = make_nonce_key(encoder_, tx.signer);
@@ -2939,7 +3003,10 @@ block_result_t engine::finalize_block(
   current_block_time_ms_ = height * 1000;
   current_block_height_ = height;
 
+  // Rolling state_root is updated only for successfully executed transactions.
   auto rolling_hash = last_committed_state_root_;
+  // Tracks next expected nonce per signer while iterating transactions in the
+  // candidate block.
   auto expected_nonces = std::map<charter::schema::bytes_t, uint64_t>{};
   for (size_t i = 0; i < txs.size(); ++i) {
     auto decode_error = std::string{};
@@ -3005,6 +3072,7 @@ block_result_t engine::finalize_block(
                                     static_cast<uint32_t>(i), maybe_tx);
     result.tx_results.emplace_back(std::move(tx_result));
     if (tx_result.code == 0) {
+      // Persist signer nonce only on successful execution.
       auto nonce_key = make_nonce_key(encoder_, maybe_tx->signer);
       storage_.put(
           encoder_,
@@ -3061,6 +3129,7 @@ query_result_t engine::query(std::string_view path,
       .chain_id = chain_id_,
       .data = data};
 
+  // Route table keeps query behavior deterministic and easy to audit.
   for (const auto& route : kQueryRoutes) {
     if (path == route.path) {
       return route.handler(request);

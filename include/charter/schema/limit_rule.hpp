@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: limit rule.
+// Custody workflow: Single-transaction limit rule: caps transfer value per
+// intent.
 namespace charter::schema {
 
 template <uint16_t Version>

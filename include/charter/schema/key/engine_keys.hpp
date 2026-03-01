@@ -10,6 +10,9 @@
 #include <string_view>
 #include <utility>
 
+// Schema key type: engine keys.
+// Custody workflow: Defines canonical key prefixes and key codecs for custody
+// state, history, snapshots, and events.
 namespace charter::schema::key {
 
 inline constexpr std::string_view kNonceKeyPrefix{"SYS|STATE|NONCE|"};

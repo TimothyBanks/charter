@@ -4,6 +4,9 @@
 #include <charter/schema/chain.hpp>
 #include <charter/schema/primitives.hpp>
 
+// Schema type: asset state.
+// Custody workflow: Asset registry state: canonical record for onboarded assets
+// and current enablement.
 namespace charter::schema {
 
 template <uint16_t Version>

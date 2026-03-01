@@ -4,6 +4,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: set degraded mode.
+// Custody workflow: Incident response control: toggles chain execution mode to
+// restrict operations during incidents.
 namespace charter::schema {
 
 template <uint16_t Version>

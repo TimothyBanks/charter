@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/create_workspace.hpp>
 
+// Schema key type: workspace state.
+// Custody workflow: Workspace state key codec used in onboarding and workspace
+// lookup workflows.
 namespace charter::schema::key {
 
 template <typename Encoder>

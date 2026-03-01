@@ -5,6 +5,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: propose destination update.
+// Custody workflow: Destination change request: proposes a controlled update to
+// an existing destination configuration.
 namespace charter::schema {
 
 template <uint16_t Version>

@@ -3,6 +3,9 @@
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/role_id.hpp>
 
+// Schema type: policy set.
+// Custody workflow: Policy state container: stores executable governance rules
+// used for intent authorization.
 namespace charter::schema {
 
 template <uint16_t Version>

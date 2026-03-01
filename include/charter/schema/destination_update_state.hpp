@@ -6,6 +6,9 @@
 #include <charter/schema/primitives.hpp>
 #include <optional>
 
+// Schema type: destination update state.
+// Custody workflow: Destination change-management state: tracks pending and
+// approved destination updates.
 namespace charter::schema {
 
 template <uint16_t Version>

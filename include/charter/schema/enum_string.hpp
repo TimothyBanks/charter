@@ -5,6 +5,9 @@
 #include <string_view>
 #include <utility>
 
+// Schema type: enum string.
+// Custody workflow: Enum conversion utility: centralized string<->enum mapping
+// used by tooling and CLI.
 namespace charter::schema {
 
 template <typename Enum, std::size_t N>

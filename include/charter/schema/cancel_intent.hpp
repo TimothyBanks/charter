@@ -1,6 +1,9 @@
 #pragma once
 #include <charter/schema/primitives.hpp>
 
+// Schema type: cancel intent.
+// Custody workflow: Operational abort: stops a pending intent before execution
+// when user/operator intent changes.
 namespace charter::schema {
 
 template <uint16_t Version>

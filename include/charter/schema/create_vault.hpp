@@ -4,6 +4,9 @@
 #include <charter/schema/vault_model.hpp>
 #include <optional>
 
+// Schema type: create vault.
+// Custody workflow: Vault provisioning: creates an account/container under a
+// workspace before assets or intents can reference it.
 namespace charter::schema {
 
 template <uint16_t Version>

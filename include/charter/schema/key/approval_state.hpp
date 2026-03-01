@@ -2,6 +2,9 @@
 #include <charter/blake3/hash.hpp>
 #include <charter/schema/approval_state.hpp>
 
+// Schema key type: approval state.
+// Custody workflow: Approval state key codec used for threshold counting and
+// separation-of-duties checks.
 namespace charter::schema::key {
 
 template <typename Encoder>

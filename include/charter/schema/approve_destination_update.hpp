@@ -2,6 +2,9 @@
 
 #include <charter/schema/primitives.hpp>
 
+// Schema type: approve destination update.
+// Custody workflow: Destination change approval: records approval toward a
+// proposed destination update.
 namespace charter::schema {
 
 template <uint16_t Version>

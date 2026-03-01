@@ -7,6 +7,9 @@
 #include <optional>
 #include <string_view>
 
+// Schema type: degraded mode.
+// Custody workflow: Operational mode enum: normal vs restricted execution
+// states for incident handling.
 namespace charter::schema {
 
 enum class degraded_mode_t : uint8_t {
