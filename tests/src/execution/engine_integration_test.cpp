@@ -1221,7 +1221,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                     "cannot be exercised for code=6";
   }
   auto observed = std::set<uint32_t>{};
-  auto run = [&](const std::string& label, const auto& fn, bool strict = false) {
+  auto run = [&](const std::string& label, const auto& fn,
+                 bool strict = false) {
     auto db = make_db_path("charter_engine_code_" + label);
     {
       auto encoder = charter::schema::encoding::encoder<
@@ -1317,25 +1318,28 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(result.code, 5u);
   });
 
-  run("6", [](auto& engine, auto& seen) {
-    engine.set_signature_verifier(
-        [](const charter::schema::bytes_view_t&,
-           const charter::schema::signer_id_t&,
-           const charter::schema::signature_t&) { return false; });
-    auto chain = chain_id_from_engine(engine);
-    auto signer = make_named_signer(4);
-    auto tx = make_transaction(
-        chain, 1, signer,
-        charter::schema::create_workspace_t{.workspace_id = make_hash(14),
-                                            .admin_set = {signer},
-                                            .quorum_size = 1,
-                                            .metadata_ref = std::nullopt});
-    auto raw = encode_transaction(tx);
-    auto result = engine.check_transaction(
-        charter::schema::bytes_view_t{raw.data(), raw.size()});
-    seen.insert(result.code);
-    EXPECT_EQ(result.code, 6u);
-  }, true);
+  run(
+      "6",
+      [](auto& engine, auto& seen) {
+        engine.set_signature_verifier(
+            [](const charter::schema::bytes_view_t&,
+               const charter::schema::signer_id_t&,
+               const charter::schema::signature_t&) { return false; });
+        auto chain = chain_id_from_engine(engine);
+        auto signer = make_named_signer(4);
+        auto tx = make_transaction(
+            chain, 1, signer,
+            charter::schema::create_workspace_t{.workspace_id = make_hash(14),
+                                                .admin_set = {signer},
+                                                .quorum_size = 1,
+                                                .metadata_ref = std::nullopt});
+        auto raw = encode_transaction(tx);
+        auto result = engine.check_transaction(
+            charter::schema::bytes_view_t{raw.data(), raw.size()});
+        seen.insert(result.code);
+        EXPECT_EQ(result.code, 6u);
+      },
+      true);
 
   run("10_12_14_19_24_37", [](auto& engine, auto& seen) {
     auto chain = chain_id_from_engine(engine);

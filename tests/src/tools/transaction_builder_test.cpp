@@ -312,7 +312,8 @@ TEST(transaction_builder,
       std::holds_alternative<charter::schema::create_workspace_t>(tx.payload));
   auto workspace = std::get<charter::schema::create_workspace_t>(tx.payload);
   ASSERT_EQ(workspace.admin_set.size(), 1u);
-  EXPECT_EQ(encoder.encode(workspace.admin_set.front()), encoder.encode(tx.signer));
+  EXPECT_EQ(encoder.encode(workspace.admin_set.front()),
+            encoder.encode(tx.signer));
 }
 
 TEST(transaction_builder, decode_intent_state_reports_executed_status) {

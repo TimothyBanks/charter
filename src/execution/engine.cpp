@@ -3324,7 +3324,8 @@ void engine::set_signature_verifier(signature_verifier_t verifier) {
     return;
   }
   spdlog::warn(
-      "set_signature_verifier called at runtime (strict={} current_overridden={} "
+      "set_signature_verifier called at runtime (strict={} "
+      "current_overridden={} "
       "new_has_verifier={})",
       require_strict_crypto_, signature_verifier_overridden_,
       static_cast<bool>(verifier));
