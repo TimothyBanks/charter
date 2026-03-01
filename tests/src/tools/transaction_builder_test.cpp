@@ -307,6 +307,49 @@ TEST(transaction_builder, supports_extended_payload_build_commands) {
 }
 
 TEST(transaction_builder,
+     propose_intent_supports_settlement_authority_mode_argument) {
+  auto builder = std::string{CHARTER_TRANSACTION_BUILDER_PATH};
+  if (builder.empty() || !std::filesystem::exists(builder)) {
+    GTEST_SKIP() << "transaction_builder binary not available: " << builder;
+  }
+
+  constexpr auto kChainId =
+      "1111111111111111111111111111111111111111111111111111111111111111";
+  constexpr auto kSigner =
+      "2222222222222222222222222222222222222222222222222222222222222222";
+  constexpr auto kWorkspaceId =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  constexpr auto kVaultId =
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  constexpr auto kIntentId =
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+  constexpr auto kAssetId =
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  constexpr auto kDestinationId =
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+  auto tx_b64 = run_transaction_command(
+      builder, "--payload propose_intent --chain-id " + std::string{kChainId} +
+                   " --nonce 1 --signer " + std::string{kSigner} +
+                   " --workspace-id " + std::string{kWorkspaceId} +
+                   " --vault-id " + std::string{kVaultId} + " --intent-id " +
+                   std::string{kIntentId} + " --asset-id " +
+                   std::string{kAssetId} + " --destination-id " +
+                   std::string{kDestinationId} +
+                   " --amount 5 --settlement-mode client_signed");
+  auto tx_bytes = charter::schema::from_base64(tx_b64);
+  auto encoder = encoder_t{};
+  auto tx = encoder.decode<charter::schema::transaction_t>(
+      charter::schema::bytes_view_t{tx_bytes.data(), tx_bytes.size()});
+
+  ASSERT_TRUE(
+      std::holds_alternative<charter::schema::propose_intent_t>(tx.payload));
+  auto payload = std::get<charter::schema::propose_intent_t>(tx.payload);
+  EXPECT_EQ(payload.settlement_mode,
+            charter::schema::settlement_authority_mode_t::client_signed);
+}
+
+TEST(transaction_builder,
      create_workspace_defaults_admin_set_to_signer_when_admin_omitted) {
   auto builder = std::string{CHARTER_TRANSACTION_BUILDER_PATH};
   if (builder.empty() || !std::filesystem::exists(builder)) {
@@ -435,7 +478,8 @@ TEST(transaction_builder, decode_intent_state_reports_executed_status) {
       .policy_version = 1,
       .required_threshold = 1,
       .approvals_count = 1,
-      .claim_requirements = {}};
+      .claim_requirements = {},
+      .settlement_observation = std::nullopt};
   auto encoded = encoder_t{}.encode(intent_state);
   auto actual = run_decode_intent_state_command(
       builder, "--value-base64 " + charter::schema::to_base64(encoded));

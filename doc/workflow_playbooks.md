@@ -7,6 +7,8 @@ Reference matrix:
 - For a compact checklist view, see `doc/transaction_workflow_matrix.md`.
 - For the frozen demo contract (expected tx codes + report format), see `doc/golden_workflow_contract.md`.
 - For ABCI callback semantics and mutation expectations, see `doc/abci_quick_reference.md`.
+- For draft authority-mode and settlement-confirmation evolution, see
+  `doc/settlement_authority_and_confirmation_draft.md`.
 
 ## 1) Bootstrap A New Tenant
 
@@ -69,6 +71,22 @@ Authorization precedence:
 
 Freeze note:
 - Use `doc/golden_workflow_contract.md` as the canonical acceptance contract for demo/proof runs.
+
+Settlement integration model (current baseline):
+- Charter governs authorization, policy enforcement, and audit evidence for the
+  transfer decision.
+- Source wallet on the origin chain is typically client-owned and
+  custodian-controlled (for example, client vault/omnibus allocation under
+  custody controls), not the exchange wallet.
+- Destination wallet is a registered and policy-approved exchange/counterparty
+  wallet.
+- After Charter approval, the custodian execution system signs/submits the
+  origin-chain transfer from source -> destination.
+- Oracle/monitoring components observe settlement and publish verifiable
+  attestations (tx hash/status/block metadata) back into Charter evidence flows.
+- Wrapped assets are not required for this baseline model.
+- Wrapped/tokenized representations can be added later only where cross-chain
+  composability or product requirements justify the added risk/complexity.
 
 ## 3) Emergency Controls
 

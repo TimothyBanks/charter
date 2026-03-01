@@ -103,18 +103,20 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
         charter::schema::activate_policy_set_t{.scope = scope,
                                                .policy_set_id = policy_set_id,
                                                .policy_set_version = 1})));
-    txs.push_back(encode_transaction(
-        make_transaction(chain_id, 7, signer,
-                         charter::schema::propose_intent_t{
-                             .workspace_id = workspace_id,
-                             .vault_id = vault_id,
-                             .intent_id = intent_id,
-                             .action =
-                                 charter::schema::transfer_parameters_t{
-                                     .asset_id = asset_id,
-                                     .destination_id = destination_id,
-                                     .amount = 5},
-                             .expires_at = std::nullopt})));
+    txs.push_back(encode_transaction(make_transaction(
+        chain_id, 7, signer,
+        charter::schema::propose_intent_t{
+            .workspace_id = workspace_id,
+            .vault_id = vault_id,
+            .intent_id = intent_id,
+            .action =
+                charter::schema::transfer_parameters_t{
+                    .asset_id = asset_id,
+                    .destination_id = destination_id,
+                    .amount = 5},
+            .expires_at = std::nullopt,
+            .settlement_mode =
+                charter::schema::settlement_authority_mode_t::client_signed})));
     txs.push_back(encode_transaction(make_transaction(
         chain_id, 8, signer,
         charter::schema::approve_intent_t{.workspace_id = workspace_id,
@@ -377,18 +379,20 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
         charter::schema::activate_policy_set_t{.scope = scope,
                                                .policy_set_id = policy_set_id,
                                                .policy_set_version = 1})));
-    txs.push_back(encode_transaction(
-        make_transaction(chain_id, 7, signer,
-                         charter::schema::propose_intent_t{
-                             .workspace_id = workspace_id,
-                             .vault_id = vault_id,
-                             .intent_id = intent_id,
-                             .action =
-                                 charter::schema::transfer_parameters_t{
-                                     .asset_id = asset_id,
-                                     .destination_id = destination_id,
-                                     .amount = 5},
-                             .expires_at = std::nullopt})));
+    txs.push_back(encode_transaction(make_transaction(
+        chain_id, 7, signer,
+        charter::schema::propose_intent_t{
+            .workspace_id = workspace_id,
+            .vault_id = vault_id,
+            .intent_id = intent_id,
+            .action =
+                charter::schema::transfer_parameters_t{
+                    .asset_id = asset_id,
+                    .destination_id = destination_id,
+                    .amount = 5},
+            .expires_at = std::nullopt,
+            .settlement_mode =
+                charter::schema::settlement_authority_mode_t::client_signed})));
     txs.push_back(encode_transaction(make_transaction(
         chain_id, 8, signer,
         charter::schema::approve_intent_t{.workspace_id = workspace_id,
@@ -425,6 +429,10 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
         charter::schema::bytes_view_t{intent_query.value.data(),
                                       intent_query.value.size()});
     EXPECT_EQ(intent.status, charter::schema::intent_status_t::executed);
+    EXPECT_EQ(intent.settlement_mode,
+              charter::schema::settlement_authority_mode_t::client_signed);
+    EXPECT_EQ(intent.settlement_status,
+              charter::schema::settlement_status_t::authorized);
   }
 
   std::error_code ec;

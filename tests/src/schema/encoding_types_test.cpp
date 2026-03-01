@@ -123,13 +123,17 @@ build_payload_vector_transactions() {
                                           .scope = scope,
                                           .policy_set_id = policy,
                                           .policy_set_version = 1})});
-  txs.push_back({"propose_intent",
-                 build_transaction(6, charter::schema::propose_intent_t{
-                                          .workspace_id = workspace,
-                                          .vault_id = vault,
-                                          .intent_id = intent,
-                                          .action = transfer,
-                                          .expires_at = std::nullopt})});
+  txs.push_back(
+      {"propose_intent",
+       build_transaction(
+           6, charter::schema::propose_intent_t{
+                  .workspace_id = workspace,
+                  .vault_id = vault,
+                  .intent_id = intent,
+                  .action = transfer,
+                  .expires_at = std::nullopt,
+                  .settlement_mode = charter::schema::
+                      settlement_authority_mode_t::custodian_signed})});
   txs.push_back(
       {"approve_intent", build_transaction(7, charter::schema::approve_intent_t{
                                                   .workspace_id = workspace,
@@ -588,6 +592,61 @@ TEST(schema_encoding_types, velocity_counter_state_round_trips) {
   EXPECT_EQ(decoded.window_start, state.window_start);
   EXPECT_EQ(decoded.used_amount, state.used_amount);
   EXPECT_EQ(decoded.tx_count, state.tx_count);
+}
+
+TEST(schema_encoding_types, intent_state_round_trips_settlement_fields) {
+  using charter::schema::encoding::encoder;
+  using charter::schema::encoding::scale_encoder_tag;
+
+  auto state = charter::schema::intent_state_t{};
+  state.workspace_id = make_hash(210);
+  state.vault_id = make_hash(211);
+  state.intent_id = make_hash(212);
+  state.created_by = make_ed25519_signer(213);
+  state.created_at = 1700000000000ULL;
+  state.not_before = 1700000000100ULL;
+  state.action =
+      charter::schema::transfer_parameters_t{.asset_id = make_hash(214),
+                                             .destination_id = make_hash(215),
+                                             .amount = 9};
+  state.status = charter::schema::intent_status_t::executed;
+  state.policy_set_id = make_hash(216);
+  state.policy_version = 1;
+  state.required_threshold = 1;
+  state.approvals_count = 1;
+  state.settlement_mode =
+      charter::schema::settlement_authority_mode_t::client_signed;
+  state.settlement_status = charter::schema::settlement_status_t::submitted;
+  state.settlement_observation = charter::schema::settlement_observation_t{
+      .transaction_hash = make_hash(217),
+      .block_height = 42,
+      .submitted_at = 1700000000200ULL,
+      .confirmed_at = std::nullopt,
+      .failure_reason =
+          charter::schema::make_bytes(std::string_view{"rpc timeout"})};
+
+  auto codec = encoder<scale_encoder_tag>{};
+  auto encoded = codec.encode(state);
+  auto decoded = codec.decode<charter::schema::intent_state_t>(
+      charter::schema::make_bytes_view(encoded));
+
+  EXPECT_EQ(decoded.settlement_mode, state.settlement_mode);
+  EXPECT_EQ(decoded.settlement_status, state.settlement_status);
+  ASSERT_TRUE(decoded.settlement_observation.has_value());
+  ASSERT_TRUE(state.settlement_observation.has_value());
+  ASSERT_TRUE(decoded.settlement_observation->transaction_hash.has_value());
+  EXPECT_EQ(decoded.settlement_observation->transaction_hash.value(),
+            state.settlement_observation->transaction_hash.value());
+  ASSERT_TRUE(decoded.settlement_observation->block_height.has_value());
+  EXPECT_EQ(decoded.settlement_observation->block_height.value(),
+            state.settlement_observation->block_height.value());
+  ASSERT_TRUE(decoded.settlement_observation->submitted_at.has_value());
+  EXPECT_EQ(decoded.settlement_observation->submitted_at.value(),
+            state.settlement_observation->submitted_at.value());
+  EXPECT_FALSE(decoded.settlement_observation->confirmed_at.has_value());
+  ASSERT_TRUE(decoded.settlement_observation->failure_reason.has_value());
+  EXPECT_EQ(decoded.settlement_observation->failure_reason.value(),
+            state.settlement_observation->failure_reason.value());
 }
 
 TEST(schema_encoding_types, encode_overload_appends_exact_payload_bytes) {

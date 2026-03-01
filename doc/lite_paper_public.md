@@ -36,6 +36,14 @@ Specialized protocols can expand blockchain adoption by solving concrete,
 high-friction industry workflows with clearer guarantees and cleaner operating
 models.
 
+## 2.1 Target Customer Boundary
+
+Charter is built for regulated institutional custody operations.
+
+Current scope is not a retail self-custody wallet chain. The product direction
+prioritizes institutional governance controls, compliance-aligned operating
+models, and auditable custody workflows.
+
 ## 3. Design Goals
 
 - Deterministic policy enforcement.
@@ -74,6 +82,18 @@ Charter centers on practical custody workflows such as:
 - destination and compliance gating
 - emergency controls and operational evidence
 
+Baseline settlement model:
+- Charter governs policy and evidence for transfer authorization.
+- Source wallet is typically client-owned/custodian-controlled on the origin
+  chain.
+- Destination wallets (including exchange/counterparty wallets) are managed in
+  policy-governed destination state.
+- After Charter approval, custody execution systems submit the origin-chain
+  transfer to the approved destination wallet.
+- Oracle/monitoring services can attest settlement back into Charter evidence
+  workflows.
+- Wrapped assets are optional and not required for this baseline workflow.
+
 ## 7. Architecture Summary
 
 The architecture separates:
@@ -109,7 +129,9 @@ Implemented at PoC level:
 Next themes include:
 - public devnet operations
 - observability and explorer-read experience
+- external-chain monitoring/oracle attestation design
 - governance and compliance packaging
+- fee and validator reward model formalization
 - production hardening and external review
 - partner-driven pilot execution
 

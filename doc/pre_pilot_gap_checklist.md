@@ -31,6 +31,8 @@ explicit, assign owners, and convert them to concrete artifacts.
 | Validator admission/removal policy | Not fully specified | Draft policy + evidence requirements | Formal governance controls and enforcement tooling | Governance advisor + counsel |
 | Jurisdiction/licensing posture | Conceptual strategy exists | Activity-to-license matrix for initial jurisdictions | Ongoing licensing/compliance operations | Regulatory counsel |
 | Fee/reward policy | Directional (tx-fee model) | Published fee formula and reward split | Parameter governance and periodic review | Tokenomics/market-structure advisor (optional) |
+| Oracle/chain monitoring model | Conceptual only | Oracle trust model, signer policy, evidence format | Multi-chain production operations and adversarial testing | Oracle/security architect |
+| Asset representation strategy (native vs wrapped) | Native asset onboarding exists | Decision rubric for when wrapped/tokenized representations are allowed | Full wrapped-asset lifecycle controls and risk policy | Product + risk/compliance lead |
 | Upgrade/rollback governance | High-level roadmap | Versioning and rollout/rollback process | Formal on-chain/off-chain change control | Protocol governance expert |
 | Privacy/data classification | Partial | Public vs confidential data policy | Retention, redaction, disclosure workflows | Privacy/compliance architect |
 | Key management baseline | Partial | HSM/MPC minimum controls | Attestation lifecycle and audits | Security architect + HSM/MPC SME |
@@ -108,6 +110,7 @@ Week 2:
 - Draft pilot SLOs and incident runbooks.
 - Publish monitoring/alert baseline.
 - Confirm security review scope and timeline.
+- Draft oracle monitoring model v0 and wrapped-asset policy decision rubric.
 
 ## Related Docs
 

@@ -1308,6 +1308,20 @@ void put_intent_state_with_counters(
       next_state);
 }
 
+template <typename Encoder>
+void mark_intent_expired_with_counters(
+    rocksdb_storage_t& storage,
+    Encoder& encoder,
+    const charter::schema::bytes_t& intent_key,
+    charter::schema::intent_state_t& intent,
+    std::map<uint32_t, uint64_t>& intent_status_counts) {
+  auto previous_status = intent.status;
+  intent.status = charter::schema::intent_status_t::expired;
+  intent.settlement_status = charter::schema::settlement_status_t::expired;
+  put_intent_state_with_counters(storage, encoder, intent_key, previous_status,
+                                 intent, intent_status_counts);
+}
+
 void rebuild_observability_counters(
     const rocksdb_storage_t& storage,
     scale_encoder_t& encoder,
@@ -2353,7 +2367,12 @@ charter::schema::transaction_result_t execute_propose_intent_operation(
       .required_threshold = required_threshold,
       .approvals_count = 0,
       // Claim requirements are copied onto intent state at proposal time.
-      .claim_requirements = requirements->claim_requirements};
+      .claim_requirements = requirements->claim_requirements,
+      .settlement_mode = operation.settlement_mode,
+      // Settlement remains "none" until execute_intent authorizes origin-chain
+      // submission in the current PoC lifecycle.
+      .settlement_status = charter::schema::settlement_status_t::none,
+      .settlement_observation = std::nullopt};
   put_intent_state_with_counters(storage, encoder, intent_key, std::nullopt,
                                  state, intent_status_counts);
   return make_execute_success("propose_intent persisted");
@@ -2394,11 +2413,8 @@ charter::schema::transaction_result_t execute_approve_intent_operation(
   }
 
   if (intent->expires_at.has_value() && now_ms > intent->expires_at.value()) {
-    auto previous_status = intent->status;
-    intent->status = charter::schema::intent_status_t::expired;
-    put_intent_state_with_counters(storage, encoder, intent_key,
-                                   previous_status, *intent,
-                                   intent_status_counts);
+    mark_intent_expired_with_counters(storage, encoder, intent_key, *intent,
+                                      intent_status_counts);
     return make_execute_error(
         charter::schema::transaction_error_code::intent_expired,
         "intent expired", "intent can no longer be approved");
@@ -2518,11 +2534,8 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
         "intent missing", "intent must exist before execution");
   }
   if (intent->expires_at.has_value() && now_ms > intent->expires_at.value()) {
-    auto previous_status = intent->status;
-    intent->status = charter::schema::intent_status_t::expired;
-    put_intent_state_with_counters(storage, encoder, intent_key,
-                                   previous_status, *intent,
-                                   intent_status_counts);
+    mark_intent_expired_with_counters(storage, encoder, intent_key, *intent,
+                                      intent_status_counts);
     return make_execute_error(
         charter::schema::transaction_error_code::intent_expired,
         "intent expired", "intent can no longer be executed");
@@ -2589,6 +2602,9 @@ charter::schema::transaction_result_t execute_execute_intent_operation(
 
   auto previous_status = intent->status;
   intent->status = charter::schema::intent_status_t::executed;
+  // Current PoC execute path authorizes settlement but does not prove origin
+  // chain confirmation yet.
+  intent->settlement_status = charter::schema::settlement_status_t::authorized;
   put_intent_state_with_counters(storage, encoder, intent_key, previous_status,
                                  *intent, intent_status_counts);
   // Counters mutate only after successful execution state transition.

@@ -52,6 +52,9 @@
 #include <charter/schema/security_event_severity.hpp>
 #include <charter/schema/security_event_type.hpp>
 #include <charter/schema/set_degraded_mode.hpp>
+#include <charter/schema/settlement_authority_mode.hpp>
+#include <charter/schema/settlement_observation.hpp>
+#include <charter/schema/settlement_status.hpp>
 #include <charter/schema/snapshot_descriptor.hpp>
 #include <charter/schema/time_lock_rule.hpp>
 #include <charter/schema/transaction.hpp>

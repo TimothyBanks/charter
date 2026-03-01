@@ -1,6 +1,8 @@
 #include <charter/schema/encoding/scale/claim_requirement.hpp>
 #include <charter/schema/encoding/scale/claim_type.hpp>
 #include <charter/schema/encoding/scale/intent_state.hpp>
+#include <charter/schema/encoding/scale/settlement_authority_mode.hpp>
+#include <charter/schema/encoding/scale/settlement_status.hpp>
 
 using namespace charter::schema;
 
@@ -22,6 +24,9 @@ void encode(intent_state<1>&& o, ::scale::Encoder& encoder) {
   encode(o.required_threshold, encoder);
   encode(o.approvals_count, encoder);
   encode(o.claim_requirements, encoder);
+  encode(o.settlement_mode, encoder);
+  encode(o.settlement_status, encoder);
+  encode(o.settlement_observation, encoder);
 }
 
 void decode(intent_state<1>&& o, ::scale::Decoder& decoder) {
@@ -40,6 +45,9 @@ void decode(intent_state<1>&& o, ::scale::Decoder& decoder) {
   decode(o.required_threshold, decoder);
   decode(o.approvals_count, decoder);
   decode(o.claim_requirements, decoder);
+  decode(o.settlement_mode, decoder);
+  decode(o.settlement_status, decoder);
+  decode(o.settlement_observation, decoder);
 }
 
 }  // namespace charter::schema::encoding::scale

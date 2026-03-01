@@ -46,6 +46,25 @@ In this view, domain-specific protocols complement general L1s by:
 - reducing integration ambiguity for regulated onboarding and operations
 - broadening the public understanding of what blockchain architectures can do
 
+## 2.2 Target Customer Boundary (Institutional vs Self-Custody)
+
+Charter is intentionally designed for regulated institutional custody workflows,
+not retail self-custody wallet infrastructure.
+
+Target deployment profile:
+- institutions that need explicit governance, audit, and compliance controls
+- operators that can meet licensed/supervised operating requirements
+- policy lifecycle management as a first-class protocol function
+
+Non-goal for current scope:
+- becoming a general-purpose self-custody chain or retail wallet stack
+
+Practical market assumption:
+- for many active trading and treasury workflows, assets are held within
+  platform/custodian environments rather than user-managed self-custody wallets
+  during execution windows
+- Charter is optimized for that institutional operating reality
+
 ## 3. Design Goals
 
 - Deterministic enforcement: same transaction sequence yields the same state root.
@@ -79,6 +98,18 @@ Performance posture:
   governance over maximum TPS and minimum latency.
 - Lower throughput targets reduce validator infrastructure pressure relative to
   high-performance generic L1 networks.
+
+## 3.2 Economics and Fee-Model Design Requirements
+
+Charter's current direction is transaction-fee-first economics (no mandatory
+subscription model in baseline operation). Before pilot/production, this must be
+formalized with explicit governance and operational constraints.
+
+Required economics decisions:
+- fee calculation model (flat, size-based, policy-complexity-based, or hybrid)
+- validator reward split and treasury allocation
+- minimum sustainability floor vs low-fee objective
+- emergency fee-change governance and notice periods
 
 ## 4. System Model
 
@@ -125,6 +156,26 @@ Merge behavior for overlapping policy rules is intentionally conservative:
 - timelock: longest delay
 - per-tx limit: tightest cap
 - required claim set: union
+
+## 6.1 Asset Movement Integration (Baseline Model)
+
+Charter's baseline model does not require wrapped assets to deliver institutional
+custody workflow value.
+
+Baseline flow:
+- Charter records and enforces the authorization/policy lifecycle for a transfer
+  intent.
+- Source wallet is typically client-owned/custodian-controlled on the origin
+  chain.
+- Destination wallets (including exchange/counterparty custody wallets) are
+  registered and governed in Charter policy state.
+- After Charter approval, custody execution infrastructure submits the
+  origin-chain transfer from source wallet to approved destination wallet.
+- Oracle/monitoring components attest observed settlement back to Charter
+  evidence state.
+
+This provides protocol-native governance and evidence without forcing a
+wrapped-asset representation in early deployments.
 
 ## 7. Governance and Safety Controls
 
@@ -192,6 +243,20 @@ Intended deployment model:
 - lightweight indexer for explorer/read API UX
 - no engine-side push dependency on dashboard infrastructure
 
+## 10.1 External Chain Monitoring and Oracle Attestation Network
+
+Charter roadmap includes an oracle/attestation network that monitors external
+chains for transactions and state transitions relevant to Charter policy
+workflows.
+
+Design intent:
+- institutions should not need to operate bespoke chain-monitoring pipelines
+  for every integrated network
+- monitored events are normalized into deterministic evidence inputs for
+  Charter policy and audit workflows
+- oracle outputs should be independently verifiable (for example signed
+  attestations and/or cryptographic commitments), not opaque trust assertions
+
 ## 11. Trust and Threat Assumptions
 
 Charter assumes:
@@ -216,8 +281,12 @@ Next milestones:
 - public devnet operations (validator/read nodes, reset policy, runbooks)
 - observability hardening (alerts, dashboards, SLOs)
 - explorer/indexer service for external evaluators
+- oracle/attestation network design for external-chain event monitoring
 - formal governance and compliance evidence packs
 - consensus abstraction toward production target
+- economics and validator reward model finalization
+- asset representation decision gates (native asset registry first, optional
+  wrapped-asset tracks where required)
 - close pre-pilot ownership gaps tracked in `doc/pre_pilot_gap_checklist.md`
 
 ## 13. Why This Can Matter

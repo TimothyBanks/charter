@@ -49,6 +49,8 @@
 #include <charter/schema/encoding/scale/security_event_severity.hpp>
 #include <charter/schema/encoding/scale/security_event_type.hpp>
 #include <charter/schema/encoding/scale/set_degraded_mode.hpp>
+#include <charter/schema/encoding/scale/settlement_authority_mode.hpp>
+#include <charter/schema/encoding/scale/settlement_status.hpp>
 #include <charter/schema/encoding/scale/snapshot_descriptor.hpp>
 #include <charter/schema/encoding/scale/time_lock_rule.hpp>
 #include <charter/schema/encoding/scale/transaction.hpp>

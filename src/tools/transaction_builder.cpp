@@ -194,6 +194,19 @@ charter::schema::degraded_mode_t parse_degraded_mode(const std::string& mode) {
       "degraded-mode must be normal|read_only|emergency_halt");
 }
 
+charter::schema::settlement_authority_mode_t parse_settlement_mode(
+    const std::string& mode) {
+  // Keep string parsing centralized so propose_intent defaults and CLI options
+  // map to the same schema enum values.
+  auto parsed = charter::schema::try_from_string<
+      charter::schema::settlement_authority_mode_t>(mode);
+  if (parsed.has_value()) {
+    return *parsed;
+  }
+  charter::common::critical(
+      "settlement-mode must be custodian_signed|client_signed");
+}
+
 charter::schema::policy_scope_t parse_scope(const po::variables_map& vm) {
   auto scope_type = vm["scope-type"].as<std::string>();
   if (scope_type == "workspace") {
@@ -388,7 +401,9 @@ charter::schema::propose_intent_t make_propose_intent_payload(
               .asset_id = get_hash32(vm, "asset-id"),
               .destination_id = get_hash32(vm, "destination-id"),
               .amount = vm["amount"].as<uint64_t>()},
-      .expires_at = get_optional_timestamp(vm, "expires-at")};
+      .expires_at = get_optional_timestamp(vm, "expires-at"),
+      .settlement_mode =
+          parse_settlement_mode(vm["settlement-mode"].as<std::string>())};
 }
 
 charter::schema::approve_intent_t make_approve_intent_payload(
@@ -840,8 +855,11 @@ int main(int argc, const char** argv) {
       "destination-id", po::value<std::string>(), "destination hash32 hex")(
       "amount", po::value<uint64_t>()->default_value(0), "transfer amount")(
       "expires-at", po::value<uint64_t>(), "intent expiry ms")(
-      "quorum", po::value<uint32_t>()->default_value(1),
-      "workspace quorum size")(
+      "settlement-mode",
+      po::value<std::string>()->default_value("custodian_signed"),
+      "custodian_signed|client_signed")("quorum",
+                                        po::value<uint32_t>()->default_value(1),
+                                        "workspace quorum size")(
       "admin", po::value<std::vector<std::string>>()->multitoken(),
       "workspace admin signer hash32 values")(
       "metadata-ref", po::value<std::string>(), "workspace metadata hash32")(

@@ -1,4 +1,5 @@
 #include <charter/schema/encoding/scale/propose_intent.hpp>
+#include <charter/schema/encoding/scale/settlement_authority_mode.hpp>
 
 using namespace charter::schema;
 
@@ -11,6 +12,7 @@ void encode(propose_intent<1>&& o, ::scale::Encoder& encoder) {
   encode(o.intent_id, encoder);
   encode(o.action, encoder);
   encode(o.expires_at, encoder);
+  encode(o.settlement_mode, encoder);
 }
 
 void decode(propose_intent<1>&& o, ::scale::Decoder& decoder) {
@@ -20,6 +22,7 @@ void decode(propose_intent<1>&& o, ::scale::Decoder& decoder) {
   decode(o.intent_id, decoder);
   decode(o.action, decoder);
   decode(o.expires_at, decoder);
+  decode(o.settlement_mode, decoder);
 }
 
 }  // namespace charter::schema::encoding::scale

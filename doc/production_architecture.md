@@ -29,6 +29,7 @@ Target end state:
    - Institutional APIs
    - Regulator/auditor read interfaces
    - Monitoring and evidence export
+   - External-chain monitoring/oracle attestation interfaces
 
 ## Migration Strategy
 
@@ -195,6 +196,12 @@ Target end state:
   - stores normalized tx/event rows
   - serves a simple public read API
 - Include dashboard and explorer links in every devnet release note.
+
+12. **External Chain Monitoring and Oracle Trust Model**
+- Define which external-chain events are consensus-relevant for custody policy decisions.
+- Define oracle attestation format (signatures/commitments) and verification rules.
+- Define fallback behavior when oracle quorum is unavailable or conflicting.
+- Keep external evidence verifiable and replay-friendly for audit/regulator workflows.
 
 ## Recommended Deliverables Before Funding Roadshow
 

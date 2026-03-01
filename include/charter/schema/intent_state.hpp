@@ -3,6 +3,9 @@
 #include <charter/schema/intent_action.hpp>
 #include <charter/schema/intent_status.hpp>
 #include <charter/schema/primitives.hpp>
+#include <charter/schema/settlement_authority_mode.hpp>
+#include <charter/schema/settlement_observation.hpp>
+#include <charter/schema/settlement_status.hpp>
 #include <cstdint>
 #include <vector>
 #include "primitives.hpp"
@@ -32,6 +35,12 @@ struct intent_state<1> final {
   uint32_t required_threshold;
   uint32_t approvals_count;
   std::vector<claim_requirement_t> claim_requirements;
+  // Settlement metadata is tracked separately from intent lifecycle status:
+  // policy execution can authorize settlement before origin-chain confirmation.
+  settlement_authority_mode_t settlement_mode{
+      settlement_authority_mode_t::custodian_signed};
+  settlement_status_t settlement_status{settlement_status_t::none};
+  std::optional<settlement_observation_t> settlement_observation;
 };
 
 using intent_state_t = intent_state<1>;

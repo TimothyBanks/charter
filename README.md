@@ -21,6 +21,7 @@ Core principles
 - Canonical binary encoding (SCALE)
 - Deterministic RocksDB-backed state
 - Consensus-agnostic design (CometBFT → Concord-BFT)
+- Institutional-regulated custody focus (not a retail self-custody wallet chain)
 
 This project does not aim to eliminate centralized oversight.
 
@@ -94,8 +95,15 @@ $ START_LOCAL=1 ALLOW_INSECURE_CRYPTO=1 tests/run_proof_first_demo.sh
    - `doc/golden_workflow_contract.md`
    - `doc/operation_happy_failure_paths.md`
    - `doc/transaction_workflow_matrix.md`
+   - `doc/settlement_authority_and_confirmation_draft.md`
 
 Note: asset onboarding (`upsert_asset`) is required before transfer intents; missing or disabled assets fail with codes `40`/`41`.
+Note: baseline settlement model does not require wrapped assets. Charter governs
+authorization/policy/audit for transfers. Source wallet is typically
+client-owned/custodian-controlled on the origin chain; destination wallet is a
+registered exchange/counterparty wallet. After Charter approval, custody
+execution submits the origin-chain transfer and monitoring/oracle services
+attest settlement back into Charter evidence flows.
 Note: strict crypto mode requires real public-key signers and valid signatures.
 The current PoC script uses placeholder signatures, so strict mode will fail at
 `CheckTx` with code `6` (`signature_verification_failed`).

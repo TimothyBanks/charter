@@ -13,6 +13,10 @@ Charter target design:
 - public-read transparency, permissioned write/finality
 - transaction-fee-first economics
 
+Boundary reminder:
+- Charter wedge: regulated institutional custody governance and evidence.
+- Not the same wedge as permissionless self-custody wallet/builder ecosystems.
+
 ## 1) Direct (Closest Strategic Shape)
 
 | Player | Public Signals (Source-backed) | Overlap With Charter | Gap vs Charter (or Open Question) | Competitive Pressure |
@@ -30,6 +34,14 @@ Charter target design:
 | Coinbase Prime Custody | Qualified custodian entity, institutional policy engine controls, governance/staking from custody, broad institutional platform integration. | Institutional custody + governance controls + policy tooling. | Platform/custodian form factor versus custody-native protocol governance as the core product. | Medium-High |
 | Kraken Custody | Qualified custody from licensed Kraken Financial, policy enforcement, segregated on-chain vault monitoring, integrated OTC access. | Institutional custody controls, policy enforcement, compliance posture. | Custody platform model; no public positioning as custody-specific validator-governed protocol. | Medium |
 | Copper (ClearLoop) | Off-exchange settlement with MPC custody, institutional custody + collateral management focus. | Institutional custody/settlement pain points overlap strongly. | Settlement and custody infrastructure focus versus custody-policy blockchain protocol layer. | Medium |
+| Zenrock (zrChain / dMPC ecosystem) | Public materials describe a permissionless dMPC ecosystem with a purpose-built L1 (`zrChain`), decentralized custody tokens (e.g., `zenBTC`), and builder-focused cross-chain custody/security tooling. | "Custody on-chain" narrative and protocol-native custody/security infrastructure. | Charter is currently differentiated by institutional custody workflow scope (explicit policy + governance + compliance process modeling) and permissioned validator/licensing intent. Zenrock's public emphasis is permissionless builder ecosystem + tokenized product growth. | Medium |
+
+GitHub activity note:
+- `Inference:` some legacy/fork repos appear archived under `zenrocklabs`, but current project activity appears centered under `Zenrock-Foundation` repositories.
+- As of March 1, 2026 public GitHub pages showed:
+  - `Zenrock-Foundation`: 1 primary public repo (`zrchain`), updated Jan 23, 2026.
+  - `zenrocklabs`: mixed activity; several updates in Jan-Feb 2026, with multiple repos being forks/archived.
+- `Inference:` this is not "dead", but repository breadth is narrow and activity concentration risk should be tracked.
 
 ## 3) Future Threats (Inference)
 
@@ -72,3 +84,11 @@ Charter target design:
     https://custody.kraken.com/
 11. Kinexys by J.P. Morgan overview:  
     https://www.jpmorgan.com/insights/payments/blockchain-digital-assets/introducing-kinexys
+12. Zenrock docs overview (zrChain, dMPC, DCT model):  
+    https://docs.zenrocklabs.io/
+13. Zenrock foundation/company positioning:  
+    https://www.zenrockfoundation.io/about/company
+14. Zenrock Foundation `zrchain` repo (active project history):  
+    https://github.com/Zenrock-Foundation/zrchain
+15. Zenrock Labs org (includes archived forks such as `zenrocklabs/zrchain`):  
+    https://github.com/zenrocklabs
