@@ -97,6 +97,8 @@ Prepare Charter for:
 - [ ] architecture roadmap (Comet -> Concord/homegrown)
 - [ ] economics and moat
 - [ ] team and execution plan
+- [ ] Keep `doc/funding_deck.md` updated as the canonical deck draft.
+- [ ] Keep `doc/sponsor_packet.md` updated as the canonical diligence packet structure.
 - [ ] Build data room:
 - [ ] product docs
 - [ ] architecture/security docs
