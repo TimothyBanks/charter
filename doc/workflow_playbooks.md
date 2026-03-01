@@ -16,12 +16,13 @@ Inputs:
 Transactions:
 1. `create_workspace`
 2. `create_vault`
-3. `upsert_destination`
-4. `create_policy_set`
-5. `activate_policy_set`
+3. `upsert_asset`
+4. `upsert_destination`
+5. `create_policy_set`
+6. `activate_policy_set`
 
 Success criteria:
-- workspace/vault/policy queries return `code=0`
+- workspace/vault/asset/policy queries return `code=0`
 - active policy pointer is present for target scope
 
 ## 2) Execute A Transfer
@@ -29,6 +30,7 @@ Success criteria:
 Inputs:
 - workspace/vault/intent ids
 - transfer action (`asset_id`, `destination_id`, `amount`)
+- onboarded asset state (`asset_id` exists and `enabled=true`)
 
 Transactions:
 1. `propose_intent`
@@ -37,6 +39,7 @@ Transactions:
 
 Policy gates checked:
 - destination whitelist
+- asset onboarding gate (asset exists and is enabled)
 - threshold approvals
 - timelock
 - per-tx amount limit

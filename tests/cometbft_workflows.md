@@ -67,6 +67,7 @@ curl -s http://127.0.0.1:26657 \
 - `/engine/info`
 - `/engine/keyspaces`
 - `/state/workspace`
+- `/state/asset`
 - `/state/vault`
 - `/state/destination`
 - `/state/policy_set`
@@ -88,19 +89,20 @@ Use one signer identity and monotonic nonce per tx.
 
 1. `create_workspace`
 2. `create_vault`
-3. `upsert_destination` (enabled=true)
-4. `create_policy_set` with:
+3. `upsert_asset` (enabled=true)
+4. `upsert_destination` (enabled=true)
+5. `create_policy_set` with:
    - approvals threshold
    - timelock
    - limit rule
    - destination rule (`require_whitelisted=true`)
    - required claims
-5. `activate_policy_set`
-6. `propose_intent` transfer (`asset_id`, `destination_id`, `amount`)
-7. `approve_intent`
-8. `execute_intent` (expected fail if claim missing/timelock not passed)
-9. `upsert_attestation` for required claim
-10. `execute_intent` again (expected success once requirements satisfied)
+6. `activate_policy_set`
+7. `propose_intent` transfer (`asset_id`, `destination_id`, `amount`)
+8. `approve_intent`
+9. `execute_intent` (expected fail if claim missing/timelock not passed)
+10. `upsert_attestation` for required claim
+11. `execute_intent` again (expected success once requirements satisfied)
 
 ## Example Result Checks
 
@@ -124,6 +126,8 @@ Expected Charter tx codes:
 - `28`: limit exceeded
 - `29`: destination not whitelisted
 - `30`: claim requirement unsatisfied
+- `40`: asset missing (not onboarded)
+- `41`: asset disabled
 
 ## Example Query Keys (SCALE Encoded)
 
@@ -131,6 +135,8 @@ The `data` field in `abci_query` should be base64 of SCALE-encoded key payload:
 
 - `/state/workspace`:
   - raw 32-byte `workspace_id` (not tuple)
+- `/state/asset`:
+  - raw 32-byte `asset_id` (not tuple)
 - `/state/vault`:
   - SCALE tuple `(workspace_id, vault_id)`
 - `/state/policy_set`:

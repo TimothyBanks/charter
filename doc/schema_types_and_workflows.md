@@ -20,6 +20,7 @@ Purpose: keep one index of schema families and avoid duplicating workflow behavi
 | --- | --- | --- |
 | Transaction envelope and scope primitives | `transaction_t`, `transaction_payload_t`, `signer_id_t`, `policy_scope_t`, `vault_t`, `workspace_scope_t` | Signed intent submission and authorization boundary modeling |
 | Tenant and vault state | `create_workspace_t`, `workspace_state_t`, `create_vault_t`, `vault_state_t` | Tenant onboarding and custody account provisioning |
+| Asset registry and lifecycle | `upsert_asset_t`, `disable_asset_t`, `asset_state_t`, `asset_kind_t`, `asset_ref_t` | Onboarding transferable assets and disabling assets when governance/risk policy requires it |
 | Destination state and staged destination governance | `upsert_destination_t`, `destination_state_t`, `propose_destination_update_t`, `approve_destination_update_t`, `apply_destination_update_t`, `destination_update_state_t` | Beneficiary lifecycle and controlled destination mutation |
 | Policy definition and activation | `create_policy_set_t`, `policy_set_state_t`, `activate_policy_set_t`, `active_policy_pointer_t`, `policy_rule_t`, `approval_rule_t`, `time_lock_rule_t`, `limit_rule_t`, `destination_rule_t`, `velocity_limit_rule_t`, `claim_requirement_t` | Governance rules that gate custody movement |
 | Intent lifecycle state machine | `propose_intent_t`, `approve_intent_t`, `execute_intent_t`, `cancel_intent_t`, `intent_state_t`, `approval_state_t`, `intent_status_t` | Request -> approve -> execute/cancel transfer workflow |
@@ -28,17 +29,6 @@ Purpose: keep one index of schema families and avoid duplicating workflow behavi
 | Audit and observability | `transaction_result_t`, `transaction_event_t`, `security_event_record_t`, `security_event_type_t`, `security_event_severity_t`, `history_entry_t` | Forensics, evidence, and operator/regulator visibility |
 | Recovery and replication artifacts | `snapshot_descriptor_t`, `offer_snapshot_result_t`, `apply_snapshot_chunk_result_t`, `replay_result_t` | Snapshot sync, replay, and deterministic recovery |
 | Encoding layer | `encoding/encoder.hpp`, `encoding/scale/*` | Canonical wire/storage serialization |
-
-## Types Present But Not Routed In `transaction_payload_t`
-
-These types exist in schema and encoding but are not currently dispatched by `engine::execute_operation`:
-
-- `asset_state_t`
-- `disable_asset_t`
-
-Operational implication:
-
-- They are schema-ready for future workflows, but no direct transaction path mutates them in current PoC behavior.
 
 ## Change Management Rules
 
@@ -52,4 +42,3 @@ When touching schema or engine routing:
 2. If error semantics change, update `doc/error_codes_and_events_contract.md`.
 3. If query/key behavior changes, update `doc/query_and_keyspace_contract.md`.
 4. Keep this file as an index only; avoid repeating per-operation execution details here.
-

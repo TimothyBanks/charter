@@ -213,6 +213,26 @@ charter::schema::vault_model_t parse_vault_model(const std::string& model) {
   charter::common::critical("vault-model must be segregated|omnibus");
 }
 
+charter::schema::asset_kind_t parse_asset_kind(const std::string& kind) {
+  if (kind == "native") {
+    return charter::schema::asset_kind_t::native;
+  }
+  if (kind == "erc20") {
+    return charter::schema::asset_kind_t::erc20;
+  }
+  if (kind == "erc721") {
+    return charter::schema::asset_kind_t::erc721;
+  }
+  if (kind == "erc1115") {
+    return charter::schema::asset_kind_t::erc1115;
+  }
+  if (kind == "other") {
+    return charter::schema::asset_kind_t::other;
+  }
+  charter::common::critical(
+      "asset-kind must be native|erc20|erc721|erc1115|other");
+}
+
 charter::schema::transaction_payload_t build_payload(
     const po::variables_map& vm) {
   auto payload = vm["payload"].as<std::string>();
@@ -238,6 +258,41 @@ charter::schema::transaction_payload_t build_payload(
         .vault_id = get_hash32(vm, "vault-id"),
         .model = parse_vault_model(vm["vault-model"].as<std::string>()),
         .label = std::nullopt};
+  }
+  if (payload == "upsert_asset") {
+    auto address_or_contract =
+        decode_hex_bytes(vm["address-or-contract-hex"].as<std::string>());
+    if (address_or_contract.empty()) {
+      charter::common::critical(
+          "upsert_asset requires --address-or-contract-hex");
+    }
+    auto decimals = vm["asset-decimals"].as<uint32_t>();
+    if (decimals > 255u) {
+      charter::common::critical("asset-decimals must fit in uint8");
+    }
+    auto symbol = std::optional<charter::schema::bytes_t>{};
+    if (vm.contains("asset-symbol-hex")) {
+      symbol = decode_hex_bytes(vm["asset-symbol-hex"].as<std::string>());
+    }
+    auto name = std::optional<charter::schema::bytes_t>{};
+    if (vm.contains("asset-name-hex")) {
+      name = decode_hex_bytes(vm["asset-name-hex"].as<std::string>());
+    }
+    return charter::schema::upsert_asset_t{
+        .asset_id = get_hash32(vm, "asset-id"),
+        .chain = parse_chain_type(vm["chain"].as<std::string>()),
+        .kind = parse_asset_kind(vm["asset-kind"].as<std::string>()),
+        .reference =
+            charter::schema::asset_ref_contract_address_t{
+                .address = address_or_contract},
+        .symbol = symbol,
+        .name = name,
+        .decimals = static_cast<uint8_t>(decimals),
+        .enabled = vm["asset-enabled"].as<bool>()};
+  }
+  if (payload == "disable_asset") {
+    return charter::schema::disable_asset_t{.asset_id =
+                                                get_hash32(vm, "asset-id")};
   }
   if (payload == "upsert_destination") {
     auto label = std::optional<charter::schema::bytes_t>{};
@@ -380,6 +435,10 @@ charter::schema::bytes_t build_query_key(Encoder& encoder,
     auto hash = get_hash32(vm, "workspace-id");
     return charter::schema::bytes_t{std::begin(hash), std::end(hash)};
   }
+  if (path == "/state/asset") {
+    auto hash = get_hash32(vm, "asset-id");
+    return charter::schema::bytes_t{std::begin(hash), std::end(hash)};
+  }
   if (path == "/state/vault") {
     return encoder.encode(
         std::tuple{get_hash32(vm, "workspace-id"), get_hash32(vm, "vault-id")});
@@ -455,6 +514,13 @@ int main(int argc, const char** argv) {
       "policy version")("intent-id", po::value<std::string>(),
                         "intent hash32 hex")(
       "asset-id", po::value<std::string>(), "asset hash32 hex")(
+      "asset-kind", po::value<std::string>()->default_value("erc20"),
+      "native|erc20|erc721|erc1115|other")(
+      "asset-symbol-hex", po::value<std::string>(), "asset symbol bytes hex")(
+      "asset-name-hex", po::value<std::string>(), "asset name bytes hex")(
+      "asset-decimals", po::value<uint32_t>()->default_value(18),
+      "asset decimals (0-255)")(
+      "asset-enabled", po::value<bool>()->default_value(true), "asset enabled")(
       "destination-id", po::value<std::string>(), "destination hash32 hex")(
       "amount", po::value<uint64_t>()->default_value(0), "transfer amount")(
       "expires-at", po::value<uint64_t>(), "intent expiry ms")(

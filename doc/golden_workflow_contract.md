@@ -28,17 +28,18 @@ Treasury transfer request with policy controls:
 
 1. `create_workspace`
 2. `create_vault`
-3. `upsert_destination` (`enabled=false` for negative-path check)
-4. `create_policy_set`
-5. `activate_policy_set`
-6. `propose_intent` (limit-fail case)
-7. `propose_intent` (whitelist-fail case)
-8. `upsert_destination` (`enabled=true`)
-9. `propose_intent` (valid case)
-10. `approve_intent`
-11. `execute_intent` (claim-fail case)
-12. `upsert_attestation`
-13. `execute_intent` (success case)
+3. `upsert_asset` (`enabled=true`; required onboarding gate)
+4. `upsert_destination` (`enabled=false` for negative-path check)
+5. `create_policy_set`
+6. `activate_policy_set`
+7. `propose_intent` (limit-fail case)
+8. `propose_intent` (whitelist-fail case)
+9. `upsert_destination` (`enabled=true`)
+10. `propose_intent` (valid case)
+11. `approve_intent`
+12. `execute_intent` (claim-fail case)
+13. `upsert_attestation`
+14. `execute_intent` (success case)
 
 The default executable reference is:
 - `tests/run_proof_first_demo.sh`
@@ -50,20 +51,22 @@ The default executable reference is:
 - Step 3: `0`
 - Step 4: `0`
 - Step 5: `0`
-- Step 6: `28` (limit exceeded)
-- Step 7: `29` (destination not whitelisted)
-- Step 8: `0`
+- Step 6: `0`
+- Step 7: `28` (limit exceeded)
+- Step 8: `29` (destination not whitelisted)
 - Step 9: `0`
 - Step 10: `0`
-- Step 11: `30` (claim requirement unsatisfied)
-- Step 12: `0`
+- Step 11: `0`
+- Step 12: `30` (claim requirement unsatisfied)
 - Step 13: `0`
+- Step 14: `0`
 
 Run fails if any observed code differs.
 
 ## Required Query Assertions
 
-After step 13:
+After step 14:
+- `/state/asset` returns `code=0` for canonical asset key.
 - `/state/intent` returns `code=0` for canonical intent key.
 - decoded `intent_state.status == executed`.
 - `/history/range` returns `code=0` and includes rows for current run height range.
@@ -115,3 +118,4 @@ must update this file and mention reason + date in the changelog section below.
 ## Changelog
 
 - 2026-02-27: initial `v1-poc-freeze-draft`.
+- 2026-03-01: added mandatory `upsert_asset` onboarding step and `/state/asset` query assertion.

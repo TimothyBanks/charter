@@ -3,10 +3,12 @@
 #include <charter/schema/apply_destination_update.hpp>
 #include <charter/schema/approve_destination_update.hpp>
 #include <charter/schema/approve_intent.hpp>
+#include <charter/schema/asset_state.hpp>
 #include <charter/schema/cancel_intent.hpp>
 #include <charter/schema/create_policy_set.hpp>
 #include <charter/schema/create_vault.hpp>
 #include <charter/schema/create_workspace.hpp>
+#include <charter/schema/disable_asset.hpp>
 #include <charter/schema/execute_intent.hpp>
 #include <charter/schema/primitives.hpp>
 #include <charter/schema/propose_destination_update.hpp>
@@ -37,7 +39,9 @@ using transaction_payload_t = std::variant<activate_policy_set_t,
                                            upsert_attestation_t,
                                            upsert_destination_t,
                                            upsert_role_assignment_t,
-                                           upsert_signer_quarantine_t>;
+                                           upsert_signer_quarantine_t,
+                                           disable_asset_t,
+                                           upsert_asset_t>;
 
 template <uint16_t Version>
 struct transaction;

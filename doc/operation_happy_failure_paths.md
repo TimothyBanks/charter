@@ -40,6 +40,8 @@ Notes:
 | `create_workspace_t` | none |
 | `create_vault_t` | `admin` |
 | `upsert_destination_t` | `admin` |
+| `upsert_asset_t` | `admin` |
+| `disable_asset_t` | `admin` |
 | `create_policy_set_t` | `admin` |
 | `activate_policy_set_t` | `admin` |
 | `propose_intent_t` | `initiator` |
@@ -106,6 +108,31 @@ Operation-specific failures:
 
 - `workspace_missing` (11): workspace does not exist.
 
+### `upsert_asset_t`
+
+Input attributes: `asset_id`, `chain`, `kind`, `reference`, `symbol`, `name`, `decimals`, `enabled`.
+
+Happy path:
+
+- Writes `asset_state_t` as the full operation payload via `make_asset_key(asset_id)`.
+
+Operation-specific failures:
+
+- none in payload execution path (only common validation gates can fail).
+
+### `disable_asset_t`
+
+Input attributes: `asset_id`.
+
+Happy path:
+
+- Reads `asset_state_t` by `asset_id`.
+- Mutates and writes `asset_state_t.enabled = false`.
+
+Operation-specific failures:
+
+- `asset_missing` (40): asset state not found.
+
 ### `create_policy_set_t`
 
 Input attributes: `policy_set_id`, `scope`, `policy_version`, `roles`, `rules`.
@@ -148,6 +175,9 @@ Happy path:
 - Reads active policy pointer on vault scope.
 - Reads intent uniqueness by `(workspace_id, vault_id, intent_id)`.
 - Resolves policy requirements for action.
+- Enforces transfer asset onboarding gate:
+  - asset exists,
+  - asset is enabled.
 - Enforces action-level policy checks:
   - per-transaction limit (`transfer_parameters_t.amount`),
   - whitelisted destination (if required),
@@ -167,6 +197,8 @@ Operation-specific failures:
 - `active_policy_missing` (17): no active policy pointer for vault scope.
 - `intent_exists` (19): intent ID already present.
 - `policy_resolution_failed` (20): active policy pointer invalid/unresolvable.
+- `asset_missing` (40): transfer asset must be onboarded first.
+- `asset_disabled` (41): transfer asset is currently disabled.
 - `limit_exceeded` (28): transfer amount exceeds policy per-transaction limit.
 - `destination_not_whitelisted` (29): destination required but disabled/missing.
 - `velocity_limit_exceeded` (34): cumulative window amount exceeds maximum.
@@ -230,6 +262,9 @@ Happy path:
   - `approvals_count >= required_threshold`,
   - `now_ms >= not_before`.
 - Resolves policy requirements.
+- Enforces transfer asset onboarding gate:
+  - asset exists,
+  - asset is enabled.
 - Enforces SoD rule `require_distinct_from_executor` by checking executor is not in approval set.
 - Enforces velocity limits.
 - Validates every `claim_requirement` against active, non-expired attestations.
@@ -246,6 +281,8 @@ Operation-specific failures:
   - failure side effect: intent `status` is first set to `expired` and persisted.
 - `intent_not_executable` (26): threshold/timelock requirements not met.
 - `policy_resolution_failed` (20): active policy pointer invalid/unresolvable.
+- `asset_missing` (40): transfer asset must be onboarded first.
+- `asset_disabled` (41): transfer asset is currently disabled.
 - `separation_of_duties_violated` (35): executor is also an approver where forbidden.
 - `velocity_limit_exceeded` (34): cumulative window amount exceeds maximum.
 - `claim_requirement_unsatisfied` (30): required attestation claim missing/expired.
@@ -394,6 +431,7 @@ This maps schema families to the operational workflows a custody team actually r
 | --- | --- | --- |
 | Tenant/account onboarding | `create_workspace_t`, `workspace_state_t`, `upsert_role_assignment_t`, `role_assignment_state_t` | Creating a customer/treasury boundary and assigning who can initiate, approve, execute, administer, and respond to incidents. |
 | Vault/account provisioning | `create_vault_t`, `vault_state_t` | Opening a governed custody account under a tenant. |
+| Asset onboarding and lifecycle control | `upsert_asset_t`, `disable_asset_t`, `asset_state_t`, `asset_kind_t`, `asset_ref_t` | Registering which assets are transferable in the custody domain and suspending assets during incidents or policy changes. |
 | Beneficiary/destination management | `upsert_destination_t`, `destination_state_t`, `propose_destination_update_t`, `approve_destination_update_t`, `apply_destination_update_t`, `destination_update_state_t` | Managing withdrawal destinations, including staged approval for risky destination changes. |
 | Policy authoring and activation | `create_policy_set_t`, `activate_policy_set_t`, `policy_set_state_t`, `active_policy_pointer_t`, `policy_rule_t`, `approval_rule_t`, `time_lock_rule_t`, `limit_rule_t`, `destination_rule_t`, `velocity_limit_rule_t`, `claim_requirement_t` | Defining and activating governance rules that determine whether movement is allowed. |
 | Payment/transfer request lifecycle | `propose_intent_t`, `approve_intent_t`, `execute_intent_t`, `cancel_intent_t`, `intent_state_t`, `approval_state_t`, `intent_status_t` | Request -> approval collection -> execution/cancel state machine for moving funds. |

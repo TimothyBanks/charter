@@ -25,6 +25,7 @@ Engine metadata:
 
 State queries:
 - `/state/workspace`
+- `/state/asset`
 - `/state/vault`
 - `/state/destination`
 - `/state/policy_set`
@@ -48,6 +49,7 @@ The execution engine currently uses these prefixes:
 - `SYS|STATE|NONCE|`
 - `SYS|STATE|`
 - `SYS|STATE|WORKSPACE|`
+- `SYS|STATE|ASSET|`
 - `SYS|STATE|VAULT|`
 - `SYS|STATE|DESTINATION|`
 - `SYS|STATE|POLICY_SET|`

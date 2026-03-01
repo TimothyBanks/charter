@@ -16,6 +16,7 @@ inline constexpr std::string_view kNonceKeyPrefix{"SYS|STATE|NONCE|"};
 inline constexpr std::string_view kStatePrefix{"SYS|STATE|"};
 inline constexpr std::string_view kWorkspaceKeyPrefix{"SYS|STATE|WORKSPACE|"};
 inline constexpr std::string_view kVaultKeyPrefix{"SYS|STATE|VAULT|"};
+inline constexpr std::string_view kAssetKeyPrefix{"SYS|STATE|ASSET|"};
 inline constexpr std::string_view kDestinationKeyPrefix{
     "SYS|STATE|DESTINATION|"};
 inline constexpr std::string_view kPolicySetKeyPrefix{"SYS|STATE|POLICY_SET|"};
@@ -38,11 +39,12 @@ inline constexpr std::string_view kHistoryPrefix{"SYS|HISTORY|TX|"};
 inline constexpr std::string_view kEventPrefix{"SYS|EVENT|"};
 inline constexpr std::string_view kSnapshotPrefix{"SYS|SNAP|"};
 
-inline const std::array<std::string_view, 19> kEngineKeyspaces{
+inline const std::array<std::string_view, 20> kEngineKeyspaces{
     kNonceKeyPrefix,
     kStatePrefix,
     kWorkspaceKeyPrefix,
     kVaultKeyPrefix,
+    kAssetKeyPrefix,
     kDestinationKeyPrefix,
     kPolicySetKeyPrefix,
     kActivePolicyPrefix,
@@ -101,6 +103,13 @@ charter::schema::bytes_t make_vault_key(
     const charter::schema::hash32_t& vault_id) {
   return make_prefixed_key(encoder, kVaultKeyPrefix,
                            std::tuple{workspace_id, vault_id});
+}
+
+template <typename Encoder>
+charter::schema::bytes_t make_asset_key(
+    Encoder& encoder,
+    const charter::schema::hash32_t& asset_id) {
+  return make_prefixed_key(encoder, kAssetKeyPrefix, asset_id);
 }
 
 template <typename Encoder>

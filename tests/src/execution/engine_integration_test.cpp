@@ -194,6 +194,23 @@ charter::schema::policy_rule_t make_transfer_rule(
       .velocity_limits = {}};
 }
 
+charter::schema::upsert_asset_t make_upsert_asset(
+    const charter::schema::hash32_t& asset_id,
+    bool enabled = true) {
+  return charter::schema::upsert_asset_t{
+      .asset_id = asset_id,
+      .chain =
+          charter::schema::chain_type_t{charter::schema::chain_type::ethereum},
+      .kind = charter::schema::asset_kind_t::erc20,
+      .reference =
+          charter::schema::asset_ref_contract_address_t{
+              .address = charter::schema::bytes_t{0xAA, 0xBB}},
+      .symbol = charter::schema::make_bytes(std::string_view{"TOK"}),
+      .name = charter::schema::make_bytes(std::string_view{"Token"}),
+      .decimals = 18,
+      .enabled = enabled};
+}
+
 }  // namespace
 
 TEST(engine_integration, backup_replay_and_state_queries_work) {
@@ -240,8 +257,10 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
             .vault_id = vault_id,
             .model = charter::schema::vault_model_t::segregated,
             .label = std::nullopt})));
+    txs.push_back(encode_transaction(
+        make_transaction(chain_id, 3, signer, make_upsert_asset(asset_id))));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 3, signer,
+        chain_id, 4, signer,
         charter::schema::upsert_destination_t{
             .workspace_id = workspace_id,
             .destination_id = destination_id,
@@ -253,7 +272,7 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
             .enabled = true,
             .label = std::nullopt})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 4, signer,
+        chain_id, 5, signer,
         charter::schema::create_policy_set_t{
             .policy_set_id = policy_set_id,
             .scope = scope,
@@ -261,12 +280,12 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
             .roles = {{charter::schema::role_id_t::approver, {signer}}},
             .rules = {make_transfer_rule(asset_id, 1, 0)}})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 5, signer,
+        chain_id, 6, signer,
         charter::schema::activate_policy_set_t{.scope = scope,
                                                .policy_set_id = policy_set_id,
                                                .policy_set_version = 1})));
     txs.push_back(encode_transaction(
-        make_transaction(chain_id, 6, signer,
+        make_transaction(chain_id, 7, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = workspace_id,
                              .vault_id = vault_id,
@@ -278,17 +297,17 @@ TEST(engine_integration, backup_replay_and_state_queries_work) {
                                      .amount = 5},
                              .expires_at = std::nullopt})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 7, signer,
+        chain_id, 8, signer,
         charter::schema::approve_intent_t{.workspace_id = workspace_id,
                                           .vault_id = vault_id,
                                           .intent_id = intent_id})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 8, signer,
+        chain_id, 9, signer,
         charter::schema::execute_intent_t{.workspace_id = workspace_id,
                                           .vault_id = vault_id,
                                           .intent_id = intent_id})));
     txs.push_back(encode_transaction(
-        make_transaction(chain_id, 9, signer,
+        make_transaction(chain_id, 10, signer,
                          charter::schema::upsert_attestation_t{
                              .workspace_id = workspace_id,
                              .subject = subject,
@@ -436,8 +455,10 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
             .vault_id = vault_id,
             .model = charter::schema::vault_model_t::segregated,
             .label = std::nullopt})));
+    txs.push_back(encode_transaction(
+        make_transaction(chain_id, 3, signer, make_upsert_asset(asset_id))));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 3, signer,
+        chain_id, 4, signer,
         charter::schema::upsert_destination_t{
             .workspace_id = workspace_id,
             .destination_id = destination_id,
@@ -449,7 +470,7 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
             .enabled = true,
             .label = std::nullopt})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 4, signer,
+        chain_id, 5, signer,
         charter::schema::create_policy_set_t{
             .policy_set_id = policy_set_id,
             .scope = scope,
@@ -457,12 +478,12 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
             .roles = {{charter::schema::role_id_t::approver, {signer}}},
             .rules = {make_transfer_rule(asset_id, 1, 3000)}})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 5, signer,
+        chain_id, 6, signer,
         charter::schema::activate_policy_set_t{.scope = scope,
                                                .policy_set_id = policy_set_id,
                                                .policy_set_version = 1})));
     txs.push_back(encode_transaction(
-        make_transaction(chain_id, 6, signer,
+        make_transaction(chain_id, 7, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = workspace_id,
                              .vault_id = vault_id,
@@ -474,23 +495,23 @@ TEST(engine_integration, timelock_blocks_then_allows_execute) {
                                      .amount = 5},
                              .expires_at = std::nullopt})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 7, signer,
+        chain_id, 8, signer,
         charter::schema::approve_intent_t{.workspace_id = workspace_id,
                                           .vault_id = vault_id,
                                           .intent_id = intent_id})));
     txs.push_back(encode_transaction(make_transaction(
-        chain_id, 8, signer,
+        chain_id, 9, signer,
         charter::schema::execute_intent_t{.workspace_id = workspace_id,
                                           .vault_id = vault_id,
                                           .intent_id = intent_id})));
 
     auto block1 = engine.finalize_block(1, txs);
     ASSERT_EQ(block1.tx_results.size(), txs.size());
-    EXPECT_EQ(block1.tx_results[7].code, 26u);
+    EXPECT_EQ(block1.tx_results[8].code, 26u);
     engine.commit();
 
     auto tx8 = encode_transaction(make_transaction(
-        chain_id, 8, signer,
+        chain_id, 9, signer,
         charter::schema::execute_intent_t{.workspace_id = workspace_id,
                                           .vault_id = vault_id,
                                           .intent_id = intent_id}));
@@ -556,8 +577,10 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
                     .vault_id = vault_id,
                     .model = charter::schema::vault_model_t::segregated,
                     .label = std::nullopt})),
+            encode_transaction(make_transaction(chain_id, 3, signer,
+                                                make_upsert_asset(asset_id))),
             encode_transaction(make_transaction(
-                chain_id, 3, signer,
+                chain_id, 4, signer,
                 charter::schema::upsert_destination_t{
                     .workspace_id = workspace_id,
                     .destination_id = destination_id,
@@ -568,7 +591,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
                     .enabled = false,
                     .label = std::nullopt})),
             encode_transaction(make_transaction(
-                chain_id, 4, signer,
+                chain_id, 5, signer,
                 charter::schema::create_policy_set_t{
                     .policy_set_id = policy_set_id,
                     .scope = scope,
@@ -576,7 +599,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
                     .roles = {{charter::schema::role_id_t::approver, {signer}}},
                     .rules = {make_transfer_rule(asset_id, 1, 0, 10, true)}})),
             encode_transaction(
-                make_transaction(chain_id, 5, signer,
+                make_transaction(chain_id, 6, signer,
                                  charter::schema::activate_policy_set_t{
                                      .scope = scope,
                                      .policy_set_id = policy_set_id,
@@ -588,7 +611,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
 
     auto block2 = engine.finalize_block(
         2, {encode_transaction(
-               make_transaction(chain_id, 6, signer,
+               make_transaction(chain_id, 7, signer,
                                 charter::schema::propose_intent_t{
                                     .workspace_id = workspace_id,
                                     .vault_id = vault_id,
@@ -605,7 +628,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
 
     auto block3 = engine.finalize_block(
         3, {encode_transaction(
-               make_transaction(chain_id, 6, signer,
+               make_transaction(chain_id, 7, signer,
                                 charter::schema::propose_intent_t{
                                     .workspace_id = workspace_id,
                                     .vault_id = vault_id,
@@ -622,7 +645,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
 
     auto block4 = engine.finalize_block(
         4, {encode_transaction(make_transaction(
-               chain_id, 6, signer,
+               chain_id, 7, signer,
                charter::schema::upsert_destination_t{
                    .workspace_id = workspace_id,
                    .destination_id = destination_id,
@@ -639,7 +662,7 @@ TEST(engine_integration, limit_and_whitelist_are_enforced) {
 
     auto block5 = engine.finalize_block(
         5, {encode_transaction(
-               make_transaction(chain_id, 7, signer,
+               make_transaction(chain_id, 8, signer,
                                 charter::schema::propose_intent_t{
                                     .workspace_id = workspace_id,
                                     .vault_id = vault_id,
@@ -700,8 +723,10 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
                     .vault_id = vault_id,
                     .model = charter::schema::vault_model_t::segregated,
                     .label = std::nullopt})),
+            encode_transaction(make_transaction(chain_id, 3, signer,
+                                                make_upsert_asset(asset_id))),
             encode_transaction(make_transaction(
-                chain_id, 3, signer,
+                chain_id, 4, signer,
                 charter::schema::upsert_destination_t{
                     .workspace_id = workspace_id,
                     .destination_id = destination_id,
@@ -712,7 +737,7 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
                     .enabled = true,
                     .label = std::nullopt})),
             encode_transaction(make_transaction(
-                chain_id, 4, signer,
+                chain_id, 5, signer,
                 charter::schema::create_policy_set_t{
                     .policy_set_id = policy_set_id,
                     .scope = scope,
@@ -723,7 +748,7 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
                         {charter::schema::claim_type_t{
                             charter::schema::claim_type::kyb_verified}})}})),
             encode_transaction(
-                make_transaction(chain_id, 5, signer,
+                make_transaction(chain_id, 6, signer,
                                  charter::schema::activate_policy_set_t{
                                      .scope = scope,
                                      .policy_set_id = policy_set_id,
@@ -735,7 +760,7 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
 
     auto block2 = engine.finalize_block(
         2, {encode_transaction(
-                make_transaction(chain_id, 6, signer,
+                make_transaction(chain_id, 7, signer,
                                  charter::schema::propose_intent_t{
                                      .workspace_id = workspace_id,
                                      .vault_id = vault_id,
@@ -747,12 +772,12 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
                                              .amount = 3},
                                      .expires_at = std::nullopt})),
             encode_transaction(make_transaction(
-                chain_id, 7, signer,
+                chain_id, 8, signer,
                 charter::schema::approve_intent_t{.workspace_id = workspace_id,
                                                   .vault_id = vault_id,
                                                   .intent_id = intent_id})),
             encode_transaction(make_transaction(
-                chain_id, 8, signer,
+                chain_id, 9, signer,
                 charter::schema::execute_intent_t{.workspace_id = workspace_id,
                                                   .vault_id = vault_id,
                                                   .intent_id = intent_id}))});
@@ -764,7 +789,7 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
 
     auto block3 = engine.finalize_block(
         3, {encode_transaction(make_transaction(
-                chain_id, 8, signer,
+                chain_id, 9, signer,
                 charter::schema::upsert_attestation_t{
                     .workspace_id = workspace_id,
                     .subject = workspace_id,
@@ -775,7 +800,7 @@ TEST(engine_integration, claim_gating_blocks_until_attested) {
                     .expires_at = 99999999,
                     .reference_hash = std::nullopt})),
             encode_transaction(make_transaction(
-                chain_id, 9, signer,
+                chain_id, 10, signer,
                 charter::schema::execute_intent_t{.workspace_id = workspace_id,
                                                   .vault_id = vault_id,
                                                   .intent_id = intent_id}))});
@@ -815,6 +840,109 @@ TEST(engine_integration, query_errors_echo_key_and_codespace) {
     EXPECT_EQ(result.key, bad_key);
     EXPECT_EQ(result.height, engine.info().last_block_height);
   }
+  std::error_code ec;
+  std::filesystem::remove_all(db, ec);
+}
+
+TEST(engine_integration, query_route_matrix_valid_and_invalid_keys) {
+  auto db = make_db_path("charter_engine_query_routes");
+  {
+    auto encoder = charter::schema::encoding::encoder<
+        charter::schema::encoding::scale_encoder_tag>{};
+    auto storage =
+        charter::storage::make_storage<charter::storage::rocksdb_storage_tag>(
+            db);
+    auto engine = charter::execution::engine{encoder, storage, 1, false};
+
+    auto workspace_id = make_hash(101);
+    auto vault_id = make_hash(102);
+    auto asset_id = make_hash(152);
+    auto destination_id = make_hash(103);
+    auto policy_set_id = make_hash(104);
+    auto intent_id = make_hash(105);
+    auto update_id = make_hash(106);
+    auto signer = make_named_signer(107);
+    auto scope = charter::schema::policy_scope_t{charter::schema::vault_t{
+        .workspace_id = workspace_id, .vault_id = vault_id}};
+    auto claim = charter::schema::claim_type_t{
+        charter::schema::claim_type::kyb_verified};
+
+    auto valid_cases = std::vector<
+        std::tuple<std::string, charter::schema::bytes_t, uint32_t>>{
+        {"/engine/info", {}, 0u},
+        {"/engine/keyspaces", {}, 0u},
+        {"/history/export", {}, 0u},
+        {"/history/range",
+         encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}), 0u},
+        {"/events/range", encoder.encode(std::tuple{uint64_t{1}, uint64_t{10}}),
+         0u},
+        {"/state/degraded_mode", {}, 0u},
+        {"/state/workspace",
+         charter::schema::bytes_t{std::begin(workspace_id),
+                                  std::end(workspace_id)},
+         2u},
+        {"/state/asset",
+         charter::schema::bytes_t{std::begin(asset_id), std::end(asset_id)},
+         2u},
+        {"/state/vault", encoder.encode(std::tuple{workspace_id, vault_id}),
+         2u},
+        {"/state/destination",
+         encoder.encode(std::tuple{workspace_id, destination_id}), 2u},
+        {"/state/policy_set",
+         encoder.encode(std::tuple{policy_set_id, uint32_t{1}}), 2u},
+        {"/state/active_policy", encoder.encode(scope), 2u},
+        {"/state/intent",
+         encoder.encode(std::tuple{workspace_id, vault_id, intent_id}), 2u},
+        {"/state/approval", encoder.encode(std::tuple{intent_id, signer}), 2u},
+        {"/state/attestation",
+         encoder.encode(std::tuple{workspace_id, workspace_id, claim, signer}),
+         2u},
+        {"/state/role_assignment",
+         encoder.encode(
+             std::tuple{scope, signer, charter::schema::role_id_t::admin}),
+         2u},
+        {"/state/signer_quarantine", encoder.encode(signer), 2u},
+        {"/state/destination_update",
+         encoder.encode(std::tuple{workspace_id, destination_id, update_id}),
+         2u},
+    };
+
+    for (const auto& [path, key, expected_code] : valid_cases) {
+      auto result = engine.query(
+          path, charter::schema::bytes_view_t{key.data(), key.size()});
+      EXPECT_EQ(result.code, expected_code) << "path=" << path;
+      EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
+    }
+
+    auto invalid_cases = std::vector<std::string>{"/state/workspace",
+                                                  "/state/asset",
+                                                  "/state/vault",
+                                                  "/state/destination",
+                                                  "/state/policy_set",
+                                                  "/state/active_policy",
+                                                  "/state/intent",
+                                                  "/state/approval",
+                                                  "/state/attestation",
+                                                  "/state/role_assignment",
+                                                  "/state/signer_quarantine",
+                                                  "/state/destination_update",
+                                                  "/history/range",
+                                                  "/events/range"};
+    auto invalid_key = charter::schema::bytes_t{0xFF};
+    for (const auto& path : invalid_cases) {
+      auto result =
+          engine.query(path, charter::schema::bytes_view_t{invalid_key.data(),
+                                                           invalid_key.size()});
+      EXPECT_EQ(result.code, 1u) << "path=" << path;
+      EXPECT_EQ(result.codespace, "charter.query") << "path=" << path;
+      EXPECT_EQ(result.key, invalid_key) << "path=" << path;
+    }
+
+    auto unsupported = engine.query("/unsupported/path", {});
+    EXPECT_EQ(unsupported.code, 3u);
+    EXPECT_EQ(unsupported.codespace, "charter.query");
+  }
+
   std::error_code ec;
   std::filesystem::remove_all(db, ec);
 }
@@ -1311,9 +1439,15 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
+        finalize_single(engine, 9,
+                        make_transaction(chain, 9, signer,
+                                         make_upsert_asset(make_hash(25))))
+            .code,
+        0u);
+    EXPECT_EQ(
         finalize_single(
-            engine, 9,
-            make_transaction(chain, 9, signer,
+            engine, 10,
+            make_transaction(chain, 10, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = workspace_id,
                                  .vault_id = vault_id,
@@ -1327,8 +1461,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     auto dup_intent = finalize_single(
-        engine, 10,
-        make_transaction(chain, 10, signer,
+        engine, 11,
+        make_transaction(chain, 11, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = workspace_id,
                              .vault_id = vault_id,
@@ -1343,8 +1477,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(dup_intent.code, 19u);
 
     EXPECT_EQ(
-        finalize_single(engine, 11,
-                        make_transaction(chain, 11, signer,
+        finalize_single(engine, 12,
+                        make_transaction(chain, 12, signer,
                                          charter::schema::approve_intent_t{
                                              .workspace_id = workspace_id,
                                              .vault_id = vault_id,
@@ -1352,9 +1486,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     auto dup_approval = finalize_single(
-        engine, 12,
+        engine, 13,
         make_transaction(
-            chain, 12, signer,
+            chain, 13, signer,
             charter::schema::approve_intent_t{.workspace_id = workspace_id,
                                               .vault_id = vault_id,
                                               .intent_id = intent_id}));
@@ -1362,8 +1496,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(dup_approval.code, 24u);
 
     auto missing_update = finalize_single(
-        engine, 13,
-        make_transaction(chain, 13, signer,
+        engine, 14,
+        make_transaction(chain, 14, signer,
                          charter::schema::approve_destination_update_t{
                              .workspace_id = workspace_id,
                              .destination_id = destination_id,
@@ -1743,11 +1877,16 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                                              .policy_set_version = 1}))
             .code,
         0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 6,
+                  make_transaction(chain, 6, signer, make_upsert_asset(asset)))
+                  .code,
+              0u);
 
     auto limit = finalize_single(
-        engine, 6,
+        engine, 7,
         make_transaction(
-            chain, 6, signer,
+            chain, 7, signer,
             charter::schema::propose_intent_t{
                 .workspace_id = ws,
                 .vault_id = vault,
@@ -1760,9 +1899,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(limit.code, 28u);
 
     auto whitelist = finalize_single(
-        engine, 7,
+        engine, 8,
         make_transaction(
-            chain, 7, signer,
+            chain, 8, signer,
             charter::schema::propose_intent_t{
                 .workspace_id = ws,
                 .vault_id = vault,
@@ -1775,9 +1914,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(whitelist.code, 29u);
 
     EXPECT_EQ(finalize_single(
-                  engine, 8,
+                  engine, 9,
                   make_transaction(
-                      chain, 8, signer,
+                      chain, 9, signer,
                       charter::schema::upsert_destination_t{
                           .workspace_id = ws,
                           .destination_id = dst,
@@ -1792,9 +1931,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
               0u);
 
     auto velocity = finalize_single(
-        engine, 9,
+        engine, 10,
         make_transaction(
-            chain, 9, signer,
+            chain, 10, signer,
             charter::schema::propose_intent_t{
                 .workspace_id = ws,
                 .vault_id = vault,
@@ -1808,8 +1947,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
 
     EXPECT_EQ(
         finalize_single(
-            engine, 10,
-            make_transaction(chain, 10, signer,
+            engine, 11,
+            make_transaction(chain, 11, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = ws,
                                  .vault_id = vault,
@@ -1824,9 +1963,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
         0u);
 
     auto sod = finalize_single(
-        engine, 11,
+        engine, 12,
         make_transaction(
-            chain, 11, signer,
+            chain, 12, signer,
             charter::schema::approve_intent_t{.workspace_id = ws,
                                               .vault_id = vault,
                                               .intent_id = make_hash(48)}));
@@ -1835,9 +1974,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
 
     EXPECT_EQ(
         finalize_single(
-            engine, 12,
+            engine, 13,
             make_transaction(
-                chain, 12, signer,
+                chain, 13, signer,
                 charter::schema::create_policy_set_t{
                     .policy_set_id = make_hash(49),
                     .scope = scope,
@@ -1850,8 +1989,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
-        finalize_single(engine, 13,
-                        make_transaction(chain, 13, signer,
+        finalize_single(engine, 14,
+                        make_transaction(chain, 14, signer,
                                          charter::schema::activate_policy_set_t{
                                              .scope = scope,
                                              .policy_set_id = make_hash(49),
@@ -1860,8 +1999,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
         0u);
     EXPECT_EQ(
         finalize_single(
-            engine, 14,
-            make_transaction(chain, 14, signer,
+            engine, 15,
+            make_transaction(chain, 15, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = ws,
                                  .vault_id = vault,
@@ -1875,8 +2014,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
-        finalize_single(engine, 15,
-                        make_transaction(chain, 15, signer,
+        finalize_single(engine, 16,
+                        make_transaction(chain, 16, signer,
                                          charter::schema::approve_intent_t{
                                              .workspace_id = ws,
                                              .vault_id = vault,
@@ -1884,9 +2023,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     auto claim = finalize_single(
-        engine, 16,
+        engine, 17,
         make_transaction(
-            chain, 16, signer,
+            chain, 17, signer,
             charter::schema::execute_intent_t{.workspace_id = ws,
                                               .vault_id = vault,
                                               .intent_id = make_hash(50)}));
@@ -1963,10 +2102,15 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                                              .policy_set_version = 1}))
             .code,
         0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 6,
+                  make_transaction(chain, 6, signer, make_upsert_asset(asset)))
+                  .code,
+              0u);
     EXPECT_EQ(
         finalize_single(
-            engine, 6,
-            make_transaction(chain, 6, signer,
+            engine, 7,
+            make_transaction(chain, 7, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = ws,
                                  .vault_id = vault,
@@ -1980,8 +2124,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
-        finalize_single(engine, 7,
-                        make_transaction(chain, 7, signer,
+        finalize_single(engine, 8,
+                        make_transaction(chain, 8, signer,
                                          charter::schema::approve_intent_t{
                                              .workspace_id = ws,
                                              .vault_id = vault,
@@ -1989,8 +2133,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
-        finalize_single(engine, 8,
-                        make_transaction(chain, 8, signer,
+        finalize_single(engine, 9,
+                        make_transaction(chain, 9, signer,
                                          charter::schema::execute_intent_t{
                                              .workspace_id = ws,
                                              .vault_id = vault,
@@ -1999,9 +2143,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
         0u);
 
     auto not_approvable = finalize_single(
-        engine, 9,
+        engine, 10,
         make_transaction(
-            chain, 9, signer,
+            chain, 10, signer,
             charter::schema::approve_intent_t{.workspace_id = ws,
                                               .vault_id = vault,
                                               .intent_id = make_hash(65)}));
@@ -2010,8 +2154,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
 
     EXPECT_EQ(
         finalize_single(
-            engine, 10,
-            make_transaction(chain, 10, signer,
+            engine, 11,
+            make_transaction(chain, 11, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = ws,
                                  .vault_id = vault,
@@ -2025,9 +2169,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     auto expired_approve = finalize_single(
-        engine, 12,
+        engine, 13,
         make_transaction(
-            chain, 11, signer,
+            chain, 12, signer,
             charter::schema::approve_intent_t{.workspace_id = ws,
                                               .vault_id = vault,
                                               .intent_id = make_hash(66)}));
@@ -2035,9 +2179,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(expired_approve.code, 23u);
 
     auto not_exec = finalize_single(
-        engine, 13,
+        engine, 14,
         make_transaction(
-            chain, 12, signer,
+            chain, 13, signer,
             charter::schema::execute_intent_t{.workspace_id = ws,
                                               .vault_id = vault,
                                               .intent_id = make_hash(66)}));
@@ -2045,9 +2189,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(not_exec.code, 23u);
 
     auto cancel_executed = finalize_single(
-        engine, 14,
+        engine, 15,
         make_transaction(
-            chain, 13, signer,
+            chain, 14, signer,
             charter::schema::cancel_intent_t{.workspace_id = ws,
                                              .vault_id = vault,
                                              .intent_id = make_hash(65)}));
@@ -2191,10 +2335,15 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
                                              .policy_set_version = 1}))
             .code,
         0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 6,
+                  make_transaction(chain, 6, signer, make_upsert_asset(asset)))
+                  .code,
+              0u);
     EXPECT_EQ(
         finalize_single(
-            engine, 6,
-            make_transaction(chain, 6, signer,
+            engine, 7,
+            make_transaction(chain, 7, signer,
                              charter::schema::propose_intent_t{
                                  .workspace_id = ws,
                                  .vault_id = vault,
@@ -2208,8 +2357,8 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
             .code,
         0u);
     EXPECT_EQ(
-        finalize_single(engine, 7,
-                        make_transaction(chain, 7, signer,
+        finalize_single(engine, 8,
+                        make_transaction(chain, 8, signer,
                                          charter::schema::approve_intent_t{
                                              .workspace_id = ws,
                                              .vault_id = vault,
@@ -2218,9 +2367,9 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
         0u);
 
     auto not_executable = finalize_single(
-        engine, 8,
+        engine, 9,
         make_transaction(
-            chain, 8, signer,
+            chain, 9, signer,
             charter::schema::execute_intent_t{
                 .workspace_id = ws, .vault_id = vault, .intent_id = intent}));
     seen.insert(not_executable.code);
@@ -2314,9 +2463,147 @@ TEST(engine_integration, transaction_error_code_matrix_coverage) {
     EXPECT_EQ(denied.code, 33u);
   });
 
-  auto expected = std::set<uint32_t>{
-      1,  2,  3,  4,  5,  6,  10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39};
+  run("40_41", [](auto& engine, auto& seen) {
+    auto chain = chain_id_from_engine(engine);
+    auto signer = make_named_signer(175);
+    auto workspace_id = make_hash(176);
+    auto vault_id = make_hash(177);
+    auto destination_id = make_hash(178);
+    auto policy_set_id = make_hash(179);
+    auto onboarded_asset = make_hash(180);
+    auto missing_asset = make_hash(181);
+    auto intent_missing_asset = make_hash(182);
+    auto intent_disabled_asset = make_hash(183);
+    auto scope = charter::schema::policy_scope_t{charter::schema::vault_t{
+        .workspace_id = workspace_id, .vault_id = vault_id}};
+
+    EXPECT_EQ(
+        finalize_single(engine, 1,
+                        make_transaction(chain, 1, signer,
+                                         charter::schema::create_workspace_t{
+                                             .workspace_id = workspace_id,
+                                             .admin_set = {signer},
+                                             .quorum_size = 1,
+                                             .metadata_ref = std::nullopt}))
+            .code,
+        0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 2,
+                  make_transaction(
+                      chain, 2, signer,
+                      charter::schema::create_vault_t{
+                          .workspace_id = workspace_id,
+                          .vault_id = vault_id,
+                          .model = charter::schema::vault_model_t::segregated,
+                          .label = std::nullopt}))
+                  .code,
+              0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 3,
+                  make_transaction(
+                      chain, 3, signer,
+                      charter::schema::upsert_destination_t{
+                          .workspace_id = workspace_id,
+                          .destination_id = destination_id,
+                          .type = charter::schema::destination_type_t::address,
+                          .chain_type =
+                              charter::schema::chain_type_t{
+                                  charter::schema::chain_type::ethereum},
+                          .address_or_contract = charter::schema::bytes_t{0xAA},
+                          .enabled = true,
+                          .label = std::nullopt}))
+                  .code,
+              0u);
+    EXPECT_EQ(
+        finalize_single(
+            engine, 4,
+            make_transaction(
+                chain, 4, signer,
+                charter::schema::create_policy_set_t{
+                    .policy_set_id = policy_set_id,
+                    .scope = scope,
+                    .policy_version = 1,
+                    .roles = {{charter::schema::role_id_t::approver, {signer}}},
+                    .rules = {make_transfer_rule(onboarded_asset, 1, 0)}}))
+            .code,
+        0u);
+    EXPECT_EQ(
+        finalize_single(engine, 5,
+                        make_transaction(chain, 5, signer,
+                                         charter::schema::activate_policy_set_t{
+                                             .scope = scope,
+                                             .policy_set_id = policy_set_id,
+                                             .policy_set_version = 1}))
+            .code,
+        0u);
+
+    auto missing = finalize_single(
+        engine, 6,
+        make_transaction(chain, 6, signer,
+                         charter::schema::propose_intent_t{
+                             .workspace_id = workspace_id,
+                             .vault_id = vault_id,
+                             .intent_id = intent_missing_asset,
+                             .action =
+                                 charter::schema::transfer_parameters_t{
+                                     .asset_id = missing_asset,
+                                     .destination_id = destination_id,
+                                     .amount = 5},
+                             .expires_at = std::nullopt}));
+    seen.insert(missing.code);
+    EXPECT_EQ(missing.code, 40u);
+
+    EXPECT_EQ(
+        finalize_single(
+            engine, 7,
+            make_transaction(
+                chain, 7, signer,
+                charter::schema::upsert_asset_t{
+                    .asset_id = onboarded_asset,
+                    .chain =
+                        charter::schema::chain_type_t{
+                            charter::schema::chain_type::ethereum},
+                    .kind = charter::schema::asset_kind_t::erc20,
+                    .reference =
+                        charter::schema::asset_ref_contract_address_t{
+                            .address = charter::schema::bytes_t{0x11, 0x22}},
+                    .symbol =
+                        charter::schema::make_bytes(std::string_view{"USDC"}),
+                    .name = charter::schema::make_bytes(
+                        std::string_view{"USD Coin"}),
+                    .decimals = 6,
+                    .enabled = true}))
+            .code,
+        0u);
+    EXPECT_EQ(
+        finalize_single(engine, 8,
+                        make_transaction(chain, 8, signer,
+                                         charter::schema::disable_asset_t{
+                                             .asset_id = onboarded_asset}))
+            .code,
+        0u);
+
+    auto disabled = finalize_single(
+        engine, 9,
+        make_transaction(chain, 9, signer,
+                         charter::schema::propose_intent_t{
+                             .workspace_id = workspace_id,
+                             .vault_id = vault_id,
+                             .intent_id = intent_disabled_asset,
+                             .action =
+                                 charter::schema::transfer_parameters_t{
+                                     .asset_id = onboarded_asset,
+                                     .destination_id = destination_id,
+                                     .amount = 5},
+                             .expires_at = std::nullopt}));
+    seen.insert(disabled.code);
+    EXPECT_EQ(disabled.code, 41u);
+  });
+
+  auto expected =
+      std::set<uint32_t>{1,  2,  3,  4,  5,  6,  10, 11, 12, 13, 14, 15, 16,
+                         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+                         30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41};
   EXPECT_EQ(observed, expected);
 }
 
@@ -2435,9 +2722,14 @@ TEST(engine_integration, security_event_type_coverage) {
                                              .policy_set_version = 1}))
             .code,
         0u);
+    EXPECT_EQ(finalize_single(
+                  engine, 9,
+                  make_transaction(chain, 7, signer, make_upsert_asset(asset)))
+                  .code,
+              0u);
     auto policy_denied = finalize_single(
-        engine, 9,
-        make_transaction(chain, 7, signer,
+        engine, 10,
+        make_transaction(chain, 8, signer,
                          charter::schema::propose_intent_t{
                              .workspace_id = ws,
                              .vault_id = vault,
@@ -2450,9 +2742,9 @@ TEST(engine_integration, security_event_type_coverage) {
                              .expires_at = std::nullopt}));
     EXPECT_EQ(policy_denied.code, 28u);
 
-    EXPECT_EQ(finalize_single(engine, 10,
+    EXPECT_EQ(finalize_single(engine, 11,
                               make_transaction(
-                                  chain, 8, signer,
+                                  chain, 9, signer,
                                   charter::schema::upsert_role_assignment_t{
                                       .scope = scope,
                                       .subject = signer,
@@ -2464,8 +2756,8 @@ TEST(engine_integration, security_event_type_coverage) {
                   .code,
               0u);
     EXPECT_EQ(finalize_single(
-                  engine, 11,
-                  make_transaction(chain, 9, signer,
+                  engine, 12,
+                  make_transaction(chain, 10, signer,
                                    charter::schema::upsert_signer_quarantine_t{
                                        .signer = other,
                                        .quarantined = false,
@@ -2474,9 +2766,9 @@ TEST(engine_integration, security_event_type_coverage) {
                   .code,
               0u);
     EXPECT_EQ(finalize_single(
-                  engine, 12,
+                  engine, 13,
                   make_transaction(
-                      chain, 10, signer,
+                      chain, 11, signer,
                       charter::schema::set_degraded_mode_t{
                           .mode = charter::schema::degraded_mode_t::normal,
                           .effective_at = std::nullopt,

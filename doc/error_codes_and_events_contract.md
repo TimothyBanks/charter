@@ -59,6 +59,8 @@ Code definitions:
 - `37` destination update missing
 - `38` destination update finalized
 - `39` destination update not executable
+- `40` asset missing
+- `41` asset disabled
 
 ## 2) Query Result Code Contract
 
@@ -75,6 +77,7 @@ Supported query paths:
 - `/engine/info`
 - `/engine/keyspaces`
 - `/state/workspace`
+- `/state/asset`
 - `/state/vault`
 - `/state/destination`
 - `/state/policy_set`

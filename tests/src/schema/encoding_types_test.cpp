@@ -403,6 +403,14 @@ TEST(schema_encoding_types, engine_wire_types_round_trip) {
 TEST(schema_encoding_types, transaction_payload_supports_new_admin_operations) {
   auto tx = charter::schema::transaction_t{};
 
+  tx.payload = charter::schema::upsert_asset_t{};
+  EXPECT_TRUE(
+      std::holds_alternative<charter::schema::upsert_asset_t>(tx.payload));
+
+  tx.payload = charter::schema::disable_asset_t{};
+  EXPECT_TRUE(
+      std::holds_alternative<charter::schema::disable_asset_t>(tx.payload));
+
   tx.payload = charter::schema::set_degraded_mode_t{};
   EXPECT_TRUE(
       std::holds_alternative<charter::schema::set_degraded_mode_t>(tx.payload));

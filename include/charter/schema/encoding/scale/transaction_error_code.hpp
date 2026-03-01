@@ -41,4 +41,6 @@ SCALE_DEFINE_ENUM_VALUE_LIST(
     charter::schema::transaction_error_code::destination_update_exists,
     charter::schema::transaction_error_code::destination_update_missing,
     charter::schema::transaction_error_code::destination_update_finalized,
-    charter::schema::transaction_error_code::destination_update_not_executable)
+    charter::schema::transaction_error_code::destination_update_not_executable,
+    charter::schema::transaction_error_code::asset_missing,
+    charter::schema::transaction_error_code::asset_disabled)

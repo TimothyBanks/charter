@@ -61,6 +61,26 @@ Applied in validation paths (`check_tx`, proposal, finalize):
 - Events:
   - failure -> execution denial event
 
+### `upsert_asset_t`
+- Preconditions:
+  - none beyond global guards
+- Writes:
+  - `asset_state_t` (upsert)
+- Failures:
+  - path-specific validation failures only (authorization, etc.)
+- Events:
+  - failure -> execution denial event
+
+### `disable_asset_t`
+- Preconditions:
+  - asset exists
+- Writes:
+  - `asset_state_t.enabled = false`
+- Failures:
+  - `40` asset missing
+- Events:
+  - failure -> execution denial event
+
 ### `create_policy_set_t`
 - Preconditions:
   - scope target exists (workspace or vault)
@@ -91,6 +111,7 @@ Applied in validation paths (`check_tx`, proposal, finalize):
   - active policy pointer exists on vault scope
   - intent id unique
   - policy resolution succeeds
+  - transfer asset is onboarded and enabled
   - per-tx limit passes
   - destination whitelist requirement passes
   - velocity limits pass
@@ -101,6 +122,8 @@ Applied in validation paths (`check_tx`, proposal, finalize):
   - `17` active policy missing
   - `19` intent already exists
   - `20` policy resolution failed
+  - `40` asset missing
+  - `41` asset disabled
   - `28` limit exceeded
   - `29` destination not whitelisted
   - `34` velocity limit exceeded
@@ -150,6 +173,7 @@ Applied in validation paths (`check_tx`, proposal, finalize):
   - intent exists
   - intent not expired
   - intent executable (threshold + timelock met)
+  - transfer asset is onboarded and enabled
   - claim requirements satisfied
 - Writes:
   - `intent_state_t` status -> executed
@@ -159,6 +183,8 @@ Applied in validation paths (`check_tx`, proposal, finalize):
   - `21` intent missing
   - `23` intent expired
   - `26` intent not executable
+  - `40` asset missing
+  - `41` asset disabled
   - `30` claim requirement unsatisfied
 - Events:
   - failure -> policy/tx execution denial event

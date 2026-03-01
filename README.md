@@ -64,6 +64,33 @@ Then start CometBFT
 $ cometbft node
 ```
 
+## Onboarding Checklist
+
+Use this as the default first-day setup and verification flow.
+
+1. Build the project in `build.debug`.
+2. Start `charter` and `cometbft` with gRPC ABCI settings.
+3. Run the full test suite:
+```
+$ ./build.debug/charter_tests
+```
+4. Run the canonical PoC workflow script:
+```
+$ tests/run_proof_first_demo.sh
+```
+5. Confirm the proof report is generated under `tests/` and ends in success.
+6. Validate key state queries from the proof flow:
+   - `/state/asset` returns `code=0`
+   - `/state/intent` returns `code=0`
+   - `/history/range` returns `code=0`
+7. Review workflow and contract docs before making behavior changes:
+   - `doc/workflow_playbooks.md`
+   - `doc/golden_workflow_contract.md`
+   - `doc/operation_happy_failure_paths.md`
+   - `doc/transaction_workflow_matrix.md`
+
+Note: asset onboarding (`upsert_asset`) is required before transfer intents; missing or disabled assets fail with codes `40`/`41`.
+
 ## Chat Recovery Log
 
 Use the in-repo history log to recover context after a lost chat session.

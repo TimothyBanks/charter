@@ -131,24 +131,27 @@ log "starting golden workflow proof run"
 
 broadcast_transaction 0 --payload create_workspace --chain-id "$CHAIN_ID" --nonce 1 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID"
 broadcast_transaction 0 --payload create_vault --chain-id "$CHAIN_ID" --nonce 2 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID"
-broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 3 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled false --address-or-contract-hex aabb
-broadcast_transaction 0 --payload create_policy_set --chain-id "$CHAIN_ID" --nonce 4 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID" --asset-id "$ASSET_ID" --threshold 1 --timelock-ms 0 --limit-amount 10 --require-whitelisted-destination true --required-claim kyb_verified --approver "$SIGNER"
-broadcast_transaction 0 --payload activate_policy_set --chain-id "$CHAIN_ID" --nonce 5 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID"
+broadcast_transaction 0 --payload upsert_asset --chain-id "$CHAIN_ID" --nonce 3 --signer "$SIGNER" --asset-id "$ASSET_ID" --chain ethereum --asset-kind erc20 --address-or-contract-hex aabbccdd --asset-symbol-hex 55534443 --asset-name-hex 55534420436f696e --asset-decimals 6 --asset-enabled true
+broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 4 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled false --address-or-contract-hex aabb
+broadcast_transaction 0 --payload create_policy_set --chain-id "$CHAIN_ID" --nonce 5 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID" --asset-id "$ASSET_ID" --threshold 1 --timelock-ms 0 --limit-amount 10 --require-whitelisted-destination true --required-claim kyb_verified --approver "$SIGNER"
+broadcast_transaction 0 --payload activate_policy_set --chain-id "$CHAIN_ID" --nonce 6 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --policy-set-id "$POLICY_SET_ID"
 
 # Negative path checks
-broadcast_transaction 28 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 6 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0101010101010101010101010101010101010101010101010101010101010101 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 11
-broadcast_transaction 29 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 7 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0202020202020202020202020202020202020202020202020202020202020202 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
+broadcast_transaction 28 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 7 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0101010101010101010101010101010101010101010101010101010101010101 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 11
+broadcast_transaction 29 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 8 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id 0202020202020202020202020202020202020202020202020202020202020202 --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
 
 # Positive path setup
-broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 8 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled true --address-or-contract-hex aabb
-broadcast_transaction 0 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 9 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID" --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
-broadcast_transaction 0 --payload approve_intent --chain-id "$CHAIN_ID" --nonce 10 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
-broadcast_transaction 30 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 11 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
-broadcast_transaction 0 --payload upsert_attestation --chain-id "$CHAIN_ID" --nonce 12 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --subject-id "$WORKSPACE_ID" --claim kyb_verified --issuer "$SIGNER" --attestation-expires-at 999999999999
-broadcast_transaction 0 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 13 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 0 --payload upsert_destination --chain-id "$CHAIN_ID" --nonce 9 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --destination-id "$DEST_ID" --destination-enabled true --address-or-contract-hex aabb
+broadcast_transaction 0 --payload propose_intent --chain-id "$CHAIN_ID" --nonce 10 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID" --asset-id "$ASSET_ID" --destination-id "$DEST_ID" --amount 5
+broadcast_transaction 0 --payload approve_intent --chain-id "$CHAIN_ID" --nonce 11 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 30 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 12 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
+broadcast_transaction 0 --payload upsert_attestation --chain-id "$CHAIN_ID" --nonce 13 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --subject-id "$WORKSPACE_ID" --claim kyb_verified --issuer "$SIGNER" --attestation-expires-at 999999999999
+broadcast_transaction 0 --payload execute_intent --chain-id "$CHAIN_ID" --nonce 14 --signer "$SIGNER" --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID"
 
+asset_key="$("$TX_BUILDER" query-key --path /state/asset --asset-id "$ASSET_ID")"
 intent_key="$("$TX_BUILDER" query-key --path /state/intent --workspace-id "$WORKSPACE_ID" --vault-id "$VAULT_ID" --intent-id "$INTENT_ID")"
 history_key="$("$TX_BUILDER" query-key --path /history/range --from-height 1 --to-height 100)"
+query_path /state/asset "$asset_key"
 query_path /state/intent "$intent_key"
 query_path /history/range "$history_key"
 

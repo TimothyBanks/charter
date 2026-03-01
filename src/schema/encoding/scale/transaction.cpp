@@ -2,12 +2,14 @@
 #include <charter/schema/encoding/scale/apply_destination_update.hpp>
 #include <charter/schema/encoding/scale/approve_destination_update.hpp>
 #include <charter/schema/encoding/scale/approve_intent.hpp>
+#include <charter/schema/encoding/scale/asset_state.hpp>
 #include <charter/schema/encoding/scale/cancel_intent.hpp>
 #include <charter/schema/encoding/scale/chain.hpp>
 #include <charter/schema/encoding/scale/claim_type.hpp>
 #include <charter/schema/encoding/scale/create_policy_set.hpp>
 #include <charter/schema/encoding/scale/create_vault.hpp>
 #include <charter/schema/encoding/scale/create_workspace.hpp>
+#include <charter/schema/encoding/scale/disable_asset.hpp>
 #include <charter/schema/encoding/scale/execute_intent.hpp>
 #include <charter/schema/encoding/scale/propose_destination_update.hpp>
 #include <charter/schema/encoding/scale/propose_intent.hpp>

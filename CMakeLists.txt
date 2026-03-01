@@ -433,6 +433,7 @@ if(WITH_TESTS)
     tests/src/schema/primitives_test.cpp
     tests/src/schema/transaction_types_test.cpp
     tests/src/storage/storage_types_test.cpp
+    tests/src/tools/transaction_builder_test.cpp
   )
   target_link_libraries(charter_tests
     PRIVATE
@@ -447,7 +448,12 @@ if(WITH_TESTS)
       spdlog::spdlog
       ${Boost_LIBRARIES}
   )
-  target_compile_definitions(charter_tests PRIVATE SPDLOG_USE_STD_FORMAT)
+  target_compile_definitions(charter_tests
+    PRIVATE
+      SPDLOG_USE_STD_FORMAT
+      CHARTER_TRANSACTION_BUILDER_PATH="$<TARGET_FILE:transaction_builder>"
+  )
+  add_dependencies(charter_tests transaction_builder)
   if(WITH_PCH)
     target_precompile_headers(charter_tests PRIVATE
       <scale/scale.hpp>

@@ -10,6 +10,7 @@
 #include <charter/schema/encoding/scale/approval_state.hpp>
 #include <charter/schema/encoding/scale/approve_destination_update.hpp>
 #include <charter/schema/encoding/scale/approve_intent.hpp>
+#include <charter/schema/encoding/scale/asset_state.hpp>
 #include <charter/schema/encoding/scale/attestation_record.hpp>
 #include <charter/schema/encoding/scale/attestation_status.hpp>
 #include <charter/schema/encoding/scale/block_result.hpp>
@@ -26,6 +27,7 @@
 #include <charter/schema/encoding/scale/destination_type.hpp>
 #include <charter/schema/encoding/scale/destination_update_state.hpp>
 #include <charter/schema/encoding/scale/destination_update_status.hpp>
+#include <charter/schema/encoding/scale/disable_asset.hpp>
 #include <charter/schema/encoding/scale/execute_intent.hpp>
 #include <charter/schema/encoding/scale/history_entry.hpp>
 #include <charter/schema/encoding/scale/intent_state.hpp>
