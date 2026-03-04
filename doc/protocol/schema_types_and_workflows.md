@@ -7,12 +7,12 @@ Purpose: keep one index of schema families and avoid duplicating workflow behavi
 
 | Concern | Canonical doc |
 | --- | --- |
-| Per-operation happy/failure paths, state mutations, and failure side effects | `doc/operation_happy_failure_paths.md` |
-| Compact operation matrix for test/checklist usage | `doc/transaction_workflow_matrix.md` |
-| Operator runbooks (bootstrap, transfer, emergency, recovery) | `doc/workflow_playbooks.md` |
-| Query/key contracts | `doc/query_and_keyspace_contract.md` |
-| Error and security event compatibility contract | `doc/error_codes_and_events_contract.md` |
-| Demo freeze workflow and expected proof outputs | `doc/golden_workflow_contract.md` |
+| Per-operation happy/failure paths, state mutations, and failure side effects | `doc/operations/operation_happy_failure_paths.md` |
+| Compact operation matrix for test/checklist usage | `doc/operations/transaction_workflow_matrix.md` |
+| Operator runbooks (bootstrap, transfer, emergency, recovery) | `doc/operations/workflow_playbooks.md` |
+| Query/key contracts | `doc/operations/query_and_keyspace_contract.md` |
+| Error and security event compatibility contract | `doc/operations/error_codes_and_events_contract.md` |
+| Demo freeze workflow and expected proof outputs | `doc/operations/golden_workflow_contract.md` |
 
 ## Schema Families (What They Represent)
 
@@ -37,8 +37,8 @@ When touching schema or engine routing:
 1. If a payload variant is added/removed/changed, update:
    - `transaction_payload_t`,
    - `engine::execute_operation`,
-   - `doc/operation_happy_failure_paths.md`,
-   - `doc/transaction_workflow_matrix.md`.
-2. If error semantics change, update `doc/error_codes_and_events_contract.md`.
-3. If query/key behavior changes, update `doc/query_and_keyspace_contract.md`.
+   - `doc/operations/operation_happy_failure_paths.md`,
+   - `doc/operations/transaction_workflow_matrix.md`.
+2. If error semantics change, update `doc/operations/error_codes_and_events_contract.md`.
+3. If query/key behavior changes, update `doc/operations/query_and_keyspace_contract.md`.
 4. Keep this file as an index only; avoid repeating per-operation execution details here.

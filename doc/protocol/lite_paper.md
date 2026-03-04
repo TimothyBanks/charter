@@ -287,7 +287,7 @@ Next milestones:
 - economics and validator reward model finalization
 - asset representation decision gates (native asset registry first, optional
   wrapped-asset tracks where required)
-- close pre-pilot ownership gaps tracked in `doc/pre_pilot_gap_checklist.md`
+- close pre-pilot ownership gaps tracked in `doc/planning/pre_pilot_gap_checklist.md`
 
 ## 13. Why This Can Matter
 

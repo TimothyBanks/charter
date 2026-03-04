@@ -76,7 +76,7 @@ What is implemented and tested:
 Evidence artifacts:
 - `tests/run_proof_first_demo.sh`
 - `tests/proof_report_<timestamp>.txt`
-- `doc/golden_workflow_contract.md`
+- `doc/operations/golden_workflow_contract.md`
 - integration/unit test suite (`build.debug/charter_tests`)
 
 ## Slide 6: Why Now
@@ -184,7 +184,7 @@ Use of proceeds (example split):
 ## Appendix A: Demo Contract Snapshot
 
 Reference:
-- `doc/golden_workflow_contract.md`
+- `doc/operations/golden_workflow_contract.md`
 
 Current canonical expected tx denials/success paths include:
 - `28` limit exceeded
@@ -197,13 +197,13 @@ Current canonical expected tx denials/success paths include:
 ## Appendix B: Diligence Links
 
 Primary docs:
-- `doc/one_pager.md`
-- `doc/funding_checklist.md`
-- `doc/competitive_matrix.md`
-- `doc/operation_happy_failure_paths.md`
-- `doc/error_codes_and_events_contract.md`
-- `doc/query_and_keyspace_contract.md`
-- `doc/licensing_strategy_us.md`
+- `doc/protocol/one_pager.md`
+- `doc/funding/funding_checklist.md`
+- `doc/strategy/competitive_matrix.md`
+- `doc/operations/operation_happy_failure_paths.md`
+- `doc/operations/error_codes_and_events_contract.md`
+- `doc/operations/query_and_keyspace_contract.md`
+- `doc/strategy/licensing_strategy_us.md`
 
 ## Presenter Notes (Use In Every Meeting)
 

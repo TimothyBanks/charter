@@ -7,7 +7,7 @@ Prepare Charter for:
 - early regulator-facing diligence
 
 Companion execution tracker:
-- `doc/pre_pilot_gap_checklist.md`
+- `doc/planning/pre_pilot_gap_checklist.md`
 
 ## Principles
 - Sell evidence, not promises.
@@ -28,7 +28,7 @@ Companion execution tracker:
 - destination whitelist check
 - compliance claim/attestation gate
 - deterministic audit and replay evidence
-- canonical acceptance contract: `doc/golden_workflow_contract.md`
+- canonical acceptance contract: `doc/operations/golden_workflow_contract.md`
 
 ## Branching Rule
 - Do not expand to additional verticals until the wedge has:
@@ -46,7 +46,7 @@ Companion execution tracker:
 ### Technical Artifacts
 - [ ] Publish `one_pager.md` and production architecture memo.
 - [ ] Finalize deterministic workflow demo script (end-to-end).
-- [ ] Freeze canonical workflow inputs/expected outputs/report schema in `doc/golden_workflow_contract.md`.
+- [ ] Freeze canonical workflow inputs/expected outputs/report schema in `doc/operations/golden_workflow_contract.md`.
 - [ ] Ensure replay/snapshot/backup flows are reproducible in demo environment.
 - [ ] Publish API/query matrix and expected control outcomes.
 - [ ] Add one scripted demo runbook that a non-author can execute.
@@ -56,7 +56,7 @@ Companion execution tracker:
 - [ ] Draft trust model and assumptions (identity, keys, validator operations).
 - [ ] Define what is public vs confidential data.
 - [ ] Add plain-language statement: protocol reduces compliance burden, it does not replace institution-level obligations.
-- [ ] Publish US-first licensing strategy draft in `doc/licensing_strategy_us.md`.
+- [ ] Publish US-first licensing strategy draft in `doc/strategy/licensing_strategy_us.md`.
 - [ ] Engage external regulatory counsel for activity scoping and licensing sequence review.
 - [ ] Identify interim compliance owner (fractional CCO or equivalent).
 
@@ -105,8 +105,8 @@ Companion execution tracker:
 - [ ] architecture roadmap (Comet -> Concord/homegrown)
 - [ ] economics and moat
 - [ ] team and execution plan
-- [ ] Keep `doc/funding_deck.md` updated as the canonical deck draft.
-- [ ] Keep `doc/sponsor_packet.md` updated as the canonical diligence packet structure.
+- [ ] Keep `doc/funding/funding_deck.md` updated as the canonical deck draft.
+- [ ] Keep `doc/funding/sponsor_packet.md` updated as the canonical diligence packet structure.
 - [ ] Build data room:
 - [ ] product docs
 - [ ] architecture/security docs

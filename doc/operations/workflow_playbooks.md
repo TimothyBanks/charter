@@ -3,12 +3,12 @@
 This is an operator/developer playbook view of custody workflows implemented in the current PoC.
 
 Reference matrix:
-- For canonical per-operation happy/failure behavior and state mutations, see `doc/operation_happy_failure_paths.md`.
-- For a compact checklist view, see `doc/transaction_workflow_matrix.md`.
-- For the frozen demo contract (expected tx codes + report format), see `doc/golden_workflow_contract.md`.
-- For ABCI callback semantics and mutation expectations, see `doc/abci_quick_reference.md`.
+- For canonical per-operation happy/failure behavior and state mutations, see `doc/operations/operation_happy_failure_paths.md`.
+- For a compact checklist view, see `doc/operations/transaction_workflow_matrix.md`.
+- For the frozen demo contract (expected tx codes + report format), see `doc/operations/golden_workflow_contract.md`.
+- For ABCI callback semantics and mutation expectations, see `doc/operations/abci_quick_reference.md`.
 - For draft authority-mode and settlement-confirmation evolution, see
-  `doc/settlement_authority_and_confirmation_draft.md`.
+  `doc/protocol/settlement_authority_and_confirmation_draft.md`.
 
 ## 1) Bootstrap A New Tenant
 
@@ -70,7 +70,7 @@ Authorization precedence:
 - role `admin` acts as scoped superuser fallback for operation roles
 
 Freeze note:
-- Use `doc/golden_workflow_contract.md` as the canonical acceptance contract for demo/proof runs.
+- Use `doc/operations/golden_workflow_contract.md` as the canonical acceptance contract for demo/proof runs.
 
 Settlement integration model (current baseline):
 - Charter governs authorization, policy enforcement, and audit evidence for the
@@ -124,7 +124,7 @@ Validation checks:
 - app hash parity at final height
 
 Evidence note:
-- Include these checks in the canonical report format defined in `doc/golden_workflow_contract.md`.
+- Include these checks in the canonical report format defined in `doc/operations/golden_workflow_contract.md`.
 
 ## 6) Snapshot Sync (ABCI)
 

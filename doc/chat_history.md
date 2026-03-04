@@ -21,7 +21,7 @@ Append entries with `scripts/chatlog.sh`.
 - Branch: `main`
 - Commit: `751a602`
 - Summary: Added a frozen golden workflow contract with canonical tx sequence, expected result codes, required query assertions, and report schema.
-- Decisions: Use doc/golden_workflow_contract.md as source of truth for PoC demo acceptance.
+- Decisions: Use doc/operations/golden_workflow_contract.md as source of truth for PoC demo acceptance.
 - Next: Align tests/run_proof_first_demo.sh output sections with the contract headings and run 3 consecutive proof runs.
 
 ## 2026-02-28 03:33:56Z - PoC build-system acceleration and modular target split

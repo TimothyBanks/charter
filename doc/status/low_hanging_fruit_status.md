@@ -45,7 +45,7 @@ Result:
 
 Implemented:
 - Canonical keyspace list centralized in engine constants.
-- Added docs in `doc/query_and_keyspace_contract.md`.
+- Added docs in `doc/operations/query_and_keyspace_contract.md`.
 - Added runtime introspection query `/engine/keyspaces`.
 
 Result:
@@ -78,8 +78,8 @@ Implemented:
   - `/explorer/transaction`
 - Added `transaction_builder query-key` support for the new explorer paths.
 - Added docs:
-  - `doc/abci_quick_reference.md`
-  - `doc/query_and_keyspace_contract.md` updates
+  - `doc/operations/abci_quick_reference.md`
+  - `doc/operations/query_and_keyspace_contract.md` updates
 
 Result:
 - Public devnet can expose a stable read contract for dashboards and basic explorer/indexer builds.

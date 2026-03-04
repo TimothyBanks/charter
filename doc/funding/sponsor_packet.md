@@ -17,7 +17,7 @@ This packet should let a reviewer answer:
 ### 1) Executive Summary
 
 Use:
-- `doc/one_pager.md`
+- `doc/protocol/one_pager.md`
 
 Key message:
 - custody controls are deterministic protocol behavior, not off-chain workflow assumptions.
@@ -25,7 +25,7 @@ Key message:
 ### 2) Product Proof
 
 Use:
-- `doc/golden_workflow_contract.md`
+- `doc/operations/golden_workflow_contract.md`
 - `tests/run_proof_first_demo.sh`
 - latest `tests/proof_report_<timestamp>.txt`
 
@@ -37,9 +37,9 @@ Reviewer expectations:
 ### 3) Technical Contract Surface
 
 Use:
-- `doc/error_codes_and_events_contract.md`
-- `doc/query_and_keyspace_contract.md`
-- `doc/operation_happy_failure_paths.md`
+- `doc/operations/error_codes_and_events_contract.md`
+- `doc/operations/query_and_keyspace_contract.md`
+- `doc/operations/operation_happy_failure_paths.md`
 
 Reviewer expectations:
 - stable tx/query/event semantics
@@ -49,9 +49,9 @@ Reviewer expectations:
 ### 4) Architecture and Roadmap
 
 Use:
-- `doc/production_architecture.md`
-- `doc/schema-definition.md`
-- `doc/workflow_playbooks.md`
+- `doc/strategy/production_architecture.md`
+- `doc/protocol/schema-definition.md`
+- `doc/operations/workflow_playbooks.md`
 
 Reviewer expectations:
 - clear path from PoC to production
@@ -61,8 +61,8 @@ Reviewer expectations:
 ### 5) Funding and Execution Plan
 
 Use:
-- `doc/funding_checklist.md`
-- `doc/funding_deck.md`
+- `doc/funding/funding_checklist.md`
+- `doc/funding/funding_deck.md`
 
 Reviewer expectations:
 - concrete 30/60/90 plan
@@ -72,7 +72,7 @@ Reviewer expectations:
 ### 6) Regulatory And Licensing Plan (US-First)
 
 Use:
-- `doc/licensing_strategy_us.md`
+- `doc/strategy/licensing_strategy_us.md`
 
 Reviewer expectations:
 - clear activity-to-license mapping
@@ -82,14 +82,14 @@ Reviewer expectations:
 
 ## Recommended Packet Order (What To Send)
 
-1. `doc/one_pager.md`
-2. `doc/funding_deck.md`
-3. `doc/golden_workflow_contract.md`
+1. `doc/protocol/one_pager.md`
+2. `doc/funding/funding_deck.md`
+3. `doc/operations/golden_workflow_contract.md`
 4. latest `tests/proof_report_<timestamp>.txt`
-5. `doc/error_codes_and_events_contract.md`
-6. `doc/query_and_keyspace_contract.md`
-7. `doc/licensing_strategy_us.md`
-8. `doc/funding_checklist.md`
+5. `doc/operations/error_codes_and_events_contract.md`
+6. `doc/operations/query_and_keyspace_contract.md`
+7. `doc/strategy/licensing_strategy_us.md`
+8. `doc/funding/funding_checklist.md`
 
 ## Suggested Cover Email Text
 

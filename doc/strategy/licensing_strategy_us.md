@@ -105,8 +105,8 @@ Note:
 1. Finalize this draft with named counsel review comments.
 2. Build a versioned activity inventory appendix.
 3. Add licensing assumptions to investor and design-partner materials:
-   - `doc/funding_deck.md`
-   - `doc/sponsor_packet.md`
+   - `doc/funding/funding_deck.md`
+   - `doc/funding/sponsor_packet.md`
 4. Add pilot contract language that matches legal perimeter.
 
 ## Open Questions For Counsel

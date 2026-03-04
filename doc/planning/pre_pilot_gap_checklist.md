@@ -114,7 +114,7 @@ Week 2:
 
 ## Related Docs
 
-- `doc/lite_paper.md`
-- `doc/production_architecture.md`
-- `doc/funding_checklist.md`
-- `doc/licensing_strategy_us.md`
+- `doc/protocol/lite_paper.md`
+- `doc/strategy/production_architecture.md`
+- `doc/funding/funding_checklist.md`
+- `doc/strategy/licensing_strategy_us.md`

@@ -91,11 +91,11 @@ $ START_LOCAL=1 ALLOW_INSECURE_CRYPTO=1 tests/run_proof_first_demo.sh
    - `/state/intent` returns `code=0`
    - `/history/range` returns `code=0`
 7. Review workflow and contract docs before making behavior changes:
-   - `doc/workflow_playbooks.md`
-   - `doc/golden_workflow_contract.md`
-   - `doc/operation_happy_failure_paths.md`
-   - `doc/transaction_workflow_matrix.md`
-   - `doc/settlement_authority_and_confirmation_draft.md`
+   - `doc/operations/workflow_playbooks.md`
+   - `doc/operations/golden_workflow_contract.md`
+   - `doc/operations/operation_happy_failure_paths.md`
+   - `doc/operations/transaction_workflow_matrix.md`
+   - `doc/protocol/settlement_authority_and_confirmation_draft.md`
 
 Note: asset onboarding (`upsert_asset`) is required before transfer intents; missing or disabled assets fail with codes `40`/`41`.
 Note: baseline settlement model does not require wrapped assets. Charter governs

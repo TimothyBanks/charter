@@ -19,7 +19,7 @@ Example:
   scripts/chatlog.sh \
     --title "Engine error/event contract review" \
     --summary "Rebuilt context from docs and tests, confirmed tx code matrix coverage." \
-    --decisions "Treat doc/error_codes_and_events_contract.md as pilot contract draft." \
+    --decisions "Treat doc/operations/error_codes_and_events_contract.md as pilot contract draft." \
     --next "Complete freeze checklist and add remaining event coverage tests."
 EOF
 }
